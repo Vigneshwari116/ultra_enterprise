@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:ultra_enterprise/screens/purchase_reports_Screen.dart';
 import '../widgets/enterprise_widgets.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
 import 'master_screens.dart';
 import 'sales_invoice_screen.dart';
 import 'purchase_order_screen.dart';
@@ -11,6 +13,19 @@ import 'transaction_screens.dart';
 import 'stock_screen.dart';
 import 'sync_screen.dart';
 
+class _NavLeaf {
+  final String label;
+  final int pageIndex;
+  const _NavLeaf(this.label, this.pageIndex);
+}
+
+class _NavGroup {
+  final String title;
+  final IconData icon;
+  final List<_NavLeaf> children;
+  const _NavGroup(this.title, this.icon, this.children);
+}
+
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
   @override
@@ -19,14 +34,27 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int index = 0;
+  bool sidebarOpen = true;
+  final Set<String> expandedGroups = {
+    'Account Master',
+    'Delivery Challan',
+    'Quotation',
+    'Sales',
+    'Purchase',
+    'Transactions',
+    'Job Work',
+    'Reports Center',
+    'Manage Users',
+  };
+
+  static const _sidebarWidth = 238.0;
 
   final pages = const [
     HomeScreen(),
-    UnitMasterScreen(),
-    LedgerMasterScreen(),
     CustomerMasterScreen(),
     SupplierMasterScreen(),
-    ProductMasterScreen(),
+    UnitMasterScreen(),
+    LedgerMasterScreen(),
     DeliveryChallanScreen(),
     QuotationScreen(),
     SalesInvoiceScreen(),
@@ -35,69 +63,154 @@ class _AppShellState extends State<AppShell> {
     PurchaseVoucherScreen(),
     PurchaseReportsScreen(),
     TransactionsScreen(),
+    ProductMasterScreen(),
     StockScreen(),
     SyncScreen(),
   ];
 
-  final labels = const [
-    'Dashboard',
-    'Unit Master',
-    'Ledger Master',
-    'Customer Master',
-    'Supplier Master',
-    'Product / Material Master',
-    'Delivery Challan',
-    'Quotation',
-    'Sales Invoice',
-    'Sales Reports',
-    'Purchase Order',
-    'Purchase Voucher',
-    'Purchase Reports',
-    'Transactions',
-    'Stock',
-    'Sync Queue',
+  static const _groups = [
+    _NavGroup('Account Master', Icons.account_balance_outlined, [
+      _NavLeaf('Customer Master', 1),
+      _NavLeaf('Supplier Master', 2),
+      _NavLeaf('Unit Master', 3),
+      _NavLeaf('Ledger Master', 4),
+    ]),
+    _NavGroup('Delivery Challan', Icons.local_shipping_outlined, [
+      _NavLeaf('Delivery Challan', 5),
+      _NavLeaf('DC History', 5),
+    ]),
+    _NavGroup('Quotation', Icons.request_quote_outlined, [
+      _NavLeaf('Quotation Entry', 6),
+    ]),
+    _NavGroup('Sales', Icons.point_of_sale_outlined, [
+      _NavLeaf('Sales Invoice', 7),
+      _NavLeaf('Sales Reports', 8),
+    ]),
+    _NavGroup('Purchase', Icons.shopping_cart_outlined, [
+      _NavLeaf('Purchase Order', 9),
+      _NavLeaf('Purchase Voucher', 10),
+      _NavLeaf('Purchase Reports', 11),
+    ]),
+    _NavGroup('Transactions', Icons.swap_horiz_outlined, [
+      _NavLeaf('Adjustment & Return', 12),
+      _NavLeaf('Cash Book', 12),
+      _NavLeaf('Journal Entry', 12),
+    ]),
+    _NavGroup('Job Work', Icons.precision_manufacturing_outlined, [
+      _NavLeaf('Material Type Master', 13),
+      _NavLeaf('Material Master', 13),
+      _NavLeaf('Stock Register', 14),
+    ]),
+    _NavGroup('Reports Center', Icons.assessment_outlined, [
+      _NavLeaf('Journal Summary', 8),
+      _NavLeaf('Debit / Credit Note History', 8),
+    ]),
+    _NavGroup('Manage Users', Icons.manage_accounts_outlined, [
+      _NavLeaf('User Details', 15),
+      _NavLeaf('Manage Session', 15),
+      _NavLeaf('Manage Permission', 15),
+    ]),
   ];
+
+  String _headerDate() {
+    return DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()).toUpperCase();
+  }
+
+  void _selectPage(int pageIndex) {
+    setState(() => index = pageIndex);
+  }
+
+  void _toggleGroup(String title) {
+    setState(() {
+      if (expandedGroups.contains(title)) {
+        expandedGroups.remove(title);
+      } else {
+        expandedGroups.add(title);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
-          Container(
-            width: 238,
-            color: sidebarBg,
-            child: Column(
-              children: [
-                const SizedBox(height: 22),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 18),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Row(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            width: sidebarOpen ? _sidebarWidth : 0,
+            clipBehavior: Clip.hardEdge,
+            decoration: const BoxDecoration(color: sidebarBg),
+            child: SizedBox(
+              width: _sidebarWidth,
+              child: Column(
+                children: [
+                  const SizedBox(height: 22),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 18),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        children: [
+                          Icon(Icons.grid_view_rounded, color: teal, size: 15),
+                          SizedBox(width: 8),
+                          Text(
+                            'NAVIGATION MATRIX',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.only(bottom: 8),
                       children: [
-                        Icon(Icons.grid_view_rounded, color: teal, size: 15),
-                        SizedBox(width: 8),
-                        Text('NAVIGATION MATRIX',
-                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .8)),
+                        _dashboardItem(),
+                        ..._groups.map(_groupSection),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: labels.length,
-                    itemBuilder: (_, i) => _navItem(i, labels[i]),
+                  const Divider(color: Color(0xFF31445F), height: 1),
+                  InkWell(
+                    onTap: () => Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    ),
+                    child: Container(
+                      margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: red.withOpacity(.12),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: red.withOpacity(.35)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.logout, color: red, size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            'SIGN OUT ENGINE',
+                            style: TextStyle(
+                              color: red,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                const Divider(color: Color(0xFF31445F)),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.white70, size: 18),
-                  title: const Text('SIGN OUT ENGINE', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700)),
-                  onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen())),
-                ),
-                const SizedBox(height: 12),
-              ],
+                ],
+              ),
             ),
           ),
           Expanded(
@@ -105,46 +218,84 @@ class _AppShellState extends State<AppShell> {
               children: [
                 Container(
                   height: 66,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: border))),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(bottom: BorderSide(color: border)),
+                  ),
                   child: Row(
                     children: [
-                      const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('COMMERCIAL ENTERPRISE PLATFORM ENGINE',
-                              style: TextStyle(color: navy, fontSize: 15, fontWeight: FontWeight.w900)),
-                          SizedBox(height: 3),
-                          Text('WEDNESDAY, 23 SEPTEMBER 2026',
-                              style: TextStyle(color: Color(0xFF748094), fontSize: 10, fontWeight: FontWeight.w700)),
-                        ],
+                      IconButton(
+                        tooltip: sidebarOpen ? 'Close navigation' : 'Open navigation',
+                        onPressed: () => setState(() => sidebarOpen = !sidebarOpen),
+                        icon: const Icon(Icons.menu, color: navy, size: 22),
                       ),
-                      const Spacer(),
-                      const Text('SUPERUSER',
-                          style: TextStyle(color: teal, fontSize: 11, fontWeight: FontWeight.w800)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'COMMERCIAL ENTERPRISE PLATFORM ENGINE',
+                              style: TextStyle(
+                                color: navy,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              _headerDate(),
+                              style: const TextStyle(
+                                color: Color(0xFF748094),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Text(
+                        'ULTRA ENGINEERING',
+                        style: TextStyle(
+                          color: navy,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Text(
+                        'SUPERUSER',
+                        style: TextStyle(
+                          color: teal,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       CircleAvatar(
                         radius: 17,
                         backgroundColor: navy,
                         child: const Icon(Icons.person, size: 17, color: Colors.white),
-                      )
+                      ),
                     ],
                   ),
                 ),
                 Expanded(child: IndexedStack(index: index, children: pages)),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
   }
 
-  Widget _navItem(int i, String label) {
-    final selected = index == i;
+  Widget _dashboardItem() {
+    final selected = index == 0;
     return InkWell(
-      onTap: () => setState(() => index = i),
+      onTap: () => _selectPage(0),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
@@ -154,24 +305,110 @@ class _AppShellState extends State<AppShell> {
         ),
         child: Row(
           children: [
-            Icon(_iconFor(i), size: 16, color: selected ? tealDark : Colors.white70),
+            Icon(
+              Icons.dashboard_outlined,
+              size: 16,
+              color: selected ? tealDark : Colors.white70,
+            ),
             const SizedBox(width: 10),
-            Expanded(child: Text(label,
-                style: TextStyle(color: selected ? tealDark : Colors.white70, fontSize: 10.5, fontWeight: FontWeight.w700))),
+            Expanded(
+              child: Text(
+                'Dashboard',
+                style: TextStyle(
+                  color: selected ? tealDark : Colors.white70,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  IconData _iconFor(int i) {
-    const icons = [
-      Icons.dashboard_outlined, Icons.straighten, Icons.account_balance_wallet_outlined,
-      Icons.people_outline, Icons.storefront_outlined, Icons.inventory_2_outlined, Icons.local_shipping_outlined,
-      Icons.request_quote_outlined, Icons.receipt_long_outlined, Icons.analytics_outlined,
-      Icons.shopping_cart_outlined, Icons.receipt_outlined, Icons.assessment_outlined,
-      Icons.swap_horiz, Icons.warehouse_outlined, Icons.sync_outlined
-    ];
-    return icons[i];
+  Widget _groupSection(_NavGroup group) {
+    final expanded = expandedGroups.contains(group.title);
+    final childSelected = group.children.any((c) => c.pageIndex == index);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => _toggleGroup(group.title),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+            decoration: BoxDecoration(
+              color: childSelected && !expanded ? Colors.white.withOpacity(.06) : Colors.transparent,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Row(
+              children: [
+                Icon(group.icon, size: 16, color: Colors.white70),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    group.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Icon(
+                  expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  size: 18,
+                  color: Colors.white54,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (expanded)
+          ...group.children.map((leaf) {
+            final selected = index == leaf.pageIndex &&
+                (leaf.pageIndex != 0 || leaf.label == 'Dashboard');
+            final highlight = index == leaf.pageIndex;
+            return InkWell(
+              onTap: () => _selectPage(leaf.pageIndex),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 28, right: 12, top: 2, bottom: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Container(
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: highlight ? sidebarActiveBg : Colors.white38,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text(
+                          leaf.label,
+                          style: TextStyle(
+                            color: highlight ? sidebarActiveBg : Colors.white60,
+                            fontSize: 10,
+                            fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
+    );
   }
 }
