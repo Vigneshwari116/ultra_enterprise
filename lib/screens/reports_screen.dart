@@ -300,12 +300,14 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
     final igst = _sum('igst_total');
     final total = _sum('grand_total');
 
-    final grouped = <String, List<Map<String, dynamic>>>{};
-    for (final r in rows) {
-      final d = _date(r['transaction_date']);
-      grouped.putIfAbsent(d, () => []).add(r);
-    }
-    final dates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+    final sorted = List<Map<String, dynamic>>.from(rows);
+    sorted.sort((a, b) {
+      final da = DateTime.tryParse('${a['transaction_date'] ?? ''}') ?? DateTime(1970);
+      final db = DateTime.tryParse('${b['transaction_date'] ?? ''}') ?? DateTime(1970);
+      final c = db.compareTo(da);
+      if (c != 0) return c;
+      return ((b['invoice_no'] as num?) ?? 0).compareTo((a['invoice_no'] as num?) ?? 0);
+    });
 
     return SingleChildScrollView(
       child: Column(children: [
@@ -333,7 +335,8 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
                 decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))),
                 child: const Row(children: [
-                  Expanded(flex: 2, child: Text('BILL NO', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  Expanded(flex: 1, child: Text('BILL NO', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  Expanded(flex: 1, child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
                   Expanded(flex: 4, child: Text('PARTY NAME', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
                   Expanded(child: Text('TAXABLE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
                   Expanded(child: Text('CGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
@@ -342,15 +345,7 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
                   Expanded(child: Text('TOTAL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
                 ]),
               ),
-              for (final date in dates) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                  color: const Color(0xFFF3F6FA),
-                  child: Text(date, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: _navy)),
-                ),
-                ...grouped[date]!.map(_auditRow),
-              ],
+              ...sorted.map(_auditRow),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
                 color: const Color(0xFFE1E7F0),
@@ -375,7 +370,8 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFE7EBF0)))),
       child: Row(children: [
-        Expanded(flex: 2, child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9))),
+        Expanded(flex: 1, child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
+        Expanded(flex: 1, child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))),
         Expanded(flex: 4, child: Text('${r['customer_name']}', style: const TextStyle(fontSize: 9))),
         Expanded(child: Text('${(r['taxable_total'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}', style: const TextStyle(fontSize: 9))),
         Expanded(child: Text('${(r['cgst_total'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}', style: const TextStyle(fontSize: 9))),

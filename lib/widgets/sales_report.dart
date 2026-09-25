@@ -23,23 +23,32 @@ pw.Widget _c(String t, {bool bold = false}) => pw.Padding(
       child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
     );
 
-/// Sales audit register PDF — date group header, then bill rows (bill no beside party, not under date).
+/// Sales audit register PDF — columns: bill no, date, then party and tax totals.
 Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
-  final byDate = <String, List<Map<String, dynamic>>>{};
-  for (final inv in invoices) {
-    final key = _fmtDate(inv['transaction_date'] as String?);
-    byDate.putIfAbsent(key, () => []).add(inv);
-  }
-  final dates = byDate.keys.toList()..sort((a, b) => b.compareTo(a));
+  final sorted = List<Map<String, dynamic>>.from(invoices);
+  sorted.sort((a, b) {
+    final da = DateTime.tryParse('${a['transaction_date'] ?? ''}') ?? DateTime(1970);
+    final db = DateTime.tryParse('${b['transaction_date'] ?? ''}') ?? DateTime(1970);
+    final c = db.compareTo(da);
+    if (c != 0) return c;
+    return ((b['invoice_no'] as num?) ?? 0).compareTo((a['invoice_no'] as num?) ?? 0);
+  });
 
   double gTaxable = 0, gCgst = 0, gSgst = 0, gIgst = 0, gTotal = 0;
+  for (final r in sorted) {
+    gTaxable += ((r['taxable_total'] ?? 0) as num).toDouble();
+    gCgst += ((r['cgst_total'] ?? 0) as num).toDouble();
+    gSgst += ((r['sgst_total'] ?? 0) as num).toDouble();
+    gIgst += ((r['igst_total'] ?? 0) as num).toDouble();
+    gTotal += ((r['grand_total'] ?? 0) as num).toDouble();
+  }
 
   final doc = pw.Document();
   doc.addPage(
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       build: (context) {
-        final widgets = <pw.Widget>[
+        return [
           pw.Text('SALES AUDIT REPORT SYSTEM',
               style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
           pw.Text('REAL-TIME TAX COMPLIANCE ACCOUNTING LEDGER DIRECTORY',
@@ -50,17 +59,19 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
           pw.Divider(),
           pw.Table(
             columnWidths: const {
-              0: pw.FlexColumnWidth(2),
-              1: pw.FlexColumnWidth(3),
-              2: pw.FlexColumnWidth(2),
-              3: pw.FlexColumnWidth(2),
-              4: pw.FlexColumnWidth(2),
-              5: pw.FlexColumnWidth(2),
-              6: pw.FlexColumnWidth(2),
+              0: pw.FlexColumnWidth(1.2),
+              1: pw.FlexColumnWidth(1.4),
+              2: pw.FlexColumnWidth(3),
+              3: pw.FlexColumnWidth(1.6),
+              4: pw.FlexColumnWidth(1.4),
+              5: pw.FlexColumnWidth(1.4),
+              6: pw.FlexColumnWidth(1.4),
+              7: pw.FlexColumnWidth(1.6),
             },
             children: [
               pw.TableRow(children: [
-                _h('INV/BILL'),
+                _h('BILL NO'),
+                _h('DATE'),
                 _h('PARTY NAME'),
                 _h('TAXABLE'),
                 _h('CGST'),
@@ -68,29 +79,10 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
                 _h('IGST'),
                 _h('TOTAL'),
               ]),
-            ],
-          ),
-        ];
-
-        for (final date in dates) {
-          final rows = byDate[date]!;
-          widgets.add(pw.SizedBox(height: 6));
-          widgets.add(pw.Text(date, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)));
-          double taxable = 0, cgst = 0, sgst = 0, igst = 0, total = 0;
-          widgets.add(pw.Table(
-            columnWidths: const {
-              0: pw.FlexColumnWidth(2),
-              1: pw.FlexColumnWidth(3),
-              2: pw.FlexColumnWidth(2),
-              3: pw.FlexColumnWidth(2),
-              4: pw.FlexColumnWidth(2),
-              5: pw.FlexColumnWidth(2),
-              6: pw.FlexColumnWidth(2),
-            },
-            children: [
-              for (final r in rows)
+              for (final r in sorted)
                 pw.TableRow(children: [
                   _c('${r['invoice_no'] ?? '-'}'),
+                  _c(_fmtDate(r['transaction_date'] as String?)),
                   _c('${r['customer_name'] ?? '-'}'),
                   _c(_money((r['taxable_total'] ?? 0) as num)),
                   _c(_money((r['cgst_total'] ?? 0) as num)),
@@ -99,34 +91,20 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
                   _c(_money((r['grand_total'] ?? 0) as num), bold: true),
                 ]),
             ],
-          ));
-          for (final r in rows) {
-            taxable += ((r['taxable_total'] ?? 0) as num).toDouble();
-            cgst += ((r['cgst_total'] ?? 0) as num).toDouble();
-            sgst += ((r['sgst_total'] ?? 0) as num).toDouble();
-            igst += ((r['igst_total'] ?? 0) as num).toDouble();
-            total += ((r['grand_total'] ?? 0) as num).toDouble();
-          }
-          gTaxable += taxable;
-          gCgst += cgst;
-          gSgst += sgst;
-          gIgst += igst;
-          gTotal += total;
-        }
-
-        widgets.add(pw.SizedBox(height: 10));
-        widgets.add(pw.Container(
-          padding: const pw.EdgeInsets.all(6),
-          decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey500)),
-          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-            pw.Text('GRAND TOTALS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-            pw.Text(
-              '${_money(gTaxable)}   ${_money(gCgst)}   ${_money(gSgst)}   ${_money(gIgst)}   ${_money(gTotal)}',
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
-            ),
-          ]),
-        ));
-        return widgets;
+          ),
+          pw.SizedBox(height: 10),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(6),
+            decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey500)),
+            child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text('GRAND TOTALS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+              pw.Text(
+                '${_money(gTaxable)}   ${_money(gCgst)}   ${_money(gSgst)}   ${_money(gIgst)}   ${_money(gTotal)}',
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+              ),
+            ]),
+          ),
+        ];
       },
     ),
   );

@@ -242,11 +242,10 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _plainSection(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final stacked = constraints.maxWidth < 980;
+                final section1 = _plainSection(
                     title: 'SECTION 1: TRANSACTION METADATA',
                     children: [
                       _pair(
@@ -278,11 +277,8 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                         _outline('E-WAY BILL NO (EWB NO)', controller: eway),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: _plainSection(
+                  );
+                final section2 = _plainSection(
                     title: 'SECTION 2: ACCOUNT / PARTY CONFIGURATION',
                     children: [
                       DropdownButtonFormField<int>(
@@ -308,9 +304,26 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                         _outline('SHIPPING ADDRESS', controller: shipping, readOnly: true, filled: true),
                       ),
                     ],
-                  ),
-                ),
-              ],
+                  );
+                if (stacked) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      section1,
+                      const SizedBox(height: 16),
+                      section2,
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: section1),
+                    const SizedBox(width: 16),
+                    Expanded(child: section2),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 22),
             const Text('SECTION 3: QUANTITY MATRIX PRODUCT ENTRY',
@@ -333,6 +346,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                       DataColumn(label:Text('SGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
                       DataColumn(label:Text('IGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
                       DataColumn(label:Text('COMPOUND TOTAL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
+                      DataColumn(label:Text('', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
                     ],
                     rows:List.generate(rows.length,(i)=>DataRow(cells:[
                       DataCell(Text('${i+1}')),
@@ -345,6 +359,12 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                       DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].sgstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].sgstPct=double.tryParse(v)??0)))),
                       DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].igstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].igstPct=double.tryParse(v)??0)))),
                       DataCell(Text('₹${rows[i].total.toStringAsFixed(2)}',style:const TextStyle(fontWeight:FontWeight.w800, fontSize: 10.5))),
+                      DataCell(IconButton(
+                        onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
+                        icon: const Icon(Icons.delete_outline, color: red, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      )),
                     ]))
                 ))
             ),
