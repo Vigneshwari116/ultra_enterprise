@@ -240,7 +240,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             LayoutBuilder(
               builder: (context, constraints) {
@@ -332,41 +332,13 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
             Container(height: 1, color: border),
             const SizedBox(height: 14),
             Container(
-                decoration:BoxDecoration(color:Colors.white,border:Border.all(color:border),borderRadius:BorderRadius.circular(4)),
-                child:SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
-                    headingRowColor: const WidgetStatePropertyAll(navy2),
-                    columns: const [
-                      DataColumn(label:Text('SL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('MATERIAL PRODUCT DESCRIPTION', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('UOM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('HSN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('QTY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('RATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('CGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('SGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('IGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('COMPOUND TOTAL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    ],
-                    rows:List.generate(rows.length,(i)=>DataRow(cells:[
-                      DataCell(Text('${i+1}')),
-                      DataCell(SizedBox(width:190,child:DropdownButton<int>(isExpanded:true,hint: const Text('Item Description', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),value:rows[i].productId,items:products.map((p)=>DropdownMenuItem<int>(value:p['id'],child:Text('${p['product_name']}'))).toList(),onChanged:(v){final p=products.firstWhere((x)=>x['id']==v);setState(()=>rows[i].setProduct(p));}))),
-                      DataCell(SizedBox(width:90,child:DropdownButton<int>(isExpanded:true,underline: const SizedBox(),value:rows[i].unitId,hint: const Text('UOM', style: TextStyle(fontSize: 11.5)),items:units.map((u)=>DropdownMenuItem<int>(value:u['id'] as int,child:Text('${u['code']}'))).toList(),onChanged:(v){final u=units.firstWhere((x)=>x['id']==v);setState((){rows[i].unitId=v;rows[i].uom='${u['code']}';});}))),
-                      DataCell(Text(rows[i].hsn)),
-                      DataCell(SizedBox(width:65,child:TextField(key:ValueKey('q$i'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].qty=double.tryParse(v)??0)))),
-                      DataCell(SizedBox(width:75,child:TextField(key:ValueKey('r$i'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].rate=double.tryParse(v)??0)))),
-                      DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].cgstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].cgstPct=double.tryParse(v)??0)))),
-                      DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].sgstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].sgstPct=double.tryParse(v)??0)))),
-                      DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].igstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].igstPct=double.tryParse(v)??0)))),
-                      DataCell(Text('₹${rows[i].total.toStringAsFixed(2)}',style:const TextStyle(fontWeight:FontWeight.w800, fontSize: 10.5))),
-                      DataCell(IconButton(
-                        onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
-                        icon: const Icon(Icons.delete_outline, color: red, size: 18),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                      )),
-                    ]))
-                ))
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: border),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              width: double.infinity,
+              child: _productMatrixTable(),
             ),
             const SizedBox(height:12),
             Center(
@@ -511,6 +483,200 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     ],
   );
   String _amountInWords(double v) => v == 0 ? 'ZERO RUPEES ONLY' : '₹${v.toStringAsFixed(2)} ONLY';
+
+  static const _matrixHeadStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 9);
+  static const _matrixCellStyle = TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: navy);
+  static const _matrixInputDecoration = InputDecoration(
+    isDense: true,
+    contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+  );
+
+  Widget _productMatrixTable() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalW = constraints.maxWidth;
+        const spacing = 4.0;
+        const slW = 24.0;
+        const uomW = 52.0;
+        const hsnW = 58.0;
+        const qtyW = 46.0;
+        const rateW = 50.0;
+        const taxW = 42.0;
+        const totalWcol = 68.0;
+        const actW = 28.0;
+        const colCount = 11;
+        final fixed = slW + uomW + hsnW + qtyW + rateW + (taxW * 3) + totalWcol + actW + (spacing * colCount);
+        final matW = (totalW - fixed - 12).clamp(96.0, 168.0);
+        final needScroll = totalW < 720;
+
+        final table = DataTable(
+          columnSpacing: spacing,
+          horizontalMargin: 6,
+          headingRowHeight: 32,
+          dataRowMinHeight: 36,
+          headingRowColor: const WidgetStatePropertyAll(navy2),
+          columns: const [
+            DataColumn(label: Text('SL', style: _matrixHeadStyle)),
+            DataColumn(label: Text('MATERIAL PRODUCT DESCRIPTION', style: _matrixHeadStyle)),
+            DataColumn(label: Text('UOM', style: _matrixHeadStyle)),
+            DataColumn(label: Text('HSN', style: _matrixHeadStyle)),
+            DataColumn(label: Text('QTY', style: _matrixHeadStyle)),
+            DataColumn(label: Text('RATE', style: _matrixHeadStyle)),
+            DataColumn(label: Text('CGST%', style: _matrixHeadStyle)),
+            DataColumn(label: Text('SGST%', style: _matrixHeadStyle)),
+            DataColumn(label: Text('IGST%', style: _matrixHeadStyle)),
+            DataColumn(label: Text('COMPOUND TOTAL', style: _matrixHeadStyle)),
+            DataColumn(label: Text('', style: _matrixHeadStyle)),
+          ],
+          rows: List.generate(rows.length, (i) {
+            return DataRow(
+              cells: [
+                DataCell(Text('${i + 1}', style: _matrixCellStyle)),
+                DataCell(
+                  SizedBox(
+                    width: matW,
+                    child: DropdownButton<int>(
+                      isExpanded: true,
+                      isDense: true,
+                      hint: const Text('Item Description', style: TextStyle(fontSize: 10, color: Color(0xFF9AA5B4))),
+                      value: rows[i].productId,
+                      items: products
+                          .map((p) => DropdownMenuItem<int>(
+                                value: p['id'] as int,
+                                child: Text('${p['product_name']}', style: const TextStyle(fontSize: 10), overflow: TextOverflow.ellipsis),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        final p = products.firstWhere((x) => x['id'] == v);
+                        setState(() => rows[i].setProduct(p));
+                      },
+                    ),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: uomW,
+                    child: DropdownButton<int>(
+                      isExpanded: true,
+                      isDense: true,
+                      underline: const SizedBox(),
+                      value: rows[i].unitId,
+                      hint: const Text('UOM', style: TextStyle(fontSize: 10)),
+                      items: units
+                          .map((u) => DropdownMenuItem<int>(
+                                value: u['id'] as int,
+                                child: Text('${u['code']}', style: const TextStyle(fontSize: 10)),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        final u = units.firstWhere((x) => x['id'] == v);
+                        setState(() {
+                          rows[i].unitId = v;
+                          rows[i].uom = '${u['code']}';
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: hsnW,
+                    child: Text(rows[i].hsn, style: _matrixCellStyle, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: qtyW,
+                    child: TextField(
+                      key: ValueKey('q$i'),
+                      keyboardType: TextInputType.number,
+                      style: _matrixCellStyle,
+                      decoration: _matrixInputDecoration,
+                      onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
+                    ),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: rateW,
+                    child: TextField(
+                      key: ValueKey('r$i'),
+                      keyboardType: TextInputType.number,
+                      style: _matrixCellStyle,
+                      decoration: _matrixInputDecoration,
+                      onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
+                    ),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: taxW,
+                    child: TextField(
+                      controller: TextEditingController(text: '${rows[i].cgstPct}'),
+                      keyboardType: TextInputType.number,
+                      style: _matrixCellStyle,
+                      decoration: _matrixInputDecoration,
+                      onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
+                    ),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: taxW,
+                    child: TextField(
+                      controller: TextEditingController(text: '${rows[i].sgstPct}'),
+                      keyboardType: TextInputType.number,
+                      style: _matrixCellStyle,
+                      decoration: _matrixInputDecoration,
+                      onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
+                    ),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: taxW,
+                    child: TextField(
+                      controller: TextEditingController(text: '${rows[i].igstPct}'),
+                      keyboardType: TextInputType.number,
+                      style: _matrixCellStyle,
+                      decoration: _matrixInputDecoration,
+                      onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
+                    ),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: totalWcol,
+                    child: Text(
+                      rows[i].total.toStringAsFixed(2),
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 10, color: navy),
+                    ),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: actW,
+                    child: IconButton(
+                      onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
+                      icon: const Icon(Icons.delete_outline, color: red, size: 16),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
+        );
+
+        if (needScroll) {
+          return SingleChildScrollView(scrollDirection: Axis.horizontal, child: table);
+        }
+        return table;
+      },
+    );
+  }
 }
 
 class _InvoiceRow{
