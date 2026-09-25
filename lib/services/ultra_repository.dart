@@ -22,7 +22,7 @@ class UltraRepository {
       return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     if (decoded is Map) {
-      for (final key in ['results', 'data', 'items']) {
+      for (final key in ['results', 'data', 'items', 'invoices', 'customers', 'units']) {
         final inner = decoded[key];
         if (inner is List) {
           return inner.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -40,10 +40,73 @@ class UltraRepository {
 
   int _idFromResponse(dynamic decoded) {
     final row = _asRow(decoded);
+    for (final key in [
+      'customer',
+      'invoice',
+      'unit',
+      'supplier',
+      'product',
+      'order',
+      'challan',
+      'quotation',
+      'note',
+      'voucher',
+    ]) {
+      final nested = row[key];
+      if (nested is Map) {
+        final id = nested['id'];
+        if (id is int) return id;
+        if (id is num) return id.toInt();
+      }
+    }
     final id = row['id'];
     if (id is int) return id;
     if (id is num) return id.toInt();
     throw Exception('API response missing id');
+  }
+
+  Map<String, dynamic> _mapCustomerToApi(Map<String, dynamic> row) {
+    final out = Map<String, dynamic>.from(row);
+    if (out.containsKey('bank_name')) {
+      out['bank_identifier_name'] = out.remove('bank_name');
+    }
+    return out;
+  }
+
+  static const _stateZoneIdByLabel = {
+    'Intra State': 1,
+    'Inter State': 2,
+    'INTRA': 1,
+    'INTER': 2,
+  };
+
+  Map<String, dynamic> _mapSalesInvoiceToApi(Map<String, dynamic> body) {
+    final out = Map<String, dynamic>.from(body);
+    final zone = out.remove('state_zone');
+    if (zone != null && out['state_zone_id'] == null) {
+      final id = _stateZoneIdByLabel['$zone'] ??
+          _stateZoneIdByLabel['${zone.toString().toUpperCase()}'];
+      if (id != null) out['state_zone_id'] = id;
+    }
+    if (out.containsKey('challan_no')) {
+      out['challan_dc_no'] = out.remove('challan_no');
+    }
+    if (out.containsKey('challan_date')) {
+      out['challan_dc_date'] = out.remove('challan_date');
+    }
+    return out;
+  }
+
+  Map<String, dynamic> _normalizeSalesInvoiceRow(Map<String, dynamic> inv) {
+    final out = Map<String, dynamic>.from(inv);
+    out['party_name'] = out['party_name'] ?? out['customer_name'];
+    out['state_zone'] = out['state_zone'] ?? out['state_zone_name'] ?? out['state_zone_code'];
+    out['challan_no'] = out['challan_no'] ?? out['challan_dc_no'];
+    out['challan_date'] = out['challan_date'] ?? out['challan_dc_date'];
+    out['customer_address'] = out['customer_address'] ?? out['address'];
+    out['customer_gstin'] = out['customer_gstin'] ?? out['gstin'];
+    out['bank_name'] = out['bank_name'] ?? out['bank_identifier_name'];
+    return out;
   }
 
   Future<Map<String, dynamic>?> _getDocument(String path) async {
@@ -87,12 +150,12 @@ class UltraRepository {
 
   Future<int> insertCustomer(Map<String, dynamic> row) async {
     if (UltraConfig.persistLocally) return _db.insertCustomer(row);
-    return _idFromResponse(await _api.post('/api/customers', row));
+    return _idFromResponse(await _api.post('/api/customers', _mapCustomerToApi(row)));
   }
 
   Future<int> updateCustomer(int id, Map<String, dynamic> row) async {
     if (UltraConfig.persistLocally) return _db.updateCustomer(id, row);
-    await _api.put('/api/customers/$id', row);
+    await _api.put('/api/customers/$id', _mapCustomerToApi(row));
     return id;
   }
 
@@ -181,14 +244,17 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> salesInvoicesWithParty() async {
     if (UltraConfig.persistLocally) return _db.salesInvoicesWithParty();
-    return _asRowList(await _api.get('/api/sales-invoices'));
+    final rows = _asRowList(await _api.get('/api/sales-invoices'));
+    return rows.map(_normalizeSalesInvoiceRow).toList();
   }
 
   Future<int> createSalesInvoice(Map<String, dynamic> body) async {
     if (UltraConfig.persistLocally) {
       return _createSalesInvoiceLocal(body);
     }
-    return _idFromResponse(await _api.post('/api/sales-invoices', body));
+    return _idFromResponse(
+      await _api.post('/api/sales-invoices', _mapSalesInvoiceToApi(body)),
+    );
   }
 
   Future<int> _createSalesInvoiceLocal(Map<String, dynamic> body) async {
@@ -204,8 +270,9 @@ class UltraRepository {
     if (UltraConfig.persistLocally) return _db.salesInvoicePrintBundle(invoiceId);
     final doc = await _getDocument('/api/sales-invoices/$invoiceId');
     if (doc == null) return null;
-    final invoice = Map<String, dynamic>.from(doc['invoice'] as Map? ?? doc);
-    final items = _asRowList(doc['items'] ?? invoice.remove('items'));
+    final raw = Map<String, dynamic>.from(doc['invoice'] as Map? ?? doc);
+    final items = _asRowList(doc['items'] ?? raw.remove('items'));
+    final invoice = _normalizeSalesInvoiceRow(raw);
     return {'invoice': invoice, 'items': items};
   }
 

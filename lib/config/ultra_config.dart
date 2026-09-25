@@ -8,6 +8,6 @@ class UltraConfig {
   /// Deployed Ultra API origin (no trailing slash). Override for your VPS.
   static const String apiBaseUrl = String.fromEnvironment(
     'ULTRA_API_URL',
-    defaultValue: 'http://127.0.0.1:8081',
+    defaultValue: 'https://api.ultra.winagrum.tech',
   );
 }
