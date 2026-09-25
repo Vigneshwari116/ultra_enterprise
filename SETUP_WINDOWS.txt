@@ -1,0 +1,19 @@
+ULTRA FULL PROJECT SETUP
+
+1. Extract the ZIP.
+2. Open PowerShell in the extracted folder.
+3. Run:
+   flutter create .
+4. Then:
+   flutter pub get
+5. Run:
+   flutter run -d windows
+
+The generated platform files are created by Flutter itself because this package was prepared
+without the Flutter SDK in the build environment.
+
+IMPORTANT:
+- Do not replace lib/ after running flutter create.
+- The application keeps one SQLite database for all modules.
+- Sales Invoice saves locally first and adds a sync queue record.
+- Change lib/services/api_service.dart when the production API URL is ready.
