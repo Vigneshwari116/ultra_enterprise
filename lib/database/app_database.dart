@@ -13,7 +13,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 10,
+      version: 11,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -448,6 +448,103 @@ class AppDatabase {
             )
           ''');
         }
+        if (oldVersion < 11) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS delivery_challans(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              uuid TEXT NOT NULL UNIQUE,
+              dc_type TEXT NOT NULL,
+              serial_no INTEGER,
+              doc_id TEXT,
+              document_date TEXT,
+              po_ref_no TEXT,
+              po_ref_date TEXT,
+              total_packages INTEGER DEFAULT 0,
+              vehicle_dispatch TEXT,
+              credit_due_days INTEGER DEFAULT 0,
+              eway_bill_no TEXT,
+              validity_days INTEGER DEFAULT 0,
+              party_kind TEXT,
+              party_id INTEGER,
+              billing_address TEXT,
+              city TEXT,
+              pincode TEXT,
+              gstin TEXT,
+              account_ref TEXT,
+              delivery_site_address TEXT,
+              fwd_charge REAL DEFAULT 0,
+              base_value REAL DEFAULT 0,
+              tax_total REAL DEFAULT 0,
+              grand_total REAL DEFAULT 0,
+              total_pcs REAL DEFAULT 0,
+              status TEXT DEFAULT 'POSTED',
+              created_at TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS delivery_challan_items(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              challan_id INTEGER,
+              product_id INTEGER,
+              description TEXT,
+              uom TEXT,
+              hsn TEXT,
+              quantity REAL,
+              rate REAL,
+              cgst_percent REAL,
+              sgst_percent REAL,
+              igst_percent REAL,
+              extended_value REAL,
+              remarks TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS quotations(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              uuid TEXT NOT NULL UNIQUE,
+              ref_no TEXT,
+              serial_no INTEGER,
+              quotation_date TEXT,
+              validity_days INTEGER DEFAULT 0,
+              reference_name TEXT,
+              reference_date TEXT,
+              party_kind TEXT,
+              party_id INTEGER,
+              address TEXT,
+              city TEXT,
+              pincode TEXT,
+              gstin TEXT,
+              salutation TEXT,
+              subject TEXT,
+              body_text TEXT,
+              freight REAL DEFAULT 0,
+              net_total REAL DEFAULT 0,
+              total_qty REAL DEFAULT 0,
+              status TEXT DEFAULT 'PENDING',
+              created_at TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS quotation_items(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              quotation_id INTEGER,
+              product_id INTEGER,
+              description TEXT,
+              uom TEXT,
+              quantity REAL,
+              rate REAL,
+              line_total REAL
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS quotation_terms(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              quotation_id INTEGER,
+              sort_order INTEGER,
+              text TEXT
+            )
+          ''');
+        }
         if (oldVersion < 10) {
           for (final col in [
             'po_bill_no TEXT',
@@ -775,5 +872,92 @@ class AppDatabase {
     final invoices = await db.rawQuery('SELECT COUNT(DISTINCT customer_id) AS c FROM sales_invoices');
     final count = Sqflite.firstIntValue(invoices) ?? 0;
     return count > 0 ? count : 1;
+  }
+
+  // ---- Delivery Challan ----
+
+  Future<int> nextDeliveryChallanSerial(String dcType) async {
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM delivery_challans WHERE dc_type = ?',
+      [dcType],
+    );
+    return (Sqflite.firstIntValue(result) ?? 0) + 1;
+  }
+
+  Future<List<Map<String, dynamic>>> deliveryChallansList({String? dcType}) async {
+    final where = dcType == null ? '' : 'WHERE dc.dc_type = ?';
+    final args = dcType == null ? <Object>[] : [dcType];
+    return db.rawQuery('''
+      SELECT dc.*,
+        CASE
+          WHEN dc.party_kind = 'SUPPLIER' THEN (SELECT supplier_name FROM suppliers WHERE id = dc.party_id)
+          WHEN dc.party_kind = 'CUSTOMER' THEN (SELECT customer_name FROM customers WHERE id = dc.party_id)
+          ELSE '-'
+        END AS party_name
+      FROM delivery_challans dc
+      $where
+      ORDER BY dc.document_date DESC, dc.id DESC
+    ''', args);
+  }
+
+  Future<List<Map<String, dynamic>>> deliveryChallanItems(int challanId) =>
+      db.query('delivery_challan_items', where: 'challan_id = ?', whereArgs: [challanId]);
+
+  Future<Map<String, dynamic>?> deliveryChallanPrintBundle(int challanId) async {
+    final rows = await db.rawQuery('''
+      SELECT dc.*,
+        CASE
+          WHEN dc.party_kind = 'SUPPLIER' THEN (SELECT supplier_name FROM suppliers WHERE id = dc.party_id)
+          WHEN dc.party_kind = 'CUSTOMER' THEN (SELECT customer_name FROM customers WHERE id = dc.party_id)
+          ELSE '-'
+        END AS party_name
+      FROM delivery_challans dc
+      WHERE dc.id = ?
+    ''', [challanId]);
+    if (rows.isEmpty) return null;
+    return {'challan': rows.first, 'items': await deliveryChallanItems(challanId)};
+  }
+
+  // ---- Quotation ----
+
+  Future<int> nextQuotationSerial() async {
+    final result = await db.rawQuery('SELECT COUNT(*) AS c FROM quotations');
+    return (Sqflite.firstIntValue(result) ?? 0) + 1;
+  }
+
+  Future<List<Map<String, dynamic>>> quotationsWithParty() => db.rawQuery('''
+        SELECT q.*,
+          CASE
+            WHEN q.party_kind = 'SUPPLIER' THEN (SELECT supplier_name FROM suppliers WHERE id = q.party_id)
+            WHEN q.party_kind = 'CUSTOMER' THEN (SELECT customer_name FROM customers WHERE id = q.party_id)
+            ELSE '-'
+          END AS party_name,
+          (SELECT COALESCE(SUM(quantity), 0) FROM quotation_items WHERE quotation_id = q.id) AS total_qty
+        FROM quotations q
+        ORDER BY q.quotation_date DESC, q.id DESC
+      ''');
+
+  Future<List<Map<String, dynamic>>> quotationItems(int quotationId) =>
+      db.query('quotation_items', where: 'quotation_id = ?', whereArgs: [quotationId], orderBy: 'id ASC');
+
+  Future<List<Map<String, dynamic>>> quotationTerms(int quotationId) =>
+      db.query('quotation_terms', where: 'quotation_id = ?', whereArgs: [quotationId], orderBy: 'sort_order ASC');
+
+  Future<void> updateQuotationStatus(int quotationId, String status) => db.update(
+        'quotations',
+        {'status': status},
+        where: 'id = ?',
+        whereArgs: [quotationId],
+      );
+
+  Future<Map<String, dynamic>?> quotationPrintBundle(int quotationId) async {
+    final rows = await quotationsWithParty();
+    final q = rows.where((r) => r['id'] == quotationId).toList();
+    if (q.isEmpty) return null;
+    return {
+      'quotation': q.first,
+      'items': await quotationItems(quotationId),
+      'terms': await quotationTerms(quotationId),
+    };
   }
 }

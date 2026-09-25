@@ -5,6 +5,8 @@ import '../widgets/enterprise_widgets.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'master_screens.dart';
+import 'delivery_challan_screen.dart';
+import 'quotation_screen.dart';
 import 'sales_invoice_screen.dart';
 import 'purchase_order_screen.dart';
 import 'purchase_voucher_screen.dart';
@@ -56,7 +58,7 @@ class _AppShellState extends State<AppShell> {
     const SupplierMasterScreen(),
     const UnitMasterScreen(),
     const LedgerMasterScreen(),
-    const DeliveryChallanScreen(),
+    DeliveryChallanScreen(key: deliveryChallanScreenKey),
     const QuotationScreen(),
     SalesInvoiceScreen(key: salesInvoiceCatalogKey),
     const SalesReportsScreen(),
@@ -128,13 +130,20 @@ class _AppShellState extends State<AppShell> {
     return DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()).toUpperCase();
   }
 
-  void _selectPage(int pageIndex) {
+  void _selectPage(int pageIndex, {String? leafLabel}) {
     setState(() {
       index = pageIndex;
       if (MediaQuery.sizeOf(context).width < 900) {
         sidebarOpen = false;
       }
     });
+    if (pageIndex == 5) {
+      if (leafLabel == 'DC History') {
+        deliveryChallanScreenKey.currentState?.openHistory();
+      } else {
+        deliveryChallanScreenKey.currentState?.openEntry();
+      }
+    }
     if (pageIndex == 7) {
       salesInvoiceCatalogKey.currentState?.refreshCatalog();
     }
@@ -392,7 +401,7 @@ class _AppShellState extends State<AppShell> {
           ...group.children.map((leaf) {
             final highlight = index == leaf.pageIndex;
             return InkWell(
-              onTap: () => _selectPage(leaf.pageIndex),
+              onTap: () => _selectPage(leaf.pageIndex, leafLabel: leaf.label),
               child: Padding(
                 padding: const EdgeInsets.only(left: 28, right: 12, top: 2, bottom: 2),
                 child: Row(

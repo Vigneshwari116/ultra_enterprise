@@ -104,6 +104,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       await AppDatabase.instance.insertUnit(row);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit saved.')));
+        salesInvoiceCatalogKey.currentState?.refreshCatalog();
       }
       codeCtrl.clear();
       descCtrl.clear();
@@ -112,6 +113,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       await AppDatabase.instance.updateUnit(selectedId!, row);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit updated.')));
+        salesInvoiceCatalogKey.currentState?.refreshCatalog();
       }
       setState(() => error = null);
     }
@@ -1092,14 +1094,6 @@ class _ProductMasterScreenState extends State<ProductMasterScreen>{
   @override Widget build(BuildContext context)=>MasterPage(title:'PRODUCT / MATERIAL MASTER',section:'04',tableTitle:'MATERIAL PRODUCT CONFIGURATION',columns:const['CODE','PRODUCT','UOM','HSN','RATE','STOCK','STATUS'],rows:data.map((x)=>['${x['product_code']}','${x['product_name']}','${x['uom_code']}','${x['hsn']??''}','${x['rate']}','${x['current_stock']}','${x['status']}']).toList(),onAdd:add);
 }
 
-class DeliveryChallanScreen extends StatelessWidget {
-  const DeliveryChallanScreen({super.key});
-  @override Widget build(BuildContext context)=>const MasterPage(title:'DELIVERY CHALLAN',section:'05',tableTitle:'DELIVERY CHALLAN REGISTER',columns:['DC NO','DATE','CUSTOMER','PACKAGES','VEHICLE','STATUS'],rows:[['DC-0001','23/09/2026','Test Customer','0','-','DRAFT']]);
-}
-class QuotationScreen extends StatelessWidget {
-  const QuotationScreen({super.key});
-  @override Widget build(BuildContext context)=>const MasterPage(title:'QUOTATION',section:'06',tableTitle:'QUOTATION REGISTER',columns:['QUOTE NO','DATE','CUSTOMER','VALUE','STATUS'],rows:[['Q-0001','23/09/2026','Test Customer','₹0.00','DRAFT']]);
-}
 class SupplierMasterScreen extends StatefulWidget {
   const SupplierMasterScreen({super.key});
   @override State<SupplierMasterScreen> createState()=>_SupplierMasterScreenState();
