@@ -35,6 +35,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int index = 0;
   bool sidebarOpen = true;
+  bool _sidebarDefaultSet = false;
   final Set<String> expandedGroups = {
     'Account Master',
     'Delivery Challan',
@@ -112,12 +113,28 @@ class _AppShellState extends State<AppShell> {
     ]),
   ];
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_sidebarDefaultSet) {
+      _sidebarDefaultSet = true;
+      if (MediaQuery.sizeOf(context).width < 900) {
+        sidebarOpen = false;
+      }
+    }
+  }
+
   String _headerDate() {
     return DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()).toUpperCase();
   }
 
   void _selectPage(int pageIndex) {
-    setState(() => index = pageIndex);
+    setState(() {
+      index = pageIndex;
+      if (MediaQuery.sizeOf(context).width < 900) {
+        sidebarOpen = false;
+      }
+    });
   }
 
   void _toggleGroup(String title) {
@@ -217,8 +234,8 @@ class _AppShellState extends State<AppShell> {
             child: Column(
               children: [
                 Container(
-                  height: 66,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  height: MediaQuery.sizeOf(context).width < 720 ? 58 : 66,
+                  padding: EdgeInsets.symmetric(horizontal: MediaQuery.sizeOf(context).width < 720 ? 10 : 20),
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     border: Border(bottom: BorderSide(color: border)),
@@ -236,11 +253,11 @@ class _AppShellState extends State<AppShell> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'COMMERCIAL ENTERPRISE PLATFORM ENGINE',
                               style: TextStyle(
                                 color: navy,
-                                fontSize: 15,
+                                fontSize: MediaQuery.sizeOf(context).width < 720 ? 12 : 14,
                                 fontWeight: FontWeight.w900,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -257,20 +274,22 @@ class _AppShellState extends State<AppShell> {
                           ],
                         ),
                       ),
-                      const Text(
-                        'ULTRA ENGINEERING',
-                        style: TextStyle(
-                          color: navy,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
+                      if (MediaQuery.sizeOf(context).width >= 520) ...[
+                        const Text(
+                          'ULTRA ENGINEERING',
+                          style: TextStyle(
+                            color: navy,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 14),
+                        const SizedBox(width: 10),
+                      ],
                       const Text(
                         'SUPERUSER',
                         style: TextStyle(
                           color: teal,
-                          fontSize: 11,
+                          fontSize: 10,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -368,8 +387,6 @@ class _AppShellState extends State<AppShell> {
         ),
         if (expanded)
           ...group.children.map((leaf) {
-            final selected = index == leaf.pageIndex &&
-                (leaf.pageIndex != 0 || leaf.label == 'Dashboard');
             final highlight = index == leaf.pageIndex;
             return InkWell(
               onTap: () => _selectPage(leaf.pageIndex),

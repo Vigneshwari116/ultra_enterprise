@@ -622,4 +622,53 @@ class AppDatabase {
   }
 
   String newUuid() => const Uuid().v4();
+
+  // ---- Dashboard analytics ----
+
+  Future<int> pendingPurchaseOrderCount() async {
+    final result = await db.rawQuery(
+      "SELECT COUNT(*) AS c FROM purchase_orders WHERE status IS NULL OR status != 'RECEIVED'",
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<double> customerOutstandingTotal() async {
+    final ob = await db.rawQuery(
+      "SELECT COALESCE(SUM(opening_balance_dr - opening_balance_cr), 0) AS t FROM customers WHERE status = 'ACTIVE'",
+    );
+    final inv = await db.rawQuery('SELECT COALESCE(SUM(grand_total), 0) AS t FROM sales_invoices');
+    final rec = await db.rawQuery('SELECT COALESCE(SUM(amount), 0) AS t FROM receipts');
+    final opening = (ob.first['t'] as num?)?.toDouble() ?? 0;
+    final invoices = (inv.first['t'] as num?)?.toDouble() ?? 0;
+    final receipts = (rec.first['t'] as num?)?.toDouble() ?? 0;
+    return opening + invoices - receipts;
+  }
+
+  Future<double> supplierOutstandingTotal() async {
+    final ob = await db.rawQuery(
+      "SELECT COALESCE(SUM(opening_balance_cr - opening_balance_dr), 0) AS t FROM suppliers WHERE status = 'ACTIVE'",
+    );
+    final pv = await db.rawQuery('SELECT COALESCE(SUM(grand_total), 0) AS t FROM purchase_vouchers');
+    final paid = await db.rawQuery('SELECT COALESCE(SUM(amount), 0) AS t FROM payments');
+    final opening = (ob.first['t'] as num?)?.toDouble() ?? 0;
+    final purchases = (pv.first['t'] as num?)?.toDouble() ?? 0;
+    final payments = (paid.first['t'] as num?)?.toDouble() ?? 0;
+    return opening + purchases - payments;
+  }
+
+  Future<double> monthlyPurchaseExpenses() async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, 1).toIso8601String().split('T').first;
+    final result = await db.rawQuery(
+      'SELECT COALESCE(SUM(grand_total), 0) AS t FROM purchase_vouchers WHERE voucher_date >= ?',
+      [start],
+    );
+    return (result.first['t'] as num?)?.toDouble() ?? 0;
+  }
+
+  Future<int> runningProjectsCount() async {
+    final invoices = await db.rawQuery('SELECT COUNT(DISTINCT customer_id) AS c FROM sales_invoices');
+    final count = Sqflite.firstIntValue(invoices) ?? 0;
+    return count > 0 ? count : 1;
+  }
 }

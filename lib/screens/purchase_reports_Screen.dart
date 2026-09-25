@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/app_database.dart';
+import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_Report.dart';
 
@@ -246,35 +247,18 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       ),
     ),
     const SizedBox(width: 12),
-    InkWell(
-      onTap: () async {
-        final now = DateTime.now();
-        final picked = await showDateRangePicker(
-          context: context,
-          firstDate: DateTime(now.year - 5),
-          lastDate: DateTime(now.year + 1),
-          initialDateRange: dateRange,
-        );
-        if (picked != null) setState(() => dateRange = picked);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4)),
-        child: Row(children: [
-          const Icon(Icons.calendar_today_outlined, size: 14, color: Color(0xFF748094)),
-          const SizedBox(width: 8),
-          Text(
-            dateRange == null
-                ? 'DATE FILTER'
-                : '${_fmtDate(dateRange!.start.toIso8601String())} - ${_fmtDate(dateRange!.end.toIso8601String())}',
-            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF748094)),
-          ),
-          if (dateRange != null) ...[
-            const SizedBox(width: 6),
-            InkWell(onTap: () => setState(() => dateRange = null), child: const Icon(Icons.close, size: 13)),
-          ],
-        ]),
-      ),
+    CompactDateRangeBar(
+      from: dateRange?.start,
+      to: dateRange?.end,
+      onFromChanged: (d) => setState(() {
+        final end = dateRange?.end ?? d;
+        dateRange = DateTimeRange(start: d, end: end.isBefore(d) ? d : end);
+      }),
+      onToChanged: (d) => setState(() {
+        final start = dateRange?.start ?? d;
+        dateRange = DateTimeRange(start: start, end: d);
+      }),
+      onClear: () => setState(() => dateRange = null),
     ),
   ]);
 

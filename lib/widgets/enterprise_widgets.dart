@@ -20,6 +20,7 @@ class MetricCard extends StatelessWidget {
   final String sublabel;
   final IconData icon;
   final Color accent;
+  final bool expand;
   const MetricCard({
     super.key,
     required this.label,
@@ -27,12 +28,13 @@ class MetricCard extends StatelessWidget {
     required this.sublabel,
     required this.icon,
     required this.accent,
+    this.expand = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
+    final compact = MediaQuery.sizeOf(context).width < 720;
+    final card = Container(
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border.all(color: border),
@@ -63,8 +65,10 @@ class MetricCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(value,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w900, color: navy)),
+                      style: TextStyle(
+                          fontSize: compact ? 15 : 17,
+                          fontWeight: FontWeight.w900,
+                          color: navy)),
                   const SizedBox(height: 4),
                   Text(sublabel,
                       style: TextStyle(
@@ -76,6 +80,8 @@ class MetricCard extends StatelessWidget {
         ),
       ),
     );
+    if (!expand) return card;
+    return Expanded(child: card);
   }
 }
 

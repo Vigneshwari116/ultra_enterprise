@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database/app_database.dart';
+import '../widgets/compact_date_picker.dart';
 
 const _navy = Color(0xFF122746);
 const _navy2 = Color(0xFF19385F);
@@ -86,23 +87,17 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
 
   double _sum(String key) => filteredInvoices.fold<double>(0, (v, r) => v + ((r[key] as num?)?.toDouble() ?? 0));
 
-  Future<void> _pickDate(bool from) async {
-    final initial = from ? (fromDate ?? DateTime.now()) : (toDate ?? fromDate ?? DateTime.now());
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: _navy)), child: child!),
-    );
-    if (picked == null) return;
+  void _setFrom(DateTime picked) {
     setState(() {
-      if (from) {
-        fromDate = picked;
-        if (toDate != null && toDate!.isBefore(picked)) toDate = picked;
-      } else {
-        toDate = picked;
-      }
+      fromDate = picked;
+      if (toDate != null && toDate!.isBefore(picked)) toDate = picked;
+    });
+  }
+
+  void _setTo(DateTime picked) {
+    setState(() {
+      toDate = picked;
+      if (fromDate != null && picked.isBefore(fromDate!)) fromDate = picked;
     });
   }
 
@@ -210,9 +205,38 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
   }
 
   Widget _filters() {
+    final narrow = MediaQuery.sizeOf(context).width < 720;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(children: [
+      child: narrow
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: searchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(fontSize: 10),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search, size: 16, color: _teal),
+                    hintText: 'FILTER BY DATE (YYYY-MM-DD), INVOICE SERIAL ID OR CUSTOMER CONSIGNMENT NAME...',
+                    hintStyle: TextStyle(fontSize: 9, color: Color(0xFF9AA3AF)),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: CompactDateRangeBar(
+                    from: fromDate,
+                    to: toDate,
+                    onFromChanged: _setFrom,
+                    onToChanged: _setTo,
+                    onClear: _clearFilters,
+                  ),
+                ),
+              ],
+            )
+          : Row(children: [
         Expanded(
           child: TextField(
             controller: searchCtrl,
@@ -222,11 +246,13 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
           ),
         ),
         const SizedBox(width: 8),
-        OutlinedButton.icon(onPressed: () => _pickDate(true), icon: const Icon(Icons.calendar_today_outlined, size: 13), label: Text(fromDate == null ? 'DATE FILTER' : _date(fromDate)), style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14))),
-        if (fromDate != null || toDate != null) ...[
-          const SizedBox(width: 5),
-          IconButton(onPressed: _clearFilters, icon: const Icon(Icons.close, size: 16), tooltip: 'Clear filters'),
-        ],
+        CompactDateRangeBar(
+          from: fromDate,
+          to: toDate,
+          onFromChanged: _setFrom,
+          onToChanged: _setTo,
+          onClear: _clearFilters,
+        ),
       ]),
     );
   }

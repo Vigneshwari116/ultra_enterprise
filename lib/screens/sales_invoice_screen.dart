@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/app_database.dart';
+import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 
 class SalesInvoiceScreen extends StatefulWidget {
@@ -50,18 +51,14 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
   Future<void> _pickDate(String currentIso, ValueChanged<String> onPicked) async {
     final now = DateTime.now();
     final initial = DateTime.tryParse(currentIso) ?? now;
-    final picked = await showDatePicker(
-      context: context,
+    final picked = await pickCompactDate(
+      context,
       initialDate: initial,
       firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 1),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: navy)),
-        child: child!,
-      ),
     );
     if (picked != null) {
-      onPicked(DateFormat('yyyy-MM-dd').format(picked));
+      onPicked(formatIsoDate(picked));
     }
   }
 

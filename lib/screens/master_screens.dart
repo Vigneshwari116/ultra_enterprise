@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database/app_database.dart';
+import '../widgets/compact_date_picker.dart';
 import '../widgets/csv_import.dart';
 import '../widgets/enterprise_widgets.dart';
 
@@ -306,20 +307,7 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
   DateTimeRange? printRange;
 
   Future<void> _pickPrintRange() async {
-    final now = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 1),
-      initialDateRange: printRange ??
-          DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: navy),
-        ),
-        child: child!,
-      ),
-    );
+    final picked = await pickCompactDateRange(context, initial: printRange);
     if (picked != null) {
       setState(() => printRange = picked);
     }
