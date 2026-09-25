@@ -446,7 +446,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
               children: [
                 LayoutBuilder(
                   builder: (context, c) {
-                    final stacked = c.maxWidth < 980;
+                    final stacked = c.maxWidth < formTwoColumnMinWidth;
                     final s1 = _section(
                       'SECTION 1: CONSIGNMENT METADATA',
                       [

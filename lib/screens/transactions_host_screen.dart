@@ -221,7 +221,7 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
               children: [
                 LayoutBuilder(
                   builder: (context, c) {
-                    final stacked = c.maxWidth < 960;
+                    final stacked = c.maxWidth < formTwoColumnMinWidth;
                     final s1 = _sec('SECTION 1: DISPATCH / SOURCE METADATA', [
                       _pair(_ro('NOTE NUMERIC NO *', noteNo), _dateFld('NOTE ISSUE DATE', issueDate, (v) => issueDate = v)),
                       _pair(_fld('ORIGINAL INVOICE REF NO', origInvRef), _dateFld('ORIGINAL INVOICE DATE', origInvDate, (v) => origInvDate = v)),

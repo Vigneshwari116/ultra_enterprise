@@ -13,8 +13,6 @@ import 'purchase_voucher_screen.dart';
 import 'reports_screen.dart';
 import 'transactions_host_screen.dart';
 import 'job_work_host_screen.dart';
-import 'stock_screen.dart';
-import 'sync_screen.dart';
 
 class _NavLeaf {
   final String label;
@@ -48,7 +46,6 @@ class _AppShellState extends State<AppShell> {
     'Transactions',
     'Job Work',
     'Reports Center',
-    'Manage Users',
   };
 
   static const _sidebarWidth = 238.0;
@@ -68,8 +65,6 @@ class _AppShellState extends State<AppShell> {
     const PurchaseReportsScreen(),
     TransactionsHostScreen(key: transactionsHostKey),
     JobWorkHostScreen(key: jobWorkHostKey),
-    const StockScreen(),
-    const SyncScreen(),
   ];
 
   static const _groups = [
@@ -103,16 +98,10 @@ class _AppShellState extends State<AppShell> {
     _NavGroup('Job Work', Icons.precision_manufacturing_outlined, [
       _NavLeaf('Material Type Master', 13),
       _NavLeaf('Material Master', 13),
-      _NavLeaf('Stock Register', 14),
     ]),
     _NavGroup('Reports Center', Icons.assessment_outlined, [
       _NavLeaf('Journal Summary', 8),
       _NavLeaf('Debit / Credit Note History', 8),
-    ]),
-    _NavGroup('Manage Users', Icons.manage_accounts_outlined, [
-      _NavLeaf('User Details', 15),
-      _NavLeaf('Manage Session', 15),
-      _NavLeaf('Manage Permission', 15),
     ]),
   ];
 

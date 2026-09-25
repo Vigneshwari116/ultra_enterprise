@@ -480,7 +480,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
               children: [
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final stacked = constraints.maxWidth < 980;
+                    final stacked = constraints.maxWidth < formTwoColumnMinWidth;
                     final section1 = _plainSection(
                       title: 'SECTION 1: ORDER METADATA',
                       children: [
