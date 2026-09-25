@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database/app_database.dart';
 import '../widgets/compact_date_picker.dart';
+import '../widgets/sales_report.dart';
 
 const _navy = Color(0xFF122746);
 const _navy2 = Color(0xFF19385F);
@@ -139,8 +140,6 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
           _tab('LEDGER VIEW', 0),
           _tab('AUDIT REPORT', 1),
           _tab('VIEW LEDGER WISE', 2),
-          const SizedBox(width: 8),
-          Icon(Icons.print_outlined, size: 17, color: _teal),
         ],
       ),
     );
@@ -283,7 +282,12 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
         const SizedBox(width: 18),
         Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [const Text('CREDIT VAL (REC)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))), const Text('₹0', style: TextStyle(fontSize: 12, color: Color(0xFFB93636), fontWeight: FontWeight.w800))])),
         const SizedBox(width: 12),
-        OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.print, size: 12), label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)), style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8))),
+        OutlinedButton.icon(
+          onPressed: () => reprintSalesInvoice(r['id'] as int),
+          icon: const Icon(Icons.print, size: 12),
+          label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
+          style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8)),
+        ),
       ]),
     );
   }
@@ -295,19 +299,70 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
     final sgst = _sum('sgst_total');
     final igst = _sum('igst_total');
     final total = _sum('grand_total');
+
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final r in rows) {
+      final d = _date(r['transaction_date']);
+      grouped.putIfAbsent(d, () => []).add(r);
+    }
+    final dates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+
     return SingleChildScrollView(
       child: Column(children: [
         _summaryCards(),
         _filters(),
-        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              onPressed: () => printSalesAuditReport(rows),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+              label: const Text('PRINT AUDIT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+              style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Container(
             color: Colors.white,
             child: Column(children: [
-              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))), child: const Row(children: [Expanded(flex: 2, child: Text('BILL NO', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(flex: 4, child: Text('PARTY NAME', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('TAXABLE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('CGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('SGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('IGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('TOTAL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy)))])),
-              ...rows.map((r) => _auditRow(r)),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), color: const Color(0xFFE1E7F0), child: Row(children: [const Expanded(flex: 6, child: Text('GRAND TOTALS:', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text(taxable.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))), Expanded(child: Text(cgst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))), Expanded(child: Text(sgst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))), Expanded(child: Text(igst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))), Expanded(child: Text(total.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _green)))])),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))),
+                child: const Row(children: [
+                  Expanded(flex: 2, child: Text('BILL NO', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  Expanded(flex: 4, child: Text('PARTY NAME', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  Expanded(child: Text('TAXABLE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  Expanded(child: Text('CGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  Expanded(child: Text('SGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  Expanded(child: Text('IGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  Expanded(child: Text('TOTAL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                ]),
+              ),
+              for (final date in dates) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  color: const Color(0xFFF3F6FA),
+                  child: Text(date, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: _navy)),
+                ),
+                ...grouped[date]!.map(_auditRow),
+              ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                color: const Color(0xFFE1E7F0),
+                child: Row(children: [
+                  const Expanded(flex: 6, child: Text('GRAND TOTALS:', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  Expanded(child: Text(taxable.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(child: Text(cgst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(child: Text(sgst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(child: Text(igst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(child: Text(total.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _green))),
+                ]),
+              ),
             ]),
           ),
         ),

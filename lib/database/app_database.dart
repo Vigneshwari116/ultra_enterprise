@@ -536,6 +536,35 @@ class AppDatabase {
         ORDER BY si.transaction_date DESC, si.id DESC
       ''');
 
+  Future<List<Map<String, dynamic>>> salesInvoiceItems(int invoiceId) => db.query(
+        'sales_invoice_items',
+        where: 'invoice_id = ?',
+        whereArgs: [invoiceId],
+      );
+
+  /// Header + customer fields + line items for tax-invoice PDF reprint.
+  Future<Map<String, dynamic>?> salesInvoicePrintBundle(int invoiceId) async {
+    final rows = await db.rawQuery('''
+      SELECT si.*,
+        COALESCE(c.customer_name, '-') AS customer_name,
+        COALESCE(c.address, '') AS customer_address,
+        COALESCE(c.gstin, '') AS customer_gstin,
+        COALESCE(c.primary_mobile, '') AS customer_mobile,
+        COALESCE(c.bank_name, '') AS bank_name,
+        COALESCE(c.bank_account_no, '') AS bank_account_no,
+        COALESCE(c.ifsc_code, '') AS ifsc_code,
+        COALESCE(c.branch_address, '') AS branch_address,
+        COALESCE(c.shipping_address, '') AS shipping_address
+      FROM sales_invoices si
+      LEFT JOIN customers c ON c.id = si.customer_id
+      WHERE si.id = ?
+      LIMIT 1
+    ''', [invoiceId]);
+    if (rows.isEmpty) return null;
+    final items = await salesInvoiceItems(invoiceId);
+    return {'invoice': rows.first, 'items': items};
+  }
+
   Future<int> insertReceipt(Map<String, dynamic> row) => db.insert('receipts', row);
 
   Future<List<Map<String, dynamic>>> allReceipts() =>

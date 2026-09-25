@@ -4,6 +4,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/csv_import.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/master_form_helpers.dart';
+import 'sales_invoice_screen.dart';
 
 class MasterPage extends StatefulWidget {
   final String title;
@@ -1191,6 +1192,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     openCrCtrl.text = '0';
     openDrCtrl.text = '0';
     setState(() => selectedId = null);
+    _focus[0].requestFocus();
   }
 
   void _loadIntoForm(Map<String, dynamic> s) {

@@ -50,23 +50,23 @@ class _AppShellState extends State<AppShell> {
 
   static const _sidebarWidth = 238.0;
 
-  final pages = const [
-    HomeScreen(),
-    CustomerMasterScreen(),
-    SupplierMasterScreen(),
-    UnitMasterScreen(),
-    LedgerMasterScreen(),
-    DeliveryChallanScreen(),
-    QuotationScreen(),
-    SalesInvoiceScreen(),
-    SalesReportsScreen(),
-    PurchaseOrderScreen(),
-    PurchaseVoucherScreen(),
-    PurchaseReportsScreen(),
-    TransactionsScreen(),
-    ProductMasterScreen(),
-    StockScreen(),
-    SyncScreen(),
+  late final List<Widget> pages = [
+    const HomeScreen(),
+    const CustomerMasterScreen(),
+    const SupplierMasterScreen(),
+    const UnitMasterScreen(),
+    const LedgerMasterScreen(),
+    const DeliveryChallanScreen(),
+    const QuotationScreen(),
+    SalesInvoiceScreen(key: salesInvoiceCatalogKey),
+    const SalesReportsScreen(),
+    const PurchaseOrderScreen(),
+    const PurchaseVoucherScreen(),
+    const PurchaseReportsScreen(),
+    const TransactionsScreen(),
+    const ProductMasterScreen(),
+    const StockScreen(),
+    const SyncScreen(),
   ];
 
   static const _groups = [
@@ -135,6 +135,9 @@ class _AppShellState extends State<AppShell> {
         sidebarOpen = false;
       }
     });
+    if (pageIndex == 7) {
+      salesInvoiceCatalogKey.currentState?.refreshCatalog();
+    }
   }
 
   void _toggleGroup(String title) {

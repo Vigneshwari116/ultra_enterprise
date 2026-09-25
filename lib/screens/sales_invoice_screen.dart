@@ -4,12 +4,23 @@ import 'package:intl/intl.dart';
 import '../database/app_database.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../widgets/invoice.dart';
+import '../widgets/sales_report.dart';
+
+/// Used by [AppShell] to refresh UOM/product lists after Unit Master saves.
+final salesInvoiceCatalogKey = GlobalKey<SalesInvoiceCatalogHostState>();
+
+abstract class SalesInvoiceCatalogHostState extends State<SalesInvoiceScreen> {
+  Future<void> refreshCatalog();
+}
 
 class SalesInvoiceScreen extends StatefulWidget {
   const SalesInvoiceScreen({super.key});
-  @override State<SalesInvoiceScreen> createState()=>_SalesInvoiceScreenState();
+  @override
+  SalesInvoiceCatalogHostState createState() => _SalesInvoiceScreenState();
 }
-class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
+
+class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   final db=AppDatabase.instance;
   final po=TextEditingController(), challan=TextEditingController(), packages=TextEditingController(text:'0'), vehicle=TextEditingController(), due=TextEditingController(text:'0'), eway=TextEditingController();
   final customerAddress=TextEditingController(), city=TextEditingController(), pin=TextEditingController(), gstin=TextEditingController(), bank=TextEditingController(), account=TextEditingController(), shipping=TextEditingController();
@@ -28,14 +39,25 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
 
   @override void initState(){super.initState();load();}
 
-  Future<void> load()async{
-    customers=await db.customers();
-    products=await db.products();
-    units=await db.units();
+  Future<void> load() async {
+    customers = await db.customers();
+    products = await db.products();
+    units = await db.units();
     final count = await db.nextSalesVoucherNo();
     voucherNo = '$count';
-    if(customers.isNotEmpty){customerId=customers.first['id'];fillCustomer(customers.first);}
-    if(mounted)setState((){});
+    if (customers.isNotEmpty && customerId == null) {
+      customerId = customers.first['id'];
+      fillCustomer(customers.first);
+    }
+    if (mounted) setState(() {});
+  }
+
+  /// Refreshes product/UOM lists when returning from Unit Master.
+  @override
+  Future<void> refreshCatalog() async {
+    products = await db.products();
+    units = await db.units();
+    if (mounted) setState(() {});
   }
 
   void fillCustomer(Map<String,dynamic> c){customerAddress.text=c['address']??'';city.text=c['city']??'';pin.text=c['postal_pincode']??'';gstin.text=c['gstin']??'';bank.text=c['bank_name']??'';account.text=c['bank_account_no']??'';shipping.text=c['shipping_address']??'';}
@@ -67,29 +89,114 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
     return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
-  Future<void> save()async{
+  double get fwd => double.tryParse(fwdCharge.text) ?? 0;
+
+  double get netPayable => total + fwd;
+
+  Future<int?> _persistInvoice() async {
     if (zone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select the State Zone Applicability before saving.')));
-      return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select the State Zone Applicability before saving.')),
+      );
+      return null;
     }
-    final uuid=db.newUuid();
-    final invoiceId=await db.db.insert('sales_invoices',{
-      'uuid':uuid,'invoice_no':int.tryParse(voucherNo),'transaction_date':date,'po_no':po.text,'po_date':poDate,
-      'state_zone':zone,'challan_no':challan.text,'challan_date':challanDate,
-      'total_packages':int.tryParse(packages.text)??0,'vehicle_dispatch_mode':vehicle.text,'due_days':int.tryParse(due.text)??0,'eway_bill_no':eway.text,
-      'customer_id':customerId,'taxable_total':taxable,'cgst_total':cgst,'sgst_total':sgst,'igst_total':igst,'grand_total':total,'status':'PENDING_SYNC'
+    if (customerId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a customer before saving.')),
+      );
+      return null;
+    }
+    final uuid = db.newUuid();
+    final invoiceId = await db.db.insert('sales_invoices', {
+      'uuid': uuid,
+      'invoice_no': int.tryParse(voucherNo),
+      'transaction_date': date,
+      'po_no': po.text,
+      'po_date': poDate,
+      'state_zone': zone,
+      'challan_no': challan.text,
+      'challan_date': challanDate,
+      'total_packages': int.tryParse(packages.text) ?? 0,
+      'vehicle_dispatch_mode': vehicle.text,
+      'due_days': int.tryParse(due.text) ?? 0,
+      'eway_bill_no': eway.text,
+      'customer_id': customerId,
+      'taxable_total': taxable,
+      'cgst_total': cgst,
+      'sgst_total': sgst,
+      'igst_total': igst,
+      'grand_total': netPayable,
+      'status': 'POSTED',
     });
-    for(final r in rows){
-      await db.db.insert('sales_invoice_items',{'invoice_id':invoiceId,'product_id':r.productId,'description':r.description,'uom':r.uom,'hsn':r.hsn,'quantity':r.qty,'rate':r.rate,'cgst_percent':r.cgstPct,'sgst_percent':r.sgstPct,'igst_percent':r.igstPct,'taxable':r.taxable,'cgst':r.cgst,'sgst':r.sgst,'igst':r.igst,'total':r.total});
+    for (final r in rows) {
+      await db.db.insert('sales_invoice_items', {
+        'invoice_id': invoiceId,
+        'product_id': r.productId,
+        'description': r.description,
+        'uom': r.uom,
+        'hsn': r.hsn,
+        'quantity': r.qty,
+        'rate': r.rate,
+        'cgst_percent': r.cgstPct,
+        'sgst_percent': r.sgstPct,
+        'igst_percent': r.igstPct,
+        'taxable': r.taxable,
+        'cgst': r.cgst,
+        'sgst': r.sgst,
+        'igst': r.igst,
+        'total': r.total,
+      });
     }
-    await db.insertQueue({'entity_type':'SALES_INVOICE','entity_id':invoiceId,'payload':jsonEncode({'uuid':uuid,'customer_id':customerId,'transaction_date':date}),'status':'PENDING','created_at':DateTime.now().toIso8601String()});
-    if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('SALES INVOICE SAVED LOCALLY — PENDING SYNC')));
-    await load();
+    await db.insertQueue({
+      'entity_type': 'SALES_INVOICE',
+      'entity_id': invoiceId,
+      'payload': jsonEncode({'uuid': uuid, 'customer_id': customerId, 'transaction_date': date}),
+      'status': 'PENDING',
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    return invoiceId;
+  }
+
+  void _resetForm() {
     setState(() {
       rows..clear()..add(_InvoiceRow());
-      po.clear(); challan.clear(); packages.text='0'; vehicle.clear(); due.text='0'; eway.clear();
-      zone='';
+      po.clear();
+      challan.clear();
+      packages.text = '0';
+      vehicle.clear();
+      due.text = '0';
+      eway.clear();
+      fwdCharge.text = '0';
+      zone = '';
     });
+  }
+
+  Future<void> save() async {
+    final invoiceId = await _persistInvoice();
+    if (invoiceId == null) return;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SALES INVOICE SAVED LOCALLY — PENDING SYNC')),
+      );
+    }
+    await load();
+    _resetForm();
+  }
+
+  Future<void> saveAndPrint() async {
+    final invoiceId = await _persistInvoice();
+    if (invoiceId == null) return;
+    final data = await invoiceDataFromId(invoiceId);
+    if (data != null) {
+      await printUltraInvoice(data);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SALES VOUCHER SAVED — PRINT DIALOG OPENED')),
+      );
+    }
+    await load();
+    _resetForm();
   }
 
   @override Widget build(BuildContext context){
@@ -99,7 +206,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
         Container(
           width: double.infinity,
           color: const Color(0xFF19232C),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -122,8 +229,8 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('₹${total.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 24, fontWeight: FontWeight.w900)),
+                  Text('₹${netPayable.toStringAsFixed(2)}',
+                      style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 2),
                   const Text('NET PAYABLE VALUE',
                       style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: .4)),
@@ -133,7 +240,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,7 +333,6 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
                       DataColumn(label:Text('SGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
                       DataColumn(label:Text('IGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
                       DataColumn(label:Text('COMPOUND TOTAL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                      DataColumn(label:Text('', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
                     ],
                     rows:List.generate(rows.length,(i)=>DataRow(cells:[
                       DataCell(Text('${i+1}')),
@@ -238,8 +344,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
                       DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].cgstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].cgstPct=double.tryParse(v)??0)))),
                       DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].sgstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].sgstPct=double.tryParse(v)??0)))),
                       DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].igstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].igstPct=double.tryParse(v)??0)))),
-                      DataCell(Text('₹${rows[i].total.toStringAsFixed(2)}',style:const TextStyle(fontWeight:FontWeight.w800))),
-                      DataCell(IconButton(onPressed:rows.length==1?null:()=>setState(()=>rows.removeAt(i)),icon:const Icon(Icons.delete_outline,color:red,size:18))),
+                      DataCell(Text('₹${rows[i].total.toStringAsFixed(2)}',style:const TextStyle(fontWeight:FontWeight.w800, fontSize: 10.5))),
                     ]))
                 ))
             ),
@@ -264,7 +369,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
               child: Row(
                 children: [
                   Expanded(
-                    child: Text('VALUE IN WORDS: ${_amountInWords(total)}',
+                    child: Text('VALUE IN WORDS: ${_amountInWords(netPayable)}',
                         style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: .3)),
                   ),
                   SizedBox(
@@ -297,7 +402,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
             const SizedBox(height:18),
             Center(
               child: ElevatedButton.icon(
-                onPressed: save,
+                onPressed: saveAndPrint,
                 icon: const Icon(Icons.print_outlined, size: 17),
                 label: const Text('SAVE & PRINT SALES VOUCHER', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
                 style: ElevatedButton.styleFrom(
@@ -321,7 +426,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
     isDense: true,
     filled: filled,
     fillColor: filled ? const Color(0xFFF1F3F7) : Colors.white,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
     focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: teal, width: 1.4)),
@@ -333,7 +438,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
       controller: controller,
       readOnly: readOnly,
       onTap: onTap,
-      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: navy),
+      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: navy),
       decoration: _decoration(label, filled: filled).copyWith(prefixIcon: prefixIcon),
     );
   }
@@ -347,7 +452,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
         labelText: 'SELECT STATE ZONE APPLICABILITY *',
         floatingLabelBehavior: FloatingLabelBehavior.always,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: mandatory ? red : border)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: mandatory ? red : border)),
         labelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: mandatory ? red : const Color(0xFF748094), letterSpacing: .2),
@@ -370,7 +475,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
     ],
   );
   Widget _pair(Widget a, Widget b) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.only(bottom: 10),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Expanded(child: a), const SizedBox(width: 14), Expanded(child: b),
     ]),
@@ -381,7 +486,7 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen>{
       Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
       const SizedBox(height: 4),
       Container(height: 1, color: border),
-      const SizedBox(height: 16),
+      const SizedBox(height: 12),
       ...children,
     ],
   );
