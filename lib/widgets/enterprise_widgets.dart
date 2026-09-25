@@ -142,7 +142,7 @@ class Field extends StatelessWidget {
             text: label,
             style: const TextStyle(
               color: Color(0xFF39485A),
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
             ),
             children: requiredField
@@ -150,7 +150,7 @@ class Field extends StatelessWidget {
                 : const [],
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 4),
         child,
       ],
     );
@@ -249,7 +249,7 @@ class PrimaryButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: navy,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
       ),
     );

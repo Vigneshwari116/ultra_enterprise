@@ -13,7 +13,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -245,6 +245,19 @@ class AppDatabase {
             created_at TEXT
           )
         ''');
+        await db.execute('''
+          CREATE TABLE ledger_accounts(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            group_name TEXT,
+            head TEXT,
+            group_wise TEXT,
+            cr_amount REAL DEFAULT 0,
+            dr_amount REAL DEFAULT 0,
+            updated_time TEXT,
+            created_at TEXT
+          )
+        ''');
 
         await db.insert('units', {'code': 'PCS', 'name': 'Pieces'});
         await db.insert('units', {'code': 'BOX', 'name': 'Box'});
@@ -435,6 +448,21 @@ class AppDatabase {
             )
           ''');
         }
+        if (oldVersion < 9) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS ledger_accounts(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              group_name TEXT,
+              head TEXT,
+              group_wise TEXT,
+              cr_amount REAL DEFAULT 0,
+              dr_amount REAL DEFAULT 0,
+              updated_time TEXT,
+              created_at TEXT
+            )
+          ''');
+        }
       },
     );
   }
@@ -445,6 +473,9 @@ class AppDatabase {
       db.query('units', orderBy: 'id DESC');
 
   Future<int> deleteUnit(int id) => db.delete('units', where: 'id = ?', whereArgs: [id]);
+
+  Future<int> updateUnit(int id, Map<String, dynamic> row) =>
+      db.update('units', row, where: 'id = ?', whereArgs: [id]);
 
   Future<List<Map<String, dynamic>>> customers() =>
       db.query('customers', where: 'status = ?', whereArgs: ['ACTIVE'], orderBy: 'id DESC');
@@ -665,6 +696,17 @@ class AppDatabase {
     );
     return (result.first['t'] as num?)?.toDouble() ?? 0;
   }
+
+  Future<List<Map<String, dynamic>>> ledgerAccounts() =>
+      db.query('ledger_accounts', orderBy: 'id DESC');
+
+  Future<int> insertLedger(Map<String, dynamic> row) async {
+    row['created_at'] = DateTime.now().toIso8601String();
+    return db.insert('ledger_accounts', row);
+  }
+
+  Future<int> updateLedger(int id, Map<String, dynamic> row) =>
+      db.update('ledger_accounts', row, where: 'id = ?', whereArgs: [id]);
 
   Future<int> runningProjectsCount() async {
     final invoices = await db.rawQuery('SELECT COUNT(DISTINCT customer_id) AS c FROM sales_invoices');

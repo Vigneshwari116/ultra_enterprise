@@ -3,6 +3,7 @@ import '../database/app_database.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/csv_import.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../widgets/master_form_helpers.dart';
 
 class MasterPage extends StatefulWidget {
   final String title;
@@ -50,6 +51,8 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
   final filterCtrl = TextEditingController();
   final codeCtrl = TextEditingController();
   final descCtrl = TextEditingController();
+  final codeFocus = FocusNode();
+  final descFocus = FocusNode();
   String? error;
   int? selectedId;
 
@@ -58,6 +61,17 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
     super.initState();
     load();
     filterCtrl.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) => codeFocus.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    filterCtrl.dispose();
+    codeCtrl.dispose();
+    descCtrl.dispose();
+    codeFocus.dispose();
+    descFocus.dispose();
+    super.dispose();
   }
 
   Future<void> load() async {
@@ -72,6 +86,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       descCtrl.clear();
       error = null;
     });
+    codeFocus.requestFocus();
   }
 
   Future<void> _save() async {
@@ -79,15 +94,36 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       setState(() => error = 'UOM parameter code cannot be blank.');
       return;
     }
-    await AppDatabase.instance.insertUnit({
+    final row = {
       'code': codeCtrl.text.trim().toUpperCase(),
       'name': descCtrl.text.trim().isEmpty ? codeCtrl.text.trim() : descCtrl.text.trim(),
       'description': descCtrl.text.trim(),
-    });
-    codeCtrl.clear();
-    descCtrl.clear();
-    setState(() => error = null);
+    };
+    if (selectedId == null) {
+      await AppDatabase.instance.insertUnit(row);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit saved.')));
+      }
+      codeCtrl.clear();
+      descCtrl.clear();
+      setState(() => error = null);
+    } else {
+      await AppDatabase.instance.updateUnit(selectedId!, row);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit updated.')));
+      }
+      setState(() => error = null);
+    }
     await load();
+    if (selectedId != null && mounted) {
+      final unit = data.where((u) => u['id'] == selectedId).toList();
+      if (unit.isNotEmpty) {
+        codeCtrl.text = '${unit.first['code']}';
+        descCtrl.text = '${unit.first['description'] ?? unit.first['name'] ?? ''}';
+      }
+    } else {
+      codeFocus.requestFocus();
+    }
   }
 
   Future<void> _delete(int id) async {
@@ -110,7 +146,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       children: [
         // LEFT: UOM REGISTRY TOKENS list
         Container(
-          width: 300,
+          width: masterDirectoryWidth(context),
           color: sidebarBg,
           height: double.infinity,
           child: Column(
@@ -136,18 +172,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
                 child: TextField(
                   controller: filterCtrl,
                   style: const TextStyle(fontSize: 12),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    hintText: 'Filter units (e.g. KGS)...',
-                    hintStyle: const TextStyle(fontSize: 11),
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(3),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+                  decoration: masterSearchDecoration('Filter units (e.g. KGS)...'),
                 ),
               ),
               const SizedBox(height: 8),
@@ -167,7 +192,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
                       }),
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 3),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
                           color: selected ? sidebarActiveBg : Colors.white.withOpacity(.04),
                           borderRadius: BorderRadius.circular(4),
@@ -212,7 +237,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   border: Border(bottom: BorderSide(color: border)),
@@ -239,29 +264,32 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(24),
+                padding: masterFormPadding(context),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _FormSectionBar(title: '1. METRIC CODE MAPPING'),
-                    const SizedBox(height: 10),
-                    TextField(
+                    const SizedBox(height: 8),
+                    MasterTextField(
                       controller: codeCtrl,
+                      focusNode: codeFocus,
+                      nextFocus: descFocus,
                       textCapitalization: TextCapitalization.characters,
-                      decoration: InputDecoration(
-                        hintText: 'UOM TOKEN CODE (E.G. PCS, KGS) *',
-                        errorText: error,
-                      ),
+                      hintText: 'UOM TOKEN CODE (E.G. PCS, KGS) *',
                     ),
-                    const SizedBox(height: 22),
+                    if (error != null) ...[
+                      const SizedBox(height: 4),
+                      Text(error!, style: const TextStyle(color: red, fontSize: 10)),
+                    ],
+                    const SizedBox(height: 16),
                     _FormSectionBar(title: '2. DATA DEFINITION SPECIFICATION'),
-                    const SizedBox(height: 10),
-                    TextField(
+                    const SizedBox(height: 8),
+                    MasterTextField(
                       controller: descCtrl,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText: 'UNIT DESCRIPTION REGISTERED',
-                      ),
+                      focusNode: descFocus,
+                      hintText: 'UNIT DESCRIPTION REGISTERED',
+                      maxLines: 3,
+                      onDone: _save,
                     ),
                   ],
                 ),
@@ -284,27 +312,42 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
   final nameCtrl = TextEditingController();
   final crCtrl = TextEditingController();
   final drCtrl = TextEditingController();
+  final nameFocus = FocusNode();
+  final crFocus = FocusNode();
+  final drFocus = FocusNode();
   String? group;
   String? head;
   String? groupWise;
   final searchCtrl = TextEditingController();
-
-  final List<Map<String, dynamic>> _ledgers = [
-    {'name': 'food', 'group': 'SUNDRY DEBTOR', 'cr': 0.0, 'dr': 0.0, 'time': '17:39'},
-    {'name': 'PROCESS VALVES & FITTINGS', 'group': 'PURCHASE', 'cr': 10000.0, 'dr': 0.0, 'time': '17:19'},
-    {'name': 'SANDHAR HAN SHIN AUTO TECHNOLOGIE...', 'group': 'SALES', 'cr': 0.0, 'dr': 0.0, 'time': '17:04'},
-    {'name': 'SUPRAJIT ENGINEERING LIMITED  UNIT-14', 'group': 'SALES', 'cr': 0.0, 'dr': 0.0, 'time': '16:31'},
-    {'name': 'APS INDUSTRIES', 'group': 'PURCHASE', 'cr': 3715.0, 'dr': 0.0, 'time': '15:34'},
-    {'name': 'UDDISHTAA ELECTRICALS AND HARDWARE...', 'group': 'PURCHASE', 'cr': 0.0, 'dr': 10000.0, 'time': '15:32'},
-    {'name': 'SRI RAM ENTERPRISES', 'group': 'PURCHASE', 'cr': 0.0, 'dr': 0.0, 'time': '15:31'},
-    {'name': 'MANAL INSULATION', 'group': 'PURCHASE', 'cr': 0.0, 'dr': 0.0, 'time': '15:30'},
-    {'name': 'SHAKTHI ENGINEERING', 'group': 'PURCHASE', 'cr': 36920.0, 'dr': 0.0, 'time': '15:27'},
-    {'name': 'SUPRAJIT ENGINEERING LIMITED  UNIT-9', 'group': 'SALES', 'cr': 0.0, 'dr': 0.0, 'time': '15:03'},
-    {'name': 'SUPRAJIT ENGINEERING LIMITED  UNIT-2', 'group': 'SALES', 'cr': 0.0, 'dr': 0.0, 'time': '15:02'},
-    {'name': 'SUPRAJIT ENGINEERING LIMITED  UNIT 8', 'group': 'SALES', 'cr': 0.0, 'dr': 0.0, 'time': '14:59'},
-  ];
+  int? _editingId;
+  List<Map<String, dynamic>> _ledgers = [];
 
   DateTimeRange? printRange;
+
+  @override
+  void initState() {
+    super.initState();
+    searchCtrl.addListener(() => setState(() {}));
+    _loadLedgers();
+    WidgetsBinding.instance.addPostFrameCallback((_) => nameFocus.requestFocus());
+  }
+
+  Future<void> _loadLedgers() async {
+    _ledgers = await AppDatabase.instance.ledgerAccounts();
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    nameCtrl.dispose();
+    crCtrl.dispose();
+    drCtrl.dispose();
+    nameFocus.dispose();
+    crFocus.dispose();
+    drFocus.dispose();
+    searchCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickPrintRange() async {
     final picked = await pickCompactDateRange(context, initial: printRange);
@@ -321,35 +364,68 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
       group = null;
       head = null;
       groupWise = null;
+      _editingId = null;
     });
+    nameFocus.requestFocus();
   }
 
-  void _save() {
-    if (nameCtrl.text.trim().isEmpty) return;
+  void _loadForEdit(Map<String, dynamic> row) {
+    nameCtrl.text = '${row['name']}';
+    crCtrl.text = ((row['cr_amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2);
+    drCtrl.text = ((row['dr_amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2);
     setState(() {
-      _ledgers.insert(0, {
-        'name': nameCtrl.text.trim(),
-        'group': group ?? '-',
-        'cr': double.tryParse(crCtrl.text) ?? 0.0,
-        'dr': double.tryParse(drCtrl.text) ?? 0.0,
-        'time': TimeOfDay.now().format(context),
-      });
+      final g = '${row['group_name'] ?? ''}';
+      group = g.isEmpty ? null : g;
+      final h = '${row['head'] ?? ''}';
+      head = h.isEmpty ? null : h;
+      final gw = '${row['group_wise'] ?? ''}';
+      groupWise = gw.isEmpty ? null : gw;
+      _editingId = row['id'] as int;
     });
+    nameFocus.requestFocus();
+  }
+
+  Future<void> _save() async {
+    if (nameCtrl.text.trim().isEmpty) {
+      nameFocus.requestFocus();
+      return;
+    }
+    final time = TimeOfDay.now().format(context);
+    final row = {
+      'name': nameCtrl.text.trim(),
+      'group_name': group ?? '',
+      'head': head ?? '',
+      'group_wise': groupWise ?? '',
+      'cr_amount': double.tryParse(crCtrl.text) ?? 0.0,
+      'dr_amount': double.tryParse(drCtrl.text) ?? 0.0,
+      'updated_time': time,
+    };
+    final editing = _editingId;
+    if (editing == null) {
+      await AppDatabase.instance.insertLedger(row);
+    } else {
+      await AppDatabase.instance.updateLedger(editing, row);
+    }
+    await _loadLedgers();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(editing == null ? 'Ledger entry saved.' : 'Ledger entry updated.')),
+    );
     _reset();
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = searchCtrl.text.trim().isEmpty
-        ? _ledgers
-        : _ledgers.where((l) => l['name'].toString().toLowerCase().contains(searchCtrl.text.trim().toLowerCase())).toList();
+    final filtered = _ledgers
+        .where((l) => matchesMasterSearch(searchCtrl.text, l, ['name', 'group_name', 'head', 'group_wise']))
+        .toList();
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: masterFormPadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('LEDGER MASTER', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
+          const Text('LEDGER MASTER', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: navy)),
           const SizedBox(height: 3),
           const Text('FINANCIAL REPOSITORIES PARAMETERS REGISTRY',
               style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
@@ -359,59 +435,77 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  width: 268,
+                  width: masterDirectoryWidth(context),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('NEW ENTRY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy)),
+                      Text(
+                        _editingId == null ? 'NEW ENTRY' : 'EDIT ENTRY',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: navy),
+                      ),
                       const SizedBox(height: 8),
                       Container(height: 2, width: 40, color: teal),
-                      const SizedBox(height: 14),
-                      TextField(controller: nameCtrl, decoration: const InputDecoration(hintText: 'NAME')),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
+                      MasterTextField(
+                        controller: nameCtrl,
+                        focusNode: nameFocus,
+                        nextFocus: crFocus,
+                        hintText: 'NAME',
+                      ),
+                      const SizedBox(height: 8),
                       Row(children: [
-                        Expanded(child: TextField(controller: crCtrl, decoration: const InputDecoration(hintText: 'CR AMT'))),
-                        const SizedBox(width: 10),
-                        Expanded(child: TextField(controller: drCtrl, decoration: const InputDecoration(hintText: 'DR AMT'))),
+                        Expanded(
+                          child: MasterTextField(
+                            controller: crCtrl,
+                            focusNode: crFocus,
+                            nextFocus: drFocus,
+                            hintText: 'CR AMT',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: MasterTextField(
+                            controller: drCtrl,
+                            focusNode: drFocus,
+                            hintText: 'DR AMT',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            onDone: _save,
+                          ),
+                        ),
                       ]),
-                      const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
+                      const SizedBox(height: 8),
+                      MasterDropdown(
                         value: group,
-                        decoration: const InputDecoration(hintText: 'GROUP'),
-                        items: const ['SALES', 'PURCHASE', 'SUNDRY DEBTOR']
-                            .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                            .toList(),
+                        hintText: 'GROUP',
+                        items: masterLedgerGroupOptions,
                         onChanged: (v) => setState(() => group = v),
                       ),
-                      const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
+                      const SizedBox(height: 8),
+                      MasterDropdown(
                         value: head,
-                        decoration: const InputDecoration(hintText: 'HEAD'),
-                        items: const ['SALES', 'PURCHASE', 'SUNDRY DEBTOR']
-                            .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                            .toList(),
+                        hintText: 'HEAD',
+                        items: masterLedgerGroupOptions,
                         onChanged: (v) => setState(() => head = v),
                       ),
-                      const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
+                      const SizedBox(height: 8),
+                      MasterDropdown(
                         value: groupWise,
-                        decoration: const InputDecoration(hintText: 'GROUP WISE'),
-                        items: const ['YES', 'NO']
-                            .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                            .toList(),
+                        hintText: 'GROUP WISE',
+                        items: masterLedgerGroupOptions,
                         onChanged: (v) => setState(() => groupWise = v),
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       Row(children: [
                         Expanded(
                           child: OutlinedButton(
                             onPressed: _reset,
                             style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               side: const BorderSide(color: border),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
                             ),
-                            child: const Text('RESET', style: TextStyle(color: navy, fontWeight: FontWeight.w800, fontSize: 12)),
+                            child: const Text('RESET', style: TextStyle(color: navy, fontWeight: FontWeight.w800, fontSize: 11)),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -421,10 +515,13 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: navy,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
                             ),
-                            child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                            child: Text(
+                              _editingId == null ? 'SAVE' : 'UPDATE',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
+                            ),
                           ),
                         ),
                       ]),
@@ -440,10 +537,9 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
                         Expanded(
                           child: TextField(
                             controller: searchCtrl,
-                            onChanged: (_) => setState(() {}),
-                            decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.search, size: 18),
-                              hintText: 'Search Ledger Accounts Registry...',
+                            style: const TextStyle(fontSize: 12),
+                            decoration: masterCompactDecoration(hintText: 'Search Ledger Accounts Registry...').copyWith(
+                              prefixIcon: const Icon(Icons.search, size: 16),
                             ),
                           ),
                         ),
@@ -460,13 +556,22 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: navy,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
                           ),
                         ),
                       ]),
-                      const SizedBox(height: 14),
-                      Expanded(child: _LedgerTable(rows: filtered)),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'No ledger accounts yet. Save a new entry to list it here.',
+                                  style: TextStyle(fontSize: 11, color: Color(0xFF748094), fontWeight: FontWeight.w600),
+                                ),
+                              )
+                            : _LedgerTable(rows: filtered, onEdit: _loadForEdit),
+                      ),
                     ],
                   ),
                 ),
@@ -484,7 +589,8 @@ String _fmtDate(DateTime d) =>
 
 class _LedgerTable extends StatelessWidget {
   final List<Map<String, dynamic>> rows;
-  const _LedgerTable({required this.rows});
+  final ValueChanged<Map<String, dynamic>> onEdit;
+  const _LedgerTable({required this.rows, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -504,24 +610,36 @@ class _LedgerTable extends StatelessWidget {
         ),
         for (final r in rows)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
             decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFEDF0F5)))),
             child: Row(children: [
               Expanded(
                   flex: 4,
-                  child: Text(r['name'], overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy))),
-              Expanded(flex: 2, child: Text(r['group'], style: const TextStyle(fontSize: 11, color: Color(0xFF39485A)))),
+                  child: Text('${r['name']}', overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: navy))),
               Expanded(
                   flex: 2,
-                  child: Text((r['cr'] as double).toStringAsFixed(2),
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: green))),
+                  child: Text('${r['group_name'] ?? ''}',
+                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF39485A)))),
               Expanded(
                   flex: 2,
-                  child: Text((r['dr'] as double).toStringAsFixed(2),
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: red))),
-              Expanded(flex: 1, child: Text(r['time'], style: const TextStyle(fontSize: 10.5, color: Color(0xFF748094)))),
-              const SizedBox(width: 40, child: Icon(Icons.edit_outlined, size: 15, color: amber)),
+                  child: Text(((r['cr_amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2),
+                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: green))),
+              Expanded(
+                  flex: 2,
+                  child: Text(((r['dr_amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2),
+                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: red))),
+              Expanded(
+                  flex: 1,
+                  child: Text('${r['updated_time'] ?? ''}',
+                      style: const TextStyle(fontSize: 10, color: Color(0xFF748094)))),
+              SizedBox(
+                width: 40,
+                child: InkWell(
+                  onTap: () => onEdit(r),
+                  child: const Icon(Icons.edit_outlined, size: 15, color: amber),
+                ),
+              ),
             ]),
           ),
       ],
@@ -558,9 +676,56 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
   final shipCityCtrl = TextEditingController();
   final shipPincodeCtrl = TextEditingController();
   final shipGstinCtrl = TextEditingController();
+  late final List<FocusNode> _focus;
 
-  @override void initState(){super.initState();load();}
+  @override
+  void initState() {
+    super.initState();
+    _focus = List.generate(19, (_) => FocusNode());
+    searchCtrl.addListener(() => setState(() {}));
+    load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (selectedId == null) _focus[0].requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    for (final f in _focus) {
+      f.dispose();
+    }
+    for (final c in [
+      nameCtrl, mobileCtrl, emailCtrl, addressCtrl, cityCtrl, pincodeCtrl, gstinCtrl,
+      openCrCtrl, openDrCtrl, bankNameCtrl, bankAccCtrl, ifscCtrl, branchCtrl,
+      shipNameCtrl, shipMobileCtrl, shipAddressCtrl, shipCityCtrl, shipPincodeCtrl, shipGstinCtrl,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> load() async { data = await AppDatabase.instance.customers(); if(mounted) setState((){}); }
+
+  Widget _customerField(
+    int index,
+    String label,
+    TextEditingController controller, {
+    bool requiredField = false,
+    TextStyle? style,
+  }) {
+    return Field(
+      label: label,
+      requiredField: requiredField,
+      child: MasterTextField(
+        controller: controller,
+        focusNode: _focus[index],
+        nextFocus: index < _focus.length - 1 ? _focus[index + 1] : null,
+        onDone: save,
+        style: style,
+      ),
+    );
+  }
 
   void _clearForm() {
     for (final c in [nameCtrl, mobileCtrl, emailCtrl, addressCtrl, cityCtrl, pincodeCtrl, gstinCtrl,
@@ -571,6 +736,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
     openCrCtrl.text = '0';
     openDrCtrl.text = '0';
     setState(() => selectedId = null);
+    _focus[0].requestFocus();
   }
 
   // Populates every field on the right with the tapped customer's saved data,
@@ -621,17 +787,28 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
   };
 
   Future<void> save() async {
-    if (nameCtrl.text.trim().isEmpty) return;
-    if (selectedId == null) {
+    if (nameCtrl.text.trim().isEmpty) {
+      _notify('Customer / company name is required.');
+      _focus[0].requestFocus();
+      return;
+    }
+    final existingId = selectedId;
+    if (existingId == null) {
       await AppDatabase.instance.insertCustomer({
         'customer_code': 'CUST-${DateTime.now().millisecondsSinceEpoch % 100000}',
         ..._formToRow(),
       });
+      _notify('Customer saved.');
+      _clearForm();
     } else {
-      await AppDatabase.instance.updateCustomer(selectedId!, _formToRow());
+      await AppDatabase.instance.updateCustomer(existingId, _formToRow());
+      _notify('Customer updated.');
     }
-    _clearForm();
     await load();
+    if (existingId != null) {
+      final row = data.where((c) => c['id'] == existingId).toList();
+      if (row.isNotEmpty) _loadIntoForm(row.first);
+    }
   }
 
   // IMPORT: lets the user pick a .csv file (columns: name,mobile,email,address,
@@ -687,9 +864,15 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
 
   @override
   Widget build(BuildContext context) {
-    final filtered = searchCtrl.text.trim().isEmpty
-        ? data
-        : data.where((c) => '${c['customer_name']}'.toLowerCase().contains(searchCtrl.text.trim().toLowerCase())).toList();
+    final filtered = data
+        .where((c) => matchesMasterSearch(searchCtrl.text, c, [
+              'customer_name',
+              'primary_mobile',
+              'gstin',
+              'city',
+              'email',
+            ]))
+        .toList();
     final batch = 'CUST-${DateTime.now().toString().substring(0, 10).replaceAll('-', '').substring(2)}';
     final editing = selectedId != null;
 
@@ -698,9 +881,9 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
       children: [
         // Left: dark customer directory panel
         Container(
-          width: 300,
+          width: masterDirectoryWidth(context),
           color: sidebarBg,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -708,21 +891,14 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
                 Icon(Icons.grid_view_rounded, color: teal, size: 15),
                 SizedBox(width: 8),
                 Text('CUSTOMER DIRECTORY',
-                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .5)),
+                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .5)),
               ]),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               TextField(
                 controller: searchCtrl,
                 onChanged: (_) => setState((){}),
                 style: const TextStyle(fontSize: 12),
-                decoration: const InputDecoration(
-                  isDense: true,
-                  filled: true,
-                  fillColor: Colors.white,
-                  prefixIcon: Icon(Icons.search, size: 17),
-                  hintText: 'Search customer records...',
-                  hintStyle: TextStyle(fontSize: 11.5),
-                ),
+                decoration: masterSearchDecoration('Search customer records...'),
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -770,15 +946,15 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
         // Right: form
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: masterFormPadding(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Container(width: 4, height: 20, color: navy),
+                  Container(width: 4, height: 18, color: navy),
                   const SizedBox(width: 10),
                   Text(editing ? 'MODIFY CUSTOMER RECORD' : 'CUSTOMER MASTER SETUP',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: navy)),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
                   if (editing) ...[
                     const SizedBox(width: 10),
                     Container(
@@ -822,54 +998,60 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
                     ),
                   ),
                 ]),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
                 _FormSectionBar(title: '1. CLIENT REGISTRATION SCHEMA DETAILS'),
-                const SizedBox(height: 12),
-                _row3(
-                  Field(label: 'CUSTOMER / COMPANY NAME', requiredField: true, child: TextField(controller: nameCtrl)),
-                  Field(label: 'PRIMARY MOBILE NO', child: TextField(controller: mobileCtrl)),
-                  Field(label: 'EMAIL ADDRESS', child: TextField(controller: emailCtrl)),
+                const SizedBox(height: 8),
+                masterRow3(
+                  context,
+                  _customerField(0, 'CUSTOMER / COMPANY NAME', nameCtrl, requiredField: true),
+                  _customerField(1, 'PRIMARY MOBILE NO', mobileCtrl),
+                  _customerField(2, 'EMAIL ADDRESS', emailCtrl),
                 ),
-                const SizedBox(height: 12),
-                _row3(
-                  Field(label: 'REGISTERED BILLING ADDRESS', child: TextField(controller: addressCtrl)),
-                  Field(label: 'CITY', child: TextField(controller: cityCtrl)),
-                  Field(label: 'PIN CODE', child: TextField(controller: pincodeCtrl)),
+                const SizedBox(height: 8),
+                masterRow3(
+                  context,
+                  _customerField(3, 'REGISTERED BILLING ADDRESS', addressCtrl),
+                  _customerField(4, 'CITY', cityCtrl),
+                  _customerField(5, 'PIN CODE', pincodeCtrl),
                 ),
-                const SizedBox(height: 12),
-                _row3(
-                  Field(label: 'GSTIN COMPLIANCE NUMBER', child: TextField(controller: gstinCtrl)),
-                  Field(label: 'OPENING BALANCE (CR)',
-                      child: TextField(controller: openCrCtrl, style: const TextStyle(color: green, fontWeight: FontWeight.w800))),
-                  Field(label: 'OPENING BALANCE (DR)',
-                      child: TextField(controller: openDrCtrl, style: const TextStyle(color: red, fontWeight: FontWeight.w800))),
+                const SizedBox(height: 8),
+                masterRow3(
+                  context,
+                  _customerField(6, 'GSTIN COMPLIANCE NUMBER', gstinCtrl),
+                  _customerField(7, 'OPENING BALANCE (CR)', openCrCtrl,
+                      style: const TextStyle(color: green, fontWeight: FontWeight.w800)),
+                  _customerField(8, 'OPENING BALANCE (DR)', openDrCtrl,
+                      style: const TextStyle(color: red, fontWeight: FontWeight.w800)),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
                 _FormSectionBar(title: '2. CLIENT BANKING ACCOUNT CREDENTIALS'),
-                const SizedBox(height: 12),
-                _row3(
-                  Field(label: 'BANK NAME', child: TextField(controller: bankNameCtrl)),
-                  Field(label: 'BANK ACCOUNT NUMBER', child: TextField(controller: bankAccCtrl)),
-                  Field(label: 'IFSC CODE', child: TextField(controller: ifscCtrl)),
+                const SizedBox(height: 8),
+                masterRow3(
+                  context,
+                  _customerField(9, 'BANK NAME', bankNameCtrl),
+                  _customerField(10, 'BANK ACCOUNT NUMBER', bankAccCtrl),
+                  _customerField(11, 'IFSC CODE', ifscCtrl),
                 ),
-                const SizedBox(height: 12),
-                Field(label: 'BRANCH LOCATION & ADDRESS DETAILS', child: TextField(controller: branchCtrl)),
-                const SizedBox(height: 20),
+                const SizedBox(height: 8),
+                _customerField(12, 'BRANCH LOCATION & ADDRESS DETAILS', branchCtrl),
+                const SizedBox(height: 14),
                 _FormSectionBar(title: '3. CORE LOGISTICS & SHIPPING DESTINATIONS'),
-                const SizedBox(height: 12),
-                _row2(
-                  Field(label: 'SHIPPING CONSIGNEE NAME', child: TextField(controller: shipNameCtrl)),
-                  Field(label: 'SHIPPING CONTACT MOBILE', child: TextField(controller: shipMobileCtrl)),
+                const SizedBox(height: 8),
+                masterRow2(
+                  context,
+                  _customerField(13, 'SHIPPING CONSIGNEE NAME', shipNameCtrl),
+                  _customerField(14, 'SHIPPING CONTACT MOBILE', shipMobileCtrl),
                 ),
-                const SizedBox(height: 12),
-                Field(label: 'CONSIGNMENT DELIVERY SHIPPING ADDRESS', child: TextField(controller: shipAddressCtrl)),
-                const SizedBox(height: 12),
-                _row3(
-                  Field(label: 'SHIPPING DESTINATION CITY', child: TextField(controller: shipCityCtrl)),
-                  Field(label: 'SHIPPING TERMINAL PINCODE', child: TextField(controller: shipPincodeCtrl)),
-                  Field(label: 'SHIPPING LOCATION GSTIN', child: TextField(controller: shipGstinCtrl)),
+                const SizedBox(height: 8),
+                _customerField(15, 'CONSIGNMENT DELIVERY SHIPPING ADDRESS', shipAddressCtrl),
+                const SizedBox(height: 8),
+                masterRow3(
+                  context,
+                  _customerField(16, 'SHIPPING DESTINATION CITY', shipCityCtrl),
+                  _customerField(17, 'SHIPPING TERMINAL PINCODE', shipPincodeCtrl),
+                  _customerField(18, 'SHIPPING LOCATION GSTIN', shipGstinCtrl),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -878,12 +1060,6 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
     );
   }
 
-  Widget _row3(Widget a, Widget b, Widget c) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Expanded(child: a), const SizedBox(width: 14), Expanded(child: b), const SizedBox(width: 14), Expanded(child: c),
-  ]);
-  Widget _row2(Widget a, Widget b) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Expanded(child: a), const SizedBox(width: 14), Expanded(child: b),
-  ]);
 }
 
 class _FormSectionBar extends StatelessWidget {
@@ -953,9 +1129,58 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
   final shipCityCtrl = TextEditingController();
   final shipPincodeCtrl = TextEditingController();
   final shipAltCodeCtrl = TextEditingController();
+  late final List<FocusNode> _focus;
 
-  @override void initState(){super.initState();load();}
+  @override
+  void initState() {
+    super.initState();
+    _focus = List.generate(20, (_) => FocusNode());
+    searchCtrl.addListener(() => setState(() {}));
+    load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (selectedId == null) _focus[0].requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    for (final f in _focus) {
+      f.dispose();
+    }
+    for (final c in [
+      nameCtrl, contactCtrl, mobileCtrl, emailCtrl, addressCtrl, cityCtrl, pincodeCtrl, gstinCtrl,
+      panCtrl, openCrCtrl, openDrCtrl, bankNameCtrl, bankAccCtrl, ifscCtrl, branchCtrl,
+      shipNameCtrl, shipAddressCtrl, shipCityCtrl, shipPincodeCtrl, shipAltCodeCtrl,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> load() async { data = await AppDatabase.instance.suppliers(); if(mounted) setState((){}); }
+
+  Widget _supplierField(
+    int index,
+    String label,
+    TextEditingController controller, {
+    bool requiredField = false,
+    TextStyle? style,
+    TextInputType? keyboardType,
+  }) {
+    return Field(
+      label: label,
+      requiredField: requiredField,
+      child: MasterTextField(
+        controller: controller,
+        focusNode: _focus[index],
+        nextFocus: index < _focus.length - 1 ? _focus[index + 1] : null,
+        onDone: save,
+        style: style,
+        keyboardType: keyboardType,
+      ),
+    );
+  }
 
   void _clearForm() {
     for (final c in [nameCtrl, contactCtrl, mobileCtrl, emailCtrl, addressCtrl, cityCtrl, pincodeCtrl, gstinCtrl,
@@ -1016,17 +1241,30 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
   };
 
   Future<void> save() async {
-    if (nameCtrl.text.trim().isEmpty) return;
-    if (selectedId == null) {
+    if (nameCtrl.text.trim().isEmpty) {
+      _notify('Vendor / corporate name is required.');
+      _focus[0].requestFocus();
+      return;
+    }
+    final existingId = selectedId;
+    if (existingId == null) {
       await AppDatabase.instance.insertSupplier({
         'supplier_code': 'SUPP-${DateTime.now().millisecondsSinceEpoch % 100000}',
         ..._formToRow(),
       });
+      _notify('Supplier saved.');
+      _clearForm();
     } else {
-      await AppDatabase.instance.updateSupplier(selectedId!, _formToRow());
+      await AppDatabase.instance.updateSupplier(existingId, _formToRow());
+      _notify('Supplier updated.');
     }
-    _clearForm();
     await load();
+    if (existingId != null) {
+      final row = data.where((s) => s['id'] == existingId).toList();
+      if (row.isNotEmpty) _loadIntoForm(row.first);
+    } else {
+      _focus[0].requestFocus();
+    }
   }
 
   // IMPORT: .csv columns — name,contact,mobile,email,address,city,pincode,gstin,pan
@@ -1082,9 +1320,16 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
 
   @override
   Widget build(BuildContext context) {
-    final filtered = searchCtrl.text.trim().isEmpty
-        ? data
-        : data.where((s) => '${s['supplier_name']}'.toLowerCase().contains(searchCtrl.text.trim().toLowerCase())).toList();
+    final filtered = data
+        .where((s) => matchesMasterSearch(searchCtrl.text, s, [
+              'supplier_name',
+              'primary_mobile',
+              'gstin',
+              'city',
+              'contact_name',
+              'email',
+            ]))
+        .toList();
     final batch = 'SUPP-${DateTime.now().toString().substring(0, 10).replaceAll('-', '')}';
     final editing = selectedId != null;
 
@@ -1093,9 +1338,9 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
       children: [
         // Left: dark supplier directory panel
         Container(
-          width: 300,
+          width: masterDirectoryWidth(context),
           color: sidebarBg,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1103,21 +1348,13 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
                 Icon(Icons.local_shipping_outlined, color: teal, size: 15),
                 SizedBox(width: 8),
                 Text('SUPPLIER DIRECTORY',
-                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .5)),
+                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .5)),
               ]),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               TextField(
                 controller: searchCtrl,
-                onChanged: (_) => setState((){}),
                 style: const TextStyle(fontSize: 12),
-                decoration: const InputDecoration(
-                  isDense: true,
-                  filled: true,
-                  fillColor: Colors.white,
-                  prefixIcon: Icon(Icons.search, size: 17),
-                  hintText: 'Search supplier records...',
-                  hintStyle: TextStyle(fontSize: 11.5),
-                ),
+                decoration: masterSearchDecoration('Search supplier records...'),
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -1165,15 +1402,15 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
         // Right: form
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: masterFormPadding(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Container(width: 4, height: 20, color: navy),
+                  Container(width: 4, height: 18, color: navy),
                   const SizedBox(width: 10),
                   Text(editing ? 'MODIFY SUPPLIER RECORD' : 'SUPPLIER SETUP MATRIX',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: navy)),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
                   if (editing) ...[
                     const SizedBox(width: 10),
                     Container(
@@ -1217,66 +1454,75 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
                     ),
                   ),
                 ]),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
                 _FormSectionBar(title: '1. VENDOR REGISTRATION PRIMARY SCHEMA'),
-                const SizedBox(height: 12),
-                _row3(
-                  Field(label: 'VENDOR / CORPORATE NAME', requiredField: true, child: TextField(controller: nameCtrl)),
-                  Field(label: 'CONTACT NAME', child: TextField(controller: contactCtrl)),
-                  Field(label: 'EMAIL ADDRESS', child: TextField(controller: emailCtrl)),
+                const SizedBox(height: 8),
+                masterRow3(
+                  context,
+                  _supplierField(0, 'VENDOR / CORPORATE NAME', nameCtrl, requiredField: true),
+                  _supplierField(1, 'CONTACT NAME', contactCtrl),
+                  _supplierField(2, 'EMAIL ADDRESS', emailCtrl),
                 ),
-                const SizedBox(height: 12),
-                _row3(
-                  Field(label: 'REGISTERED BILLING ADDRESS', child: TextField(controller: addressCtrl)),
-                  Field(label: 'CITY', child: TextField(controller: cityCtrl)),
-                  Field(label: 'PIN CODE', child: TextField(controller: pincodeCtrl)),
+                const SizedBox(height: 8),
+                masterRow3(
+                  context,
+                  _supplierField(3, 'REGISTERED BILLING ADDRESS', addressCtrl),
+                  _supplierField(4, 'CITY', cityCtrl),
+                  _supplierField(5, 'PIN CODE', pincodeCtrl),
                 ),
-                const SizedBox(height: 12),
-                _row3(
-                  Field(label: 'GSTIN COMPLIANCE NUMBER', child: TextField(controller: gstinCtrl)),
-                  Field(label: 'CORPORATE PAN CODE', child: TextField(controller: panCtrl)),
-                  Field(label: 'PRIMARY MOBILE NO', child: TextField(controller: mobileCtrl)),
+                const SizedBox(height: 8),
+                masterRow3(
+                  context,
+                  _supplierField(6, 'GSTIN COMPLIANCE NUMBER', gstinCtrl),
+                  _supplierField(7, 'CORPORATE PAN CODE', panCtrl),
+                  _supplierField(8, 'PRIMARY MOBILE NO', mobileCtrl),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
                 _FormSectionBar(title: '2. FINANCIAL SETTLEMENT & BANKING CREDENTIALS'),
-                const SizedBox(height: 12),
-                _row3(
-                  Field(label: 'BANK NAME', child: TextField(controller: bankNameCtrl)),
-                  Field(label: 'BANK ACCOUNT NUMBER', child: TextField(controller: bankAccCtrl)),
-                  Field(label: 'IFSC CODE', child: TextField(controller: ifscCtrl)),
+                const SizedBox(height: 8),
+                masterRow3(
+                  context,
+                  _supplierField(9, 'BANK NAME', bankNameCtrl),
+                  _supplierField(10, 'BANK ACCOUNT NUMBER', bankAccCtrl),
+                  _supplierField(11, 'IFSC CODE', ifscCtrl),
                 ),
-                const SizedBox(height: 12),
-                Field(label: 'BRANCH LOCATION & ADDRESS DETAILS', child: TextField(controller: branchCtrl)),
-                const SizedBox(height: 20),
+                const SizedBox(height: 8),
+                _supplierField(12, 'BRANCH LOCATION & ADDRESS DETAILS', branchCtrl),
+                const SizedBox(height: 14),
                 _FormSectionBar(title: '3. LEDGER BALANCES & RISK CONTROL PROFILE'),
-                const SizedBox(height: 12),
-                _row2(
-                  Field(label: 'OPENING BALANCE (CR)',
-                      child: TextField(controller: openCrCtrl, style: const TextStyle(color: green, fontWeight: FontWeight.w800))),
-                  Field(label: 'OPENING BALANCE (DR)',
-                      child: TextField(controller: openDrCtrl, style: const TextStyle(color: red, fontWeight: FontWeight.w800))),
+                const SizedBox(height: 8),
+                masterRow2(
+                  context,
+                  _supplierField(13, 'OPENING BALANCE (CR)', openCrCtrl,
+                      style: const TextStyle(color: green, fontWeight: FontWeight.w800),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                  _supplierField(14, 'OPENING BALANCE (DR)', openDrCtrl,
+                      style: const TextStyle(color: red, fontWeight: FontWeight.w800),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true)),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 ExpansionTile(
                   tilePadding: EdgeInsets.zero,
                   title: const Text('4. LOGISTICS & SHIPPING WAREHOUSE ALTERNATES (OPTIONAL)',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
+                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
                   children: [
                     const SizedBox(height: 8),
-                    _row2(
-                      Field(label: 'CONSIGNED CONSIGNMENT DELIVERY NAME', child: TextField(controller: shipNameCtrl)),
-                      Field(label: 'SHIPPING DELIVERY ADDRESS', child: TextField(controller: shipAddressCtrl)),
+                    masterRow2(
+                      context,
+                      _supplierField(15, 'CONSIGNED CONSIGNMENT DELIVERY NAME', shipNameCtrl),
+                      _supplierField(16, 'SHIPPING DELIVERY ADDRESS', shipAddressCtrl),
                     ),
-                    const SizedBox(height: 12),
-                    _row3(
-                      Field(label: 'SHIPPING CITY', child: TextField(controller: shipCityCtrl)),
-                      Field(label: 'SHIPPING PINCODE', child: TextField(controller: shipPincodeCtrl)),
-                      Field(label: 'SHIPPING ALTERNATE CODE', child: TextField(controller: shipAltCodeCtrl)),
+                    const SizedBox(height: 8),
+                    masterRow3(
+                      context,
+                      _supplierField(17, 'SHIPPING CITY', shipCityCtrl),
+                      _supplierField(18, 'SHIPPING PINCODE', shipPincodeCtrl),
+                      _supplierField(19, 'SHIPPING ALTERNATE CODE', shipAltCodeCtrl),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -1284,11 +1530,4 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
       ],
     );
   }
-
-  Widget _row3(Widget a, Widget b, Widget c) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Expanded(child: a), const SizedBox(width: 14), Expanded(child: b), const SizedBox(width: 14), Expanded(child: c),
-  ]);
-  Widget _row2(Widget a, Widget b) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Expanded(child: a), const SizedBox(width: 14), Expanded(child: b),
-  ]);
 }
