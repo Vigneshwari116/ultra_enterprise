@@ -117,8 +117,12 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
   Future<void> _save() async {
     if (partyId == null) return;
     final uuid = db.newUuid();
+    final year = DateTime.now().year;
+    final prefix = isDebit ? 'DN' : 'CN';
+    final noteBillNo = '$prefix-$year-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
     final id = await db.db.insert('adjustment_notes', {
       'uuid': uuid,
+      'note_bill_no': noteBillNo,
       'note_type': isDebit ? 'DEBIT' : 'CREDIT',
       'note_no': int.tryParse(noteNo),
       'issue_date': issueDate,

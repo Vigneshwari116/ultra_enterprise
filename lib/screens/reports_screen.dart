@@ -1,7 +1,19 @@
 import 'package:flutter/material.dart';
 import '../database/app_database.dart';
+import '../widgets/adjustment_note_document.dart';
 import '../widgets/compact_date_picker.dart';
+import '../widgets/journal_summary_report.dart';
 import '../widgets/sales_report.dart';
+
+final reportsCenterKey = GlobalKey<SalesReportsScreenState>();
+
+enum ReportsCenterMode { sales, journalSummary, noteHistory }
+
+abstract class SalesReportsScreenState extends State<SalesReportsScreen> {
+  void showSalesReports();
+  void showJournalSummary();
+  void showDebitCreditHistory();
+}
 
 const _navy = Color(0xFF122746);
 const _navy2 = Color(0xFF19385F);
@@ -17,15 +29,34 @@ class SalesReportsScreen extends StatefulWidget {
   State<SalesReportsScreen> createState() => _SalesReportsScreenState();
 }
 
-class _SalesReportsScreenState extends State<SalesReportsScreen> {
+class _SalesReportsScreenState extends SalesReportsScreenState {
+  ReportsCenterMode centerMode = ReportsCenterMode.sales;
   int tab = 0;
   List<Map<String, dynamic>> invoices = [];
   List<Map<String, dynamic>> customers = [];
+  List<Map<String, dynamic>> journalLines = [];
+  List<Map<String, dynamic>> adjustmentNotes = [];
   String? selectedCustomer;
+  String? noteTypeFilter;
   bool loading = true;
   final searchCtrl = TextEditingController();
+  final journalSearchCtrl = TextEditingController();
+  final noteSearchCtrl = TextEditingController();
   DateTime? fromDate;
   DateTime? toDate;
+
+  @override
+  void showSalesReports() => setState(() => centerMode = ReportsCenterMode.sales);
+  @override
+  void showJournalSummary() {
+    setState(() => centerMode = ReportsCenterMode.journalSummary);
+    _loadJournal();
+  }
+  @override
+  void showDebitCreditHistory() {
+    setState(() => centerMode = ReportsCenterMode.noteHistory);
+    _loadNotes();
+  }
 
   @override
   void initState() {
@@ -36,7 +67,21 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
   @override
   void dispose() {
     searchCtrl.dispose();
+    journalSearchCtrl.dispose();
+    noteSearchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadJournal() async {
+    setState(() => loading = true);
+    journalLines = await AppDatabase.instance.journalSummaryLines();
+    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> _loadNotes() async {
+    setState(() => loading = true);
+    adjustmentNotes = await AppDatabase.instance.adjustmentNotesWithParty();
+    if (mounted) setState(() => loading = false);
   }
 
   Future<void> _load() async {
@@ -118,13 +163,58 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
       child: Column(
         children: [
           _topHeader(),
-          Expanded(child: loading ? const Center(child: CircularProgressIndicator()) : _body()),
+          Expanded(
+            child: loading && centerMode != ReportsCenterMode.sales
+                ? const Center(child: CircularProgressIndicator())
+                : _body(),
+          ),
         ],
       ),
     );
   }
 
   Widget _topHeader() {
+    if (centerMode == ReportsCenterMode.journalSummary) {
+      return Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('JOURNAL SUMMARY REGISTER', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _navy)),
+                  SizedBox(height: 3),
+                  Text('DOUBLE ENTRY FINANCIAL ADJUSTMENT INTERCEPTOR JOURNAL DIRECTORY',
+                      style: TextStyle(fontSize: 8.5, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => printJournalSummaryReport(_filteredJournalLines),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+              label: const Text('PRINT SUMMARY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      );
+    }
+    if (centerMode == ReportsCenterMode.noteHistory) {
+      return Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('DEBIT / CREDIT NOTE HISTORY', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _navy)),
+            SizedBox(height: 3),
+            Text('ACCOUNT REVERSAL NOTE REGISTER & COMMERCIAL CREDIT/DEBIT AUDIT TRAIL',
+                style: TextStyle(fontSize: 8.5, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+    }
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(20, 14, 8, 10),
@@ -163,9 +253,233 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> {
   }
 
   Widget _body() {
+    if (centerMode == ReportsCenterMode.journalSummary) return _journalSummaryView();
+    if (centerMode == ReportsCenterMode.noteHistory) return _noteHistoryView();
+    if (loading) return const Center(child: CircularProgressIndicator());
     if (tab == 0) return _ledgerView();
     if (tab == 1) return _auditView();
     return _ledgerWiseView();
+  }
+
+  List<Map<String, dynamic>> get _filteredJournalLines {
+    final q = journalSearchCtrl.text.trim().toLowerCase();
+    if (q.isEmpty) return journalLines;
+    return journalLines.where((r) {
+      final hay = '${r['narration']} ${r['dr_account_label']} ${r['cr_account_label']} ${r['voucher_date']}'.toLowerCase();
+      return hay.contains(q);
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get _filteredNotes {
+    final q = noteSearchCtrl.text.trim().toLowerCase();
+    return adjustmentNotes.where((r) {
+      if (noteTypeFilter != null && '${r['note_type']}' != noteTypeFilter) return false;
+      if (q.isEmpty) return true;
+      final hay = '${r['party_name']} ${r['note_no']} ${r['note_bill_no']} ${r['reversal_reason']}'.toLowerCase();
+      return hay.contains(q);
+    }).toList();
+  }
+
+  Widget _journalSummaryView() {
+    final rows = _filteredJournalLines;
+    final total = rows.fold<double>(0, (s, r) => s + ((r['amount'] as num?)?.toDouble() ?? 0));
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: TextField(
+              controller: journalSearchCtrl,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search, size: 16, color: _teal),
+                hintText: 'FILTER BY DATE, NARRATION, DEBIT OR CREDIT ACCOUNT...',
+                hintStyle: TextStyle(fontSize: 9),
+                filled: true,
+                fillColor: Colors.white,
+                isDense: true,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Container(
+              color: Colors.white,
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))),
+                    child: const Row(children: [
+                      Expanded(flex: 1, child: Text('VOUCHER DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                      Expanded(flex: 2, child: Text('VOUCHER NARRATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                      Expanded(flex: 2, child: Text('DEBIT (TO) ACCOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                      Expanded(flex: 2, child: Text('CREDIT (BY) ACCOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                      Expanded(child: Text('AMOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    ]),
+                  ),
+                  if (rows.isEmpty)
+                    const Padding(padding: EdgeInsets.all(32), child: Text('No journal entries posted yet.', style: TextStyle(fontSize: 11, color: Color(0xFF748094))))
+                  else
+                    ...rows.map(_journalRow),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                    color: const Color(0xFFE1E7F0),
+                    child: Row(children: [
+                      const Expanded(flex: 7, child: Text('TOTAL VOUCHER SUMMARY VALUE:', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                      Expanded(child: Text('₹ ${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _green))),
+                    ]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _journalRow(Map<String, dynamic> r) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFE7EBF0)))),
+      child: Row(
+        children: [
+          Expanded(flex: 1, child: Text(_date(r['voucher_date']), style: const TextStyle(fontSize: 9))),
+          Expanded(flex: 2, child: Text('${r['narration'] ?? ''}', style: const TextStyle(fontSize: 9))),
+          Expanded(flex: 2, child: Text('${r['dr_account_label'] ?? ''}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))),
+          Expanded(flex: 2, child: Text('${r['cr_account_label'] ?? ''}', style: const TextStyle(fontSize: 9, color: _green))),
+          Expanded(child: Text('₹${((r['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+        ],
+      ),
+    );
+  }
+
+  Widget _noteHistoryView() {
+    final rows = _filteredNotes;
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: noteSearchCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search, size: 16, color: _teal),
+                      hintText: 'FILTER BY NOTE NO, PARTY NAME, REASON OR DATE...',
+                      hintStyle: TextStyle(fontSize: 9),
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _noteFilterChip('ALL', null),
+                const SizedBox(width: 4),
+                _noteFilterChip('DEBIT', 'DEBIT'),
+                const SizedBox(width: 4),
+                _noteFilterChip('CREDIT', 'CREDIT'),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Column(
+              children: rows.isEmpty
+                  ? [const Padding(padding: EdgeInsets.all(32), child: Text('No debit/credit notes posted yet.', style: TextStyle(fontSize: 11, color: Color(0xFF748094))))]
+                  : rows.map(_noteRow).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _noteFilterChip(String label, String? type) {
+    final active = noteTypeFilter == type;
+    return OutlinedButton(
+      onPressed: () => setState(() => noteTypeFilter = type),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: active ? _navy : Colors.white,
+        foregroundColor: active ? Colors.white : _navy,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
+    );
+  }
+
+  String _noteBillNo(Map<String, dynamic> r) {
+    final stored = '${r['note_bill_no'] ?? ''}'.trim();
+    if (stored.isNotEmpty) return stored;
+    final uuid = '${r['uuid'] ?? ''}';
+    final year = DateTime.tryParse('${r['issue_date']}')?.year ?? DateTime.now().year;
+    final prefix = '${r['note_type']}' == 'DEBIT' ? 'DN' : 'CN';
+    if (uuid.length >= 6) return '$prefix-$year-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
+    return '$prefix-$year-${r['note_no']}';
+  }
+
+  Widget _noteRow(Map<String, dynamic> r) {
+    final id = r['id'] as int;
+    final isCredit = '${r['note_type']}' == 'CREDIT';
+    final total = (r['grand_total'] as num?)?.toDouble() ?? 0;
+    final accent = isCredit ? _green : const Color(0xFFB33A3A);
+    return Container(
+      height: 58,
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _border)),
+      child: Row(
+        children: [
+          Container(width: 3, height: 38, color: accent),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 4,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Text('${r['party_name']}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _navy)),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      color: accent.withOpacity(.15),
+                      child: Text('${r['note_type']}', style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800, color: accent)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'NOTE NO: ${_noteBillNo(r)}  •  SERIAL: ${r['note_no']}  •  DATE: ${_date(r['issue_date'])}  •  REASON: ${r['reversal_reason']}',
+                  style: const TextStyle(fontSize: 8, color: Color(0xFF748094)),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text('REVERSAL VALUE', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))),
+              Text('₹${total.toStringAsFixed(2)}', style: TextStyle(fontSize: 12, color: accent, fontWeight: FontWeight.w800)),
+            ],
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(
+            onPressed: () => reprintAdjustmentNote(id),
+            icon: const Icon(Icons.print, size: 12),
+            label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
+            style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _summaryCards() {

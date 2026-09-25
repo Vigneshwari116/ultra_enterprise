@@ -62,7 +62,7 @@ class _AppShellState extends State<AppShell> {
     DeliveryChallanScreen(key: deliveryChallanScreenKey),
     const QuotationScreen(),
     SalesInvoiceScreen(key: salesInvoiceCatalogKey),
-    const SalesReportsScreen(),
+    SalesReportsScreen(key: reportsCenterKey),
     const PurchaseOrderScreen(),
     const PurchaseVoucherScreen(),
     const PurchaseReportsScreen(),
@@ -162,6 +162,18 @@ class _AppShellState extends State<AppShell> {
         jobWorkHostKey.currentState?.showMaterialMaster();
       } else {
         jobWorkHostKey.currentState?.showMaterialType();
+      }
+    }
+    if (pageIndex == 8) {
+      switch (leafLabel) {
+        case 'Journal Summary':
+          reportsCenterKey.currentState?.showJournalSummary();
+          break;
+        case 'Debit / Credit Note History':
+          reportsCenterKey.currentState?.showDebitCreditHistory();
+          break;
+        default:
+          reportsCenterKey.currentState?.showSalesReports();
       }
     }
     if (pageIndex == 7) {

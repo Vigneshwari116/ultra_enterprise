@@ -13,7 +13,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 13,
+      version: 14,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -447,6 +447,11 @@ class AppDatabase {
               created_at TEXT
             )
           ''');
+        }
+        if (oldVersion < 14) {
+          try {
+            await db.execute('ALTER TABLE adjustment_notes ADD COLUMN note_bill_no TEXT');
+          } catch (_) {}
         }
         if (oldVersion < 13) {
           await db.execute('''
@@ -1059,6 +1064,35 @@ class AppDatabase {
         where: 'id = ?',
         whereArgs: [quotationId],
       );
+
+  Future<List<Map<String, dynamic>>> adjustmentNotesWithParty() => db.rawQuery('''
+        SELECT an.*,
+          CASE
+            WHEN an.party_kind = 'SUPPLIER' THEN (SELECT supplier_name FROM suppliers WHERE id = an.party_id)
+            WHEN an.party_kind = 'CUSTOMER' THEN (SELECT customer_name FROM customers WHERE id = an.party_id)
+            ELSE '-'
+          END AS party_name
+        FROM adjustment_notes an
+        ORDER BY an.issue_date DESC, an.id DESC
+      ''');
+
+  Future<List<Map<String, dynamic>>> adjustmentNoteItems(int noteId) =>
+      db.query('adjustment_note_items', where: 'note_id = ?', whereArgs: [noteId]);
+
+  Future<Map<String, dynamic>?> adjustmentNotePrintBundle(int noteId) async {
+    final rows = await adjustmentNotesWithParty();
+    final note = rows.where((r) => r['id'] == noteId).toList();
+    if (note.isEmpty) return null;
+    return {'note': note.first, 'items': await adjustmentNoteItems(noteId)};
+  }
+
+  Future<List<Map<String, dynamic>>> journalSummaryLines() => db.rawQuery('''
+        SELECT jv.id AS voucher_id, jv.voucher_date, jv.narration, jv.total_amount,
+          jvl.line_no, jvl.dr_account_label, jvl.cr_account_label, jvl.amount
+        FROM journal_voucher_lines jvl
+        INNER JOIN journal_vouchers jv ON jv.id = jvl.voucher_id
+        ORDER BY jv.voucher_date DESC, jv.id DESC, jvl.line_no ASC
+      ''');
 
   Future<int> nextAdjustmentNoteNo(String noteType) async {
     final result = await db.rawQuery(
