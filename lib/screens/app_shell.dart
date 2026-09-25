@@ -12,6 +12,7 @@ import 'purchase_order_screen.dart';
 import 'purchase_voucher_screen.dart';
 import 'reports_screen.dart';
 import 'transactions_host_screen.dart';
+import 'job_work_host_screen.dart';
 import 'stock_screen.dart';
 import 'sync_screen.dart';
 
@@ -66,7 +67,7 @@ class _AppShellState extends State<AppShell> {
     const PurchaseVoucherScreen(),
     const PurchaseReportsScreen(),
     TransactionsHostScreen(key: transactionsHostKey),
-    const ProductMasterScreen(),
+    JobWorkHostScreen(key: jobWorkHostKey),
     const StockScreen(),
     const SyncScreen(),
   ];
@@ -154,6 +155,13 @@ class _AppShellState extends State<AppShell> {
           break;
         default:
           transactionsHostKey.currentState?.showAdjustment();
+      }
+    }
+    if (pageIndex == 13) {
+      if (leafLabel == 'Material Master') {
+        jobWorkHostKey.currentState?.showMaterialMaster();
+      } else {
+        jobWorkHostKey.currentState?.showMaterialType();
       }
     }
     if (pageIndex == 7) {

@@ -13,7 +13,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 12,
+      version: 13,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -448,6 +448,30 @@ class AppDatabase {
             )
           ''');
         }
+        if (oldVersion < 13) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS material_types(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              type_code TEXT NOT NULL,
+              description TEXT,
+              created_at TEXT
+            )
+          ''');
+          for (final col in [
+            'material_type_id INTEGER',
+            'raw_material_size TEXT',
+            'finishing_size TEXT',
+            'purchase_rate REAL DEFAULT 0',
+            'sales_rate REAL DEFAULT 0',
+            'units_bound REAL DEFAULT 1',
+            'image_base64 TEXT',
+            'log_date TEXT',
+          ]) {
+            try {
+              await db.execute('ALTER TABLE products ADD COLUMN $col');
+            } catch (_) {}
+          }
+        }
         if (oldVersion < 12) {
           await db.execute('''
             CREATE TABLE IF NOT EXISTS adjustment_notes(
@@ -669,12 +693,34 @@ class AppDatabase {
 
   Future<List<Map<String, dynamic>>> products() =>
       db.rawQuery('''
-        SELECT p.*, COALESCE(u.code, '') AS uom_code
+        SELECT p.*, COALESCE(u.code, '') AS uom_code,
+          COALESCE(mt.type_code, '') AS material_type_code
         FROM products p
         LEFT JOIN units u ON u.id = p.unit_id
+        LEFT JOIN material_types mt ON mt.id = p.material_type_id
         WHERE p.status = 'ACTIVE'
         ORDER BY p.id DESC
       ''');
+
+  Future<int> updateProduct(int id, Map<String, dynamic> row) =>
+      db.update('products', row, where: 'id = ?', whereArgs: [id]);
+
+  Future<int> deleteProduct(int id) =>
+      db.update('products', {'status': 'INACTIVE'}, where: 'id = ?', whereArgs: [id]);
+
+  Future<List<Map<String, dynamic>>> materialTypes() =>
+      db.query('material_types', orderBy: 'type_code ASC');
+
+  Future<int> insertMaterialType(Map<String, dynamic> row) {
+    row['created_at'] = DateTime.now().toIso8601String();
+    return db.insert('material_types', row);
+  }
+
+  Future<int> updateMaterialType(int id, Map<String, dynamic> row) =>
+      db.update('material_types', row, where: 'id = ?', whereArgs: [id]);
+
+  Future<int> deleteMaterialType(int id) =>
+      db.delete('material_types', where: 'id = ?', whereArgs: [id]);
 
   Future<int> insertCustomer(Map<String, dynamic> row) =>
       db.insert('customers', row);
