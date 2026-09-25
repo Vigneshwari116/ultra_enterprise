@@ -18,9 +18,7 @@ Future<void> main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  if (UltraConfig.persistLocally) {
-    await AppDatabase.instance.init();
-  }
+  await AppDatabase.instance.init();
 
   runApp(const UltraApp());
 }

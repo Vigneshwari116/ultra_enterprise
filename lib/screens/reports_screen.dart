@@ -126,7 +126,22 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
     }).toList();
   }
 
-  double _sum(String key) => filteredInvoices.fold<double>(0, (v, r) => v + ((r[key] as num?)?.toDouble() ?? 0));
+  static double _asDouble(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  static int _asInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  double _sum(String key) => filteredInvoices.fold<double>(0, (v, r) => v + _asDouble(r[key]));
 
   void _setFrom(DateTime picked) {
     setState(() {
@@ -277,7 +292,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
 
   Widget _journalSummaryView() {
     final rows = _filteredJournalLines;
-    final total = rows.fold<double>(0, (s, r) => s + ((r['amount'] as num?)?.toDouble() ?? 0));
+    final total = rows.fold<double>(0, (s, r) => s + _asDouble(r['amount']));
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -344,7 +359,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
           Expanded(flex: 2, child: Text('${r['narration'] ?? ''}', style: const TextStyle(fontSize: 9))),
           Expanded(flex: 2, child: Text('${r['dr_account_label'] ?? ''}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))),
           Expanded(flex: 2, child: Text('${r['cr_account_label'] ?? ''}', style: const TextStyle(fontSize: 9, color: _green))),
-          Expanded(child: Text('₹${((r['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+          Expanded(child: Text('₹${_asDouble(r['amount']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
         ],
       ),
     );
@@ -421,7 +436,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   Widget _noteRow(Map<String, dynamic> r) {
     final id = r['id'] as int;
     final isCredit = '${r['note_type']}' == 'CREDIT';
-    final total = (r['grand_total'] as num?)?.toDouble() ?? 0;
+    final total = _asDouble(r['grand_total']);
     final accent = isCredit ? _green : const Color(0xFFB33A3A);
     return Container(
       height: 58,
@@ -577,7 +592,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   }
 
   Widget _invoiceRow(Map<String, dynamic> r) {
-    final total = (r['grand_total'] as num?)?.toDouble() ?? 0;
+    final total = _asDouble(r['grand_total']);
     return Container(
       height: 58,
       margin: const EdgeInsets.only(bottom: 4),
@@ -615,7 +630,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
       final db = DateTime.tryParse('${b['transaction_date'] ?? ''}') ?? DateTime(1970);
       final c = db.compareTo(da);
       if (c != 0) return c;
-      return ((b['invoice_no'] as num?) ?? 0).compareTo((a['invoice_no'] as num?) ?? 0);
+      return _asInt(b['invoice_no']).compareTo(_asInt(a['invoice_no']));
     });
 
     return SingleChildScrollView(
@@ -682,11 +697,11 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
         Expanded(flex: 1, child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
         Expanded(flex: 1, child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))),
         Expanded(flex: 4, child: Text('${r['customer_name']}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${(r['taxable_total'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${(r['cgst_total'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${(r['sgst_total'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${(r['igst_total'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${(r['grand_total'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
+        Expanded(child: Text('${_asDouble(r['taxable_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
+        Expanded(child: Text('${_asDouble(r['cgst_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
+        Expanded(child: Text('${_asDouble(r['sgst_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
+        Expanded(child: Text('${_asDouble(r['igst_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
+        Expanded(child: Text('${_asDouble(r['grand_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
       ]),
     );
   }
@@ -694,7 +709,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   Widget _ledgerWiseView() {
     final name = selectedCustomer;
     final rows = name == null ? <Map<String, dynamic>>[] : filteredInvoices.where((r) => r['customer_name'] == name).toList();
-    final gross = rows.fold<double>(0, (v, r) => v + ((r['grand_total'] as num?)?.toDouble() ?? 0));
+    final gross = rows.fold<double>(0, (v, r) => v + (_asDouble(r['grand_total'])));
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -720,7 +735,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
             const SizedBox(height: 14),
             Container(color: Colors.white, child: Column(children: [
               Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), child: const Row(children: [Expanded(child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('TXN TYPE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('REF / INVOICE ID', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(flex: 3, child: Text('PARTICULARS / NARRATION ENTRY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('DEBIT (DR) [+]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF2B8ED2)))), Expanded(child: Text('CREDIT (CR) [-]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _green))), Expanded(child: Text('BALANCE (₹)', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy)))])),
-              ...rows.map((r) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE7EBF0)))), child: Row(children: [Expanded(child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))), Expanded(child: Container(alignment: Alignment.centerLeft, child: const Text('SALES', style: TextStyle(fontSize: 8, color: _green, fontWeight: FontWeight.w700)))), Expanded(child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9))), Expanded(flex: 3, child: Text('SALES INVOICE FOR ${r['customer_name']}', style: const TextStyle(fontSize: 9))), Expanded(child: Text('₹${((r['grand_total'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))), Expanded(child: const Text('-', style: TextStyle(fontSize: 9))), Expanded(child: Text('₹${((r['grand_total'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9)))]))),
+              ...rows.map((r) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE7EBF0)))), child: Row(children: [Expanded(child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))), Expanded(child: Container(alignment: Alignment.centerLeft, child: const Text('SALES', style: TextStyle(fontSize: 8, color: _green, fontWeight: FontWeight.w700)))), Expanded(child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9))), Expanded(flex: 3, child: Text('SALES INVOICE FOR ${r['customer_name']}', style: const TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))), Expanded(child: const Text('-', style: TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9)))]))),
             ])),
           ] else
             const SizedBox(height: 190, child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.supervisor_account_outlined, size: 34, color: Color(0xFF607789)), SizedBox(height: 10), Text('Select a customer client database line row item to view accounts directory tracks.', style: TextStyle(fontSize: 11, color: Color(0xFF7A8595)))]))),

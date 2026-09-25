@@ -13,6 +13,9 @@ const red = Color(0xFFB33A3A);
 const amber = Color(0xFFC9862A);
 const purple = Color(0xFF6E5CC7);
 
+/// Minimum content width to show transaction form sections 1 & 2 side-by-side.
+const formTwoColumnMinWidth = 640.0;
+
 /// One metric tile for a dashboard, matching the accent-bar + icon layout.
 class MetricCard extends StatelessWidget {
   final String label;

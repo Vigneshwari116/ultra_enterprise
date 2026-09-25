@@ -379,47 +379,67 @@ class _QuotationScreenState extends State<QuotationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _sec('SECTION 1: QUOTATION METADATA & REFERENCES', [
-                  _pair(_ro('QUOTATION SERIAL NO (AUTO)', serial), _date('QUOTATION DATE', qtDate, (v) => qtDate = v)),
-                  _pair(_field('VALIDITY (DAYS)', validity), _field('REFERENCE NO', refNo)),
-                  _pair(_field('REFERENCE NAME / KIND...', refName), _date('REFERENCE DATE', refDate, (v) => refDate = v)),
-                ]),
-                const SizedBox(height: 14),
-                _sec('SECTION 2: PARTY ALLOCATION', [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      _partyToggle('SUPPLIER', true),
-                      const SizedBox(width: 8),
-                      _partyToggle('CUSTOMER', false),
-                    ],
-                  ),
-                  Text('PARTY TYPE: ${partyIsSupplier ? 'SUPPLIER' : 'CUSTOMER'}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    value: partyId,
-                    isExpanded: true,
-                    decoration: _dec(partyIsSupplier ? 'TARGET REGISTERED SUPPLIER PROFILES *' : 'TARGET REGISTERED CUSTOMER PROFILES *'),
-                    items: (partyIsSupplier ? suppliers : customers)
-                        .map((p) => DropdownMenuItem<int>(
-                              value: p['id'] as int,
-                              child: Text('${partyIsSupplier ? p['supplier_name'] : p['customer_name']}', style: const TextStyle(fontSize: 12)),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      final list = partyIsSupplier ? suppliers : customers;
-                      final p = list.firstWhere((x) => x['id'] == v);
-                      setState(() {
-                        partyId = v;
-                        _fillParty(p);
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _field('OFFICIAL BILLING ADDRESS', address),
-                  _pair(_field('CITY', city), _field('PINCODE', pin)),
-                  _field('REGISTERED GSTIN REFERENCE', gstin),
-                ]),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stacked = constraints.maxWidth < formTwoColumnMinWidth;
+                    final section1 = _sec('SECTION 1: QUOTATION METADATA & REFERENCES', [
+                      _pair(_ro('QUOTATION SERIAL NO (AUTO)', serial), _date('QUOTATION DATE', qtDate, (v) => qtDate = v)),
+                      _pair(_field('VALIDITY (DAYS)', validity), _field('REFERENCE NO', refNo)),
+                      _pair(_field('REFERENCE NAME / KIND...', refName), _date('REFERENCE DATE', refDate, (v) => refDate = v)),
+                    ]);
+                    final section2 = _sec('SECTION 2: PARTY ALLOCATION', [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          _partyToggle('SUPPLIER', true),
+                          const SizedBox(width: 8),
+                          _partyToggle('CUSTOMER', false),
+                        ],
+                      ),
+                      Text('PARTY TYPE: ${partyIsSupplier ? 'SUPPLIER' : 'CUSTOMER'}',
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<int>(
+                        value: partyId,
+                        isExpanded: true,
+                        decoration: _dec(partyIsSupplier ? 'TARGET REGISTERED SUPPLIER PROFILES *' : 'TARGET REGISTERED CUSTOMER PROFILES *'),
+                        items: (partyIsSupplier ? suppliers : customers)
+                            .map((p) => DropdownMenuItem<int>(
+                                  value: p['id'] as int,
+                                  child: Text('${partyIsSupplier ? p['supplier_name'] : p['customer_name']}',
+                                      style: const TextStyle(fontSize: 12)),
+                                ))
+                            .toList(),
+                        onChanged: (v) {
+                          final list = partyIsSupplier ? suppliers : customers;
+                          final p = list.firstWhere((x) => x['id'] == v);
+                          setState(() {
+                            partyId = v;
+                            _fillParty(p);
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _field('OFFICIAL BILLING ADDRESS', address),
+                      _pair(_field('CITY', city), _field('PINCODE', pin)),
+                      _field('REGISTERED GSTIN REFERENCE', gstin),
+                    ]);
+                    if (stacked) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [section1, const SizedBox(height: 14), section2],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: section1),
+                        const SizedBox(width: 14),
+                        Expanded(child: section2),
+                      ],
+                    );
+                  },
+                ),
                 const SizedBox(height: 14),
                 _sec('SECTION 3: COVER LETTER / APPLICATION WRITING', [
                   _field('SALUTATION', salutation),
