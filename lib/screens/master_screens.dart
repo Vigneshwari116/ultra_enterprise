@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../database/app_database.dart';
-import '../widgets/csv_import.dart' show pickCsvFileContent;
+import '../widgets/csv_import.dart';
 import '../widgets/enterprise_widgets.dart';
-import '';
+
 class MasterPage extends StatefulWidget {
   final String title;
   final String section;
@@ -935,15 +935,6 @@ class QuotationScreen extends StatelessWidget {
   const QuotationScreen({super.key});
   @override Widget build(BuildContext context)=>const MasterPage(title:'QUOTATION',section:'06',tableTitle:'QUOTATION REGISTER',columns:['QUOTE NO','DATE','CUSTOMER','VALUE','STATUS'],rows:[['Q-0001','23/09/2026','Test Customer','₹0.00','DRAFT']]);
 }
-class PurchaseOrderScreen extends StatelessWidget {
-  const PurchaseOrderScreen({super.key});
-  @override Widget build(BuildContext context)=>const MasterPage(title:'PURCHASE ORDER',section:'10',tableTitle:'PURCHASE ORDER REGISTER',columns:['PO NO','DATE','SUPPLIER','VALUE','STATUS'],rows:[['PO-0001','23/09/2026','-','₹0.00','DRAFT']]);
-}
-class PurchaseVoucherScreen extends StatelessWidget {
-  const PurchaseVoucherScreen({super.key});
-  @override Widget build(BuildContext context)=>const MasterPage(title:'PURCHASE VOUCHER',section:'11',tableTitle:'PURCHASE VOUCHER REGISTER',columns:['VOUCHER NO','DATE','SUPPLIER','VALUE','STATUS'],rows:[['PV-0001','23/09/2026','-','₹0.00','DRAFT']]);
-}
-
 class SupplierMasterScreen extends StatefulWidget {
   const SupplierMasterScreen({super.key});
   @override State<SupplierMasterScreen> createState()=>_SupplierMasterScreenState();

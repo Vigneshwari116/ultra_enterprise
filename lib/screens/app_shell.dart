@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ultra_enterprise/screens/purchase_reports_Screen.dart';
 import '../widgets/enterprise_widgets.dart';
 import 'home_screen.dart';
 import 'master_screens.dart';
 import 'sales_invoice_screen.dart';
+import 'purchase_order_screen.dart';
+import 'purchase_voucher_screen.dart';
 import 'reports_screen.dart';
 import 'transaction_screens.dart';
 import 'stock_screen.dart';
@@ -30,7 +33,7 @@ class _AppShellState extends State<AppShell> {
     SalesReportsScreen(),
     PurchaseOrderScreen(),
     PurchaseVoucherScreen(),
-    // PurchaseReportsScreen(),
+    PurchaseReportsScreen(),
     TransactionsScreen(),
     StockScreen(),
     SyncScreen(),

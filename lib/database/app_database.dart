@@ -13,7 +13,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 4,
+      version: 8,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -145,6 +145,106 @@ class AppDatabase {
             created_at TEXT
           )
         ''');
+        await db.execute('''
+          CREATE TABLE purchase_orders(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uuid TEXT NOT NULL UNIQUE,
+            po_no INTEGER,
+            po_date TEXT,
+            delivery_due_date TEXT,
+            supplier_ref_no TEXT,
+            total_packages INTEGER DEFAULT 0,
+            delivery_mode TEXT,
+            remarks TEXT,
+            supplier_id INTEGER,
+            taxable_total REAL DEFAULT 0,
+            cgst_total REAL DEFAULT 0,
+            sgst_total REAL DEFAULT 0,
+            igst_total REAL DEFAULT 0,
+            grand_total REAL DEFAULT 0,
+            status TEXT DEFAULT 'DRAFT'
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE purchase_order_items(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            purchase_order_id INTEGER,
+            product_id INTEGER,
+            description TEXT,
+            uom TEXT,
+            hsn TEXT,
+            quantity REAL,
+            rate REAL,
+            cgst_percent REAL,
+            sgst_percent REAL,
+            igst_percent REAL,
+            taxable REAL,
+            cgst REAL,
+            sgst REAL,
+            igst REAL,
+            total REAL
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE receipts(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER,
+            receipt_date TEXT,
+            amount REAL DEFAULT 0,
+            narration TEXT,
+            created_at TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE purchase_vouchers(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uuid TEXT NOT NULL UNIQUE,
+            voucher_no INTEGER,
+            voucher_date TEXT,
+            supplier_invoice_no TEXT,
+            supplier_invoice_date TEXT,
+            purchase_order_id INTEGER,
+            supplier_id INTEGER,
+            taxable_total REAL DEFAULT 0,
+            cgst_total REAL DEFAULT 0,
+            sgst_total REAL DEFAULT 0,
+            igst_total REAL DEFAULT 0,
+            grand_total REAL DEFAULT 0,
+            status TEXT DEFAULT 'POSTED'
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE purchase_voucher_items(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            voucher_id INTEGER,
+            product_id INTEGER,
+            description TEXT,
+            uom TEXT,
+            hsn TEXT,
+            quantity REAL,
+            rate REAL,
+            cgst_percent REAL,
+            sgst_percent REAL,
+            igst_percent REAL,
+            taxable REAL,
+            cgst REAL,
+            sgst REAL,
+            igst REAL,
+            total REAL
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE payments(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supplier_id INTEGER,
+            payment_date TEXT,
+            amount REAL DEFAULT 0,
+            payment_mode TEXT,
+            reference_no TEXT,
+            narration TEXT,
+            created_at TEXT
+          )
+        ''');
 
         await db.insert('units', {'code': 'PCS', 'name': 'Pieces'});
         await db.insert('units', {'code': 'BOX', 'name': 'Box'});
@@ -227,6 +327,114 @@ class AppDatabase {
             )
           ''');
         }
+        if (oldVersion < 5) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS receipts(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              customer_id INTEGER,
+              receipt_date TEXT,
+              amount REAL DEFAULT 0,
+              narration TEXT,
+              created_at TEXT
+            )
+          ''');
+        }
+        if (oldVersion < 6) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS purchase_orders(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              uuid TEXT NOT NULL UNIQUE,
+              po_no INTEGER,
+              po_date TEXT,
+              delivery_due_date TEXT,
+              supplier_ref_no TEXT,
+              total_packages INTEGER DEFAULT 0,
+              delivery_mode TEXT,
+              remarks TEXT,
+              supplier_id INTEGER,
+              taxable_total REAL DEFAULT 0,
+              cgst_total REAL DEFAULT 0,
+              sgst_total REAL DEFAULT 0,
+              igst_total REAL DEFAULT 0,
+              grand_total REAL DEFAULT 0,
+              status TEXT DEFAULT 'DRAFT'
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS purchase_order_items(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              purchase_order_id INTEGER,
+              product_id INTEGER,
+              description TEXT,
+              uom TEXT,
+              hsn TEXT,
+              quantity REAL,
+              rate REAL,
+              cgst_percent REAL,
+              sgst_percent REAL,
+              igst_percent REAL,
+              taxable REAL,
+              cgst REAL,
+              sgst REAL,
+              igst REAL,
+              total REAL
+            )
+          ''');
+        }
+        if (oldVersion < 7) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS purchase_vouchers(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              uuid TEXT NOT NULL UNIQUE,
+              voucher_no INTEGER,
+              voucher_date TEXT,
+              supplier_invoice_no TEXT,
+              supplier_invoice_date TEXT,
+              purchase_order_id INTEGER,
+              supplier_id INTEGER,
+              taxable_total REAL DEFAULT 0,
+              cgst_total REAL DEFAULT 0,
+              sgst_total REAL DEFAULT 0,
+              igst_total REAL DEFAULT 0,
+              grand_total REAL DEFAULT 0,
+              status TEXT DEFAULT 'POSTED'
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS purchase_voucher_items(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              voucher_id INTEGER,
+              product_id INTEGER,
+              description TEXT,
+              uom TEXT,
+              hsn TEXT,
+              quantity REAL,
+              rate REAL,
+              cgst_percent REAL,
+              sgst_percent REAL,
+              igst_percent REAL,
+              taxable REAL,
+              cgst REAL,
+              sgst REAL,
+              igst REAL,
+              total REAL
+            )
+          ''');
+        }
+        if (oldVersion < 8) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS payments(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              supplier_id INTEGER,
+              payment_date TEXT,
+              amount REAL DEFAULT 0,
+              payment_mode TEXT,
+              reference_no TEXT,
+              narration TEXT,
+              created_at TEXT
+            )
+          ''');
+        }
       },
     );
   }
@@ -285,6 +493,132 @@ class AppDatabase {
     final result = await db.rawQuery('SELECT COUNT(*) AS c FROM sales_invoices');
     final count = Sqflite.firstIntValue(result) ?? 0;
     return count + 1;
+  }
+
+  // ---- Sales Reports (Ledger / Audit / Ledger-wise) ----
+
+  /// All posted sales invoices joined with the customer's name, newest first.
+  Future<List<Map<String, dynamic>>> salesInvoicesWithParty() => db.rawQuery('''
+        SELECT si.*, COALESCE(c.customer_name, '-') AS party_name
+        FROM sales_invoices si
+        LEFT JOIN customers c ON c.id = si.customer_id
+        ORDER BY si.transaction_date DESC, si.id DESC
+      ''');
+
+  Future<int> insertReceipt(Map<String, dynamic> row) => db.insert('receipts', row);
+
+  Future<List<Map<String, dynamic>>> allReceipts() =>
+      db.query('receipts', orderBy: 'receipt_date DESC, id DESC');
+
+  Future<List<Map<String, dynamic>>> receiptsForCustomer(int customerId) => db.query(
+    'receipts',
+    where: 'customer_id = ?',
+    whereArgs: [customerId],
+    orderBy: 'receipt_date ASC, id ASC',
+  );
+
+  Future<List<Map<String, dynamic>>> salesInvoicesForCustomer(int customerId) => db.query(
+    'sales_invoices',
+    where: 'customer_id = ?',
+    whereArgs: [customerId],
+    orderBy: 'transaction_date ASC, id ASC',
+  );
+
+  // ---- Purchase Orders ----
+
+  Future<int> nextPurchaseOrderNo() async {
+    final result = await db.rawQuery('SELECT COUNT(*) AS c FROM purchase_orders');
+    final count = Sqflite.firstIntValue(result) ?? 0;
+    return count + 1;
+  }
+
+  Future<List<Map<String, dynamic>>> purchaseOrdersWithParty() => db.rawQuery('''
+        SELECT po.*, COALESCE(s.supplier_name, '-') AS party_name
+        FROM purchase_orders po
+        LEFT JOIN suppliers s ON s.id = po.supplier_id
+        ORDER BY po.po_date DESC, po.id DESC
+      ''');
+
+  // ---- Purchase Vouchers ----
+
+  Future<int> nextPurchaseVoucherNo() async {
+    final result = await db.rawQuery('SELECT COUNT(*) AS c FROM purchase_vouchers');
+    final count = Sqflite.firstIntValue(result) ?? 0;
+    return count + 1;
+  }
+
+  /// Purchase orders not yet fully received against — used to populate the
+  /// "Against PO" picker on the Purchase Voucher screen.
+  Future<List<Map<String, dynamic>>> openPurchaseOrders() => db.rawQuery('''
+        SELECT po.*, COALESCE(s.supplier_name, '-') AS party_name
+        FROM purchase_orders po
+        LEFT JOIN suppliers s ON s.id = po.supplier_id
+        WHERE po.status != 'RECEIVED'
+        ORDER BY po.id DESC
+      ''');
+
+  Future<List<Map<String, dynamic>>> purchaseOrderItems(int purchaseOrderId) =>
+      db.query('purchase_order_items', where: 'purchase_order_id = ?', whereArgs: [purchaseOrderId]);
+
+  Future<List<Map<String, dynamic>>> purchaseVouchersWithParty() => db.rawQuery('''
+        SELECT pv.*, COALESCE(s.supplier_name, '-') AS party_name, po.po_no AS linked_po_no
+        FROM purchase_vouchers pv
+        LEFT JOIN suppliers s ON s.id = pv.supplier_id
+        LEFT JOIN purchase_orders po ON po.id = pv.purchase_order_id
+        ORDER BY pv.voucher_date DESC, pv.id DESC
+      ''');
+
+  /// Increments stock on hand for a product — called for every line item
+  /// when a Purchase Voucher (actual goods receipt) is posted.
+  Future<void> incrementStock(int productId, double qty) => db.rawUpdate(
+    'UPDATE products SET current_stock = current_stock + ? WHERE id = ?',
+    [qty, productId],
+  );
+
+  Future<void> markPurchaseOrderReceived(int purchaseOrderId) => db.update(
+    'purchase_orders',
+    {'status': 'RECEIVED'},
+    where: 'id = ?',
+    whereArgs: [purchaseOrderId],
+  );
+
+  // ---- Purchase Payments (DR side of the supplier ledger) ----
+
+  Future<int> insertPayment(Map<String, dynamic> row) => db.insert('payments', row);
+
+  Future<List<Map<String, dynamic>>> allPayments() =>
+      db.query('payments', orderBy: 'payment_date DESC, id DESC');
+
+  Future<List<Map<String, dynamic>>> paymentsForSupplier(int supplierId) => db.query(
+    'payments',
+    where: 'supplier_id = ?',
+    whereArgs: [supplierId],
+    orderBy: 'payment_date ASC, id ASC',
+  );
+
+  /// Total ever paid to a single supplier — used for the per-row "Paid
+  /// Amount (DR)" figure on the Ledger View tab.
+  Future<double> totalPaidToSupplier(int supplierId) async {
+    final result = await db.rawQuery(
+      'SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE supplier_id = ?',
+      [supplierId],
+    );
+    return ((result.first['total'] ?? 0) as num).toDouble();
+  }
+
+  Future<List<Map<String, dynamic>>> purchaseVouchersForSupplier(int supplierId) => db.query(
+    'purchase_vouchers',
+    where: 'supplier_id = ?',
+    whereArgs: [supplierId],
+    orderBy: 'voucher_date ASC, id ASC',
+  );
+
+  Future<List<Map<String, dynamic>>> purchaseVoucherItems(int voucherId) =>
+      db.query('purchase_voucher_items', where: 'voucher_id = ?', whereArgs: [voucherId]);
+
+  Future<Map<String, dynamic>?> supplierById(int id) async {
+    final rows = await db.query('suppliers', where: 'id = ?', whereArgs: [id], limit: 1);
+    return rows.isEmpty ? null : rows.first;
   }
 
   String newUuid() => const Uuid().v4();
