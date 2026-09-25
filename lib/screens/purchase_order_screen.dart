@@ -742,11 +742,11 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 
   static const _matrixHeadStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 7.5, height: 1.15);
   static const _matrixCellStyle = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
-  static const _matrixInputDecoration = InputDecoration(
+  static final _matrixInputDecoration = InputDecoration(
     isDense: true,
-    contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: BorderSide(color: border)),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
   );
 
   Widget _matrixHeadCell(String label) {

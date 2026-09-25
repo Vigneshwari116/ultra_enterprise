@@ -522,6 +522,37 @@ class UltraRepository {
     return _asRowList(await _api.get('/api/purchase-vouchers'));
   }
 
+  Future<List<Map<String, dynamic>>> purchaseVoucherItems(int voucherId) async {
+    if (UltraConfig.persistLocally) return _db.purchaseVoucherItems(voucherId);
+    final doc = await _getDocument('/api/purchase-vouchers/$voucherId');
+    if (doc == null) return [];
+    return _asRowList(doc['items']);
+  }
+
+  Future<Map<String, dynamic>?> supplierById(int id) async {
+    if (UltraConfig.persistLocally) return _db.supplierById(id);
+    try {
+      return _asRow(await _api.get('/api/suppliers/$id'));
+    } catch (_) {
+      for (final s in await suppliers()) {
+        if (s['id'] == id) return s;
+      }
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> purchaseVouchersForSupplier(int supplierId) async {
+    if (UltraConfig.persistLocally) return _db.purchaseVouchersForSupplier(supplierId);
+    final all = await purchaseVouchersWithParty();
+    return all.where((v) => v['supplier_id'] == supplierId).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> paymentsForSupplier(int supplierId) async {
+    if (UltraConfig.persistLocally) return _db.paymentsForSupplier(supplierId);
+    final all = await allPayments();
+    return all.where((p) => p['supplier_id'] == supplierId).toList();
+  }
+
   Future<int> createJournalVoucher(Map<String, dynamic> body) async {
     if (UltraConfig.persistLocally) return _createJournalLocal(body);
     return _idFromResponse(await _api.post('/api/journal-vouchers', body));

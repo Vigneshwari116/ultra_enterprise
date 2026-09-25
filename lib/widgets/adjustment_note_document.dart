@@ -138,7 +138,8 @@ Future<Uint8List?> buildAdjustmentNotePdf(int noteId) async {
           pw.SizedBox(height: 6),
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.end,
-            child: pw.Column(
+            children: [
+              pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
                 pw.Text('Subtotal ${taxable.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 9)),
@@ -148,6 +149,7 @@ Future<Uint8List?> buildAdjustmentNotePdf(int noteId) async {
                 pw.Text('Total Value ${grand.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
               ],
             ),
+            ],
           ),
           pw.Spacer(),
           pw.Text('TERMS & CONDITIONS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),

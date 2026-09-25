@@ -83,7 +83,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
     gstin.text = p['gstin'] ?? '';
   }
 
-  double get netTotal => rows.fold(0, (s, r) => s + r.lineTotal) + (double.tryParse(freight.text) ?? 0);
+  double get netTotal => rows.fold<double>(0, (s, r) => s + r.lineTotal) + (double.tryParse(freight.text) ?? 0);
   double get totalQty => rows.fold<double>(0, (s, r) => s + r.qty);
 
   @override

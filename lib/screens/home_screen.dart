@@ -82,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
         active: true,
       ));
     } else {
-      rows.add(const _ProjectRow(
+      rows.add(_ProjectRow(
         projectNo: 'N/A',
         client: customers.isNotEmpty ? '${customers.first['customer_name']}' : 'K. KM',
         quantity: '1',

@@ -304,7 +304,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
               const SizedBox(width: 16),
               OutlinedButton.icon(
                 onPressed: () async {
-                  final items = await db.purchaseVoucherItems(v['id'] as int);
+                  final items = await repo.purchaseVoucherItems(v['id'] as int);
                   await printPurchaseVoucherReprint(v, items);
                 },
                 icon: const Icon(Icons.print_outlined, size: 14),
@@ -426,9 +426,9 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
 
   // ---- Tab 3: View Ledger Wise ----
   Future<_LedgerWiseData> _computeLedgerWise(int supplierId) async {
-    final supplier = await db.supplierById(supplierId) ?? {};
-    final sVouchers = await db.purchaseVouchersForSupplier(supplierId);
-    final sPayments = await db.paymentsForSupplier(supplierId);
+    final supplier = await repo.supplierById(supplierId) ?? {};
+    final sVouchers = await repo.purchaseVouchersForSupplier(supplierId);
+    final sPayments = await repo.paymentsForSupplier(supplierId);
 
     final opening = ((supplier['opening_balance_dr'] ?? 0) as num).toDouble() -
         ((supplier['opening_balance_cr'] ?? 0) as num).toDouble();

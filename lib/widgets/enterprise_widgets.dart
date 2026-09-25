@@ -78,7 +78,6 @@ class MetricCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
     if (!expand) return card;
     return Expanded(child: card);

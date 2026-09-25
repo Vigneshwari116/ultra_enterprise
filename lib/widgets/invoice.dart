@@ -359,7 +359,7 @@ pw.Widget _itemsTable(InvoiceData d) {
   );
 }
 
-pw.Widget _totalsRow(String label, String value, {bool bold = false}) => pw.TableRow(
+pw.TableRow _totalsRow(String label, String value, {bool bold = false}) => pw.TableRow(
   children: [
     pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: pw.Text(label, style: pw.TextStyle(fontSize: 8.5, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
     pw.Padding(
