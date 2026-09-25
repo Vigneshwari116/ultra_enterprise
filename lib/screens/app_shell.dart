@@ -11,7 +11,7 @@ import 'sales_invoice_screen.dart';
 import 'purchase_order_screen.dart';
 import 'purchase_voucher_screen.dart';
 import 'reports_screen.dart';
-import 'transaction_screens.dart';
+import 'transactions_host_screen.dart';
 import 'stock_screen.dart';
 import 'sync_screen.dart';
 
@@ -65,7 +65,7 @@ class _AppShellState extends State<AppShell> {
     const PurchaseOrderScreen(),
     const PurchaseVoucherScreen(),
     const PurchaseReportsScreen(),
-    const TransactionsScreen(),
+    TransactionsHostScreen(key: transactionsHostKey),
     const ProductMasterScreen(),
     const StockScreen(),
     const SyncScreen(),
@@ -142,6 +142,18 @@ class _AppShellState extends State<AppShell> {
         deliveryChallanScreenKey.currentState?.openHistory();
       } else {
         deliveryChallanScreenKey.currentState?.openEntry();
+      }
+    }
+    if (pageIndex == 12) {
+      switch (leafLabel) {
+        case 'Cash Book':
+          transactionsHostKey.currentState?.showCashBook();
+          break;
+        case 'Journal Entry':
+          transactionsHostKey.currentState?.showJournal();
+          break;
+        default:
+          transactionsHostKey.currentState?.showAdjustment();
       }
     }
     if (pageIndex == 7) {

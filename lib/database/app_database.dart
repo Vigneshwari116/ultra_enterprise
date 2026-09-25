@@ -13,7 +13,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 11,
+      version: 12,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -445,6 +445,70 @@ class AppDatabase {
               reference_no TEXT,
               narration TEXT,
               created_at TEXT
+            )
+          ''');
+        }
+        if (oldVersion < 12) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS adjustment_notes(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              uuid TEXT NOT NULL UNIQUE,
+              note_type TEXT NOT NULL,
+              note_no INTEGER,
+              issue_date TEXT,
+              original_invoice_ref TEXT,
+              original_invoice_date TEXT,
+              reversal_reason TEXT,
+              eway_bill TEXT,
+              logistics TEXT,
+              party_kind TEXT,
+              party_id INTEGER,
+              address TEXT,
+              city TEXT,
+              pincode TEXT,
+              gstin TEXT,
+              narration TEXT,
+              taxable_total REAL DEFAULT 0,
+              tax_total REAL DEFAULT 0,
+              grand_total REAL DEFAULT 0,
+              created_at TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS adjustment_note_items(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              note_id INTEGER,
+              product_id INTEGER,
+              description TEXT,
+              uom TEXT,
+              hsn TEXT,
+              quantity REAL,
+              rate REAL,
+              cgst_percent REAL,
+              sgst_percent REAL,
+              igst_percent REAL,
+              extended_value REAL
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS journal_vouchers(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              voucher_date TEXT,
+              narration TEXT,
+              total_amount REAL DEFAULT 0,
+              created_at TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS journal_voucher_lines(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              voucher_id INTEGER,
+              line_no INTEGER,
+              dr_account_key TEXT,
+              dr_account_label TEXT,
+              cr_account_key TEXT,
+              cr_account_label TEXT,
+              amount REAL DEFAULT 0
             )
           ''');
         }
@@ -949,6 +1013,43 @@ class AppDatabase {
         where: 'id = ?',
         whereArgs: [quotationId],
       );
+
+  Future<int> nextAdjustmentNoteNo(String noteType) async {
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM adjustment_notes WHERE note_type = ?',
+      [noteType],
+    );
+    return (Sqflite.firstIntValue(result) ?? 0) + 1;
+  }
+
+  Future<List<Map<String, String>>> masterAccountDirectory() async {
+    final options = <Map<String, String>>[];
+    for (final l in await ledgerAccounts()) {
+      options.add({'key': 'LEDGER:${l['id']}', 'label': '${l['name']}'});
+    }
+    for (final c in await customers()) {
+      options.add({'key': 'CUSTOMER:${c['id']}', 'label': '${c['customer_name']}'});
+    }
+    for (final s in await suppliers()) {
+      options.add({'key': 'SUPPLIER:${s['id']}', 'label': '${s['supplier_name']}'});
+    }
+    return options;
+  }
+
+  Future<List<Map<String, dynamic>>> cashPassbookEntries() async {
+    return db.rawQuery('''
+      SELECT 'CR' AS side, r.id AS entry_id, r.receipt_date AS entry_date, r.amount AS amount,
+        r.narration AS narration, c.customer_name AS party_name, 'CUSTOMER' AS party_kind
+      FROM receipts r
+      LEFT JOIN customers c ON c.id = r.customer_id
+      UNION ALL
+      SELECT 'DR' AS side, p.id AS entry_id, p.payment_date AS entry_date, p.amount AS amount,
+        p.narration AS narration, s.supplier_name AS party_name, 'SUPPLIER' AS party_kind
+      FROM payments p
+      LEFT JOIN suppliers s ON s.id = p.supplier_id
+      ORDER BY entry_date DESC, entry_id DESC
+    ''');
+  }
 
   Future<Map<String, dynamic>?> quotationPrintBundle(int quotationId) async {
     final rows = await quotationsWithParty();
