@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/csv_import.dart';
 import '../widgets/enterprise_widgets.dart';
@@ -76,7 +76,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
   }
 
   Future<void> load() async {
-    data = await AppDatabase.instance.units();
+    data = await UltraRepository.instance.units();
     if (mounted) setState(() {});
   }
 
@@ -101,7 +101,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       'description': descCtrl.text.trim(),
     };
     if (selectedId == null) {
-      await AppDatabase.instance.insertUnit(row);
+      await UltraRepository.instance.insertUnit(row);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit saved.')));
         salesInvoiceCatalogKey.currentState?.refreshCatalog();
@@ -110,7 +110,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       descCtrl.clear();
       setState(() => error = null);
     } else {
-      await AppDatabase.instance.updateUnit(selectedId!, row);
+      await UltraRepository.instance.updateUnit(selectedId!, row);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit updated.')));
         salesInvoiceCatalogKey.currentState?.refreshCatalog();
@@ -130,7 +130,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
   }
 
   Future<void> _delete(int id) async {
-    await AppDatabase.instance.deleteUnit(id);
+    await UltraRepository.instance.deleteUnit(id);
     if (selectedId == id) _startNew();
     await load();
   }
@@ -336,7 +336,7 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
   }
 
   Future<void> _loadLedgers() async {
-    _ledgers = await AppDatabase.instance.ledgerAccounts();
+    _ledgers = await UltraRepository.instance.ledgerAccounts();
     if (mounted) setState(() {});
   }
 
@@ -405,9 +405,9 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
     };
     final editing = _editingId;
     if (editing == null) {
-      await AppDatabase.instance.insertLedger(row);
+      await UltraRepository.instance.insertLedger(row);
     } else {
-      await AppDatabase.instance.updateLedger(editing, row);
+      await UltraRepository.instance.updateLedger(editing, row);
     }
     await _loadLedgers();
     if (!mounted) return;
@@ -708,7 +708,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
     super.dispose();
   }
 
-  Future<void> load() async { data = await AppDatabase.instance.customers(); if(mounted) setState((){}); }
+  Future<void> load() async { data = await UltraRepository.instance.customers(); if(mounted) setState((){}); }
 
   Widget _customerField(
     int index,
@@ -797,14 +797,14 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
     }
     final existingId = selectedId;
     if (existingId == null) {
-      await AppDatabase.instance.insertCustomer({
+      await UltraRepository.instance.insertCustomer({
         'customer_code': 'CUST-${DateTime.now().millisecondsSinceEpoch % 100000}',
         ..._formToRow(),
       });
       _notify('Customer saved.');
       _clearForm();
     } else {
-      await AppDatabase.instance.updateCustomer(existingId, _formToRow());
+      await UltraRepository.instance.updateCustomer(existingId, _formToRow());
       _notify('Customer updated.');
     }
     await load();
@@ -839,7 +839,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
       for (var i = 1; i < lines.length; i++) {
         final cols = lines[i].split(',').map((c) => c.trim()).toList();
         if (cols.isEmpty || cols.first.isEmpty) continue;
-        await AppDatabase.instance.insertCustomer({
+        await UltraRepository.instance.insertCustomer({
           'customer_code': 'CUST-${DateTime.now().millisecondsSinceEpoch % 100000}-$i',
           'customer_name': cols.isNotEmpty ? cols[0] : '',
           'primary_mobile': cols.length > 1 ? cols[1] : '',
@@ -1086,10 +1086,10 @@ class ProductMasterScreen extends StatefulWidget {
 class _ProductMasterScreenState extends State<ProductMasterScreen>{
   List<Map<String,dynamic>> data=[];
   @override void initState(){super.initState();load();}
-  Future<void> load()async{data=await AppDatabase.instance.products();if(mounted)setState((){});}
+  Future<void> load()async{data=await UltraRepository.instance.products();if(mounted)setState((){});}
   Future<void> add()async{
     final n=TextEditingController(), code=TextEditingController(), hsn=TextEditingController(), rate=TextEditingController(text:'0');
-    await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('ADD MATERIAL'),content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:code,decoration:const InputDecoration(labelText:'PRODUCT CODE')),TextField(controller:n,decoration:const InputDecoration(labelText:'PRODUCT NAME')),TextField(controller:hsn,decoration:const InputDecoration(labelText:'HSN')),TextField(controller:rate,decoration:const InputDecoration(labelText:'RATE'))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('CANCEL')),ElevatedButton(onPressed:()async{await AppDatabase.instance.insertProduct({'product_code':code.text,'product_name':n.text,'unit_id':1,'hsn':hsn.text,'rate':double.tryParse(rate.text)??0,'opening_stock':0,'current_stock':0});if(context.mounted)Navigator.pop(context);await load();},child:const Text('SAVE'))]));
+    await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('ADD MATERIAL'),content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:code,decoration:const InputDecoration(labelText:'PRODUCT CODE')),TextField(controller:n,decoration:const InputDecoration(labelText:'PRODUCT NAME')),TextField(controller:hsn,decoration:const InputDecoration(labelText:'HSN')),TextField(controller:rate,decoration:const InputDecoration(labelText:'RATE'))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('CANCEL')),ElevatedButton(onPressed:()async{await UltraRepository.instance.insertProduct({'product_code':code.text,'product_name':n.text,'unit_id':1,'hsn':hsn.text,'rate':double.tryParse(rate.text)??0,'opening_stock':0,'current_stock':0});if(context.mounted)Navigator.pop(context);await load();},child:const Text('SAVE'))]));
   }
   @override Widget build(BuildContext context)=>MasterPage(title:'PRODUCT / MATERIAL MASTER',section:'04',tableTitle:'MATERIAL PRODUCT CONFIGURATION',columns:const['CODE','PRODUCT','UOM','HSN','RATE','STOCK','STATUS'],rows:data.map((x)=>['${x['product_code']}','${x['product_name']}','${x['uom_code']}','${x['hsn']??''}','${x['rate']}','${x['current_stock']}','${x['status']}']).toList(),onAdd:add);
 }
@@ -1153,7 +1153,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     super.dispose();
   }
 
-  Future<void> load() async { data = await AppDatabase.instance.suppliers(); if(mounted) setState((){}); }
+  Future<void> load() async { data = await UltraRepository.instance.suppliers(); if(mounted) setState((){}); }
 
   Widget _supplierField(
     int index,
@@ -1244,14 +1244,14 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     }
     final existingId = selectedId;
     if (existingId == null) {
-      await AppDatabase.instance.insertSupplier({
+      await UltraRepository.instance.insertSupplier({
         'supplier_code': 'SUPP-${DateTime.now().millisecondsSinceEpoch % 100000}',
         ..._formToRow(),
       });
       _notify('Supplier saved.');
       _clearForm();
     } else {
-      await AppDatabase.instance.updateSupplier(existingId, _formToRow());
+      await UltraRepository.instance.updateSupplier(existingId, _formToRow());
       _notify('Supplier updated.');
     }
     await load();
@@ -1286,7 +1286,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
       for (var i = 1; i < lines.length; i++) {
         final cols = lines[i].split(',').map((c) => c.trim()).toList();
         if (cols.isEmpty || cols.first.isEmpty) continue;
-        await AppDatabase.instance.insertSupplier({
+        await UltraRepository.instance.insertSupplier({
           'supplier_code': 'SUPP-${DateTime.now().millisecondsSinceEpoch % 100000}-$i',
           'supplier_name': cols.isNotEmpty ? cols[0] : '',
           'contact_name': cols.length > 1 ? cols[1] : '',

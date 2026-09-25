@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_order_document.dart';
@@ -11,7 +11,7 @@ class PurchaseOrderScreen extends StatefulWidget {
 }
 
 class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   final supplierRef = TextEditingController();
   final packages = TextEditingController();
   final deliveryMode = TextEditingController();
@@ -48,11 +48,11 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   }
 
   Future<void> load() async {
-    suppliers = await db.suppliers();
-    products = await db.products();
-    units = await db.units();
-    poNo = '${await db.nextPurchaseOrderNo()}';
-    directoryRows = await db.purchaseOrdersWithParty();
+    suppliers = await repo.suppliers();
+    products = await repo.products();
+    units = await repo.units();
+    poNo = '${await repo.nextPurchaseOrderNo()}';
+    directoryRows = await repo.purchaseOrdersWithParty();
     if (suppliers.isNotEmpty && supplierId == null) {
       supplierId = suppliers.first['id'] as int;
       fillSupplier(suppliers.first);
@@ -167,9 +167,29 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       return null;
     }
     _syncDueDateFromDays();
-    final uuid = db.newUuid();
+    final uuid = repo.newUuid();
     final billNo = 'PO-${DateTime.now().year}-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
-    final orderId = await db.db.insert('purchase_orders', {
+    final items = rows
+        .map(
+          (r) => {
+            'product_id': r.productId,
+            'description': r.description,
+            'uom': r.uom,
+            'hsn': r.hsn,
+            'quantity': r.qty,
+            'rate': r.rate,
+            'cgst_percent': r.cgstPct,
+            'sgst_percent': r.sgstPct,
+            'igst_percent': r.igstPct,
+            'taxable': r.taxable,
+            'cgst': r.cgst,
+            'sgst': r.sgst,
+            'igst': r.igst,
+            'total': r.total,
+          },
+        )
+        .toList();
+    final orderId = await repo.createPurchaseOrder({
       'uuid': uuid,
       'po_bill_no': billNo,
       'po_no': int.tryParse(poNo),
@@ -189,26 +209,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       'igst_total': igst,
       'grand_total': total,
       'status': 'PENDING',
+      'items': items,
     });
-    for (final r in rows) {
-      await db.db.insert('purchase_order_items', {
-        'purchase_order_id': orderId,
-        'product_id': r.productId,
-        'description': r.description,
-        'uom': r.uom,
-        'hsn': r.hsn,
-        'quantity': r.qty,
-        'rate': r.rate,
-        'cgst_percent': r.cgstPct,
-        'sgst_percent': r.sgstPct,
-        'igst_percent': r.igstPct,
-        'taxable': r.taxable,
-        'cgst': r.cgst,
-        'sgst': r.sgst,
-        'igst': r.igst,
-        'total': r.total,
-      });
-    }
     return orderId;
   }
 
@@ -384,8 +386,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                       ],
                       onChanged: (v) async {
                         if (v == null) return;
-                        await db.updatePurchaseOrderStatus(id, v);
-                        directoryRows = await db.purchaseOrdersWithParty();
+                        await repo.updatePurchaseOrderStatus(id, v);
+                        directoryRows = await repo.purchaseOrdersWithParty();
                         if (mounted) setState(() {});
                       },
                     ),
@@ -447,7 +449,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 ),
                 OutlinedButton(
                   onPressed: () async {
-                    directoryRows = await db.purchaseOrdersWithParty();
+                    directoryRows = await repo.purchaseOrdersWithParty();
                     setState(() => showDirectory = true);
                   },
                   style: OutlinedButton.styleFrom(

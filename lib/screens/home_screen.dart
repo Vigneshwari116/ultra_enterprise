@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../config/ultra_config.dart';
 import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/enterprise_widgets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -28,19 +30,43 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
-    final db = AppDatabase.instance;
-    final results = await Future.wait([
-      db.runningProjectsCount(),
-      db.pendingPurchaseOrderCount(),
-      db.customerOutstandingTotal(),
-      db.supplierOutstandingTotal(),
-      db.monthlyPurchaseExpenses(),
-      db.customers(),
-      db.salesInvoicesWithParty(),
-    ]);
+    late final List<Map<String, dynamic>> customers;
+    late final List<Map<String, dynamic>> invoices;
+    late int rp;
+    late int ppo;
+    late double co;
+    late double so;
+    late double me;
 
-    final customers = results[5] as List<Map<String, dynamic>>;
-    final invoices = results[6] as List<Map<String, dynamic>>;
+    if (UltraConfig.persistLocally) {
+      final db = AppDatabase.instance;
+      final results = await Future.wait([
+        db.runningProjectsCount(),
+        db.pendingPurchaseOrderCount(),
+        db.customerOutstandingTotal(),
+        db.supplierOutstandingTotal(),
+        db.monthlyPurchaseExpenses(),
+        db.customers(),
+        db.salesInvoicesWithParty(),
+      ]);
+      rp = results[0] as int;
+      ppo = results[1] as int;
+      co = results[2] as double;
+      so = results[3] as double;
+      me = results[4] as double;
+      customers = results[5] as List<Map<String, dynamic>>;
+      invoices = results[6] as List<Map<String, dynamic>>;
+    } else {
+      final repo = UltraRepository.instance;
+      customers = await repo.customers();
+      invoices = await repo.salesInvoicesWithParty();
+      final orders = await repo.purchaseOrdersWithParty();
+      rp = invoices.isNotEmpty ? 1 : 0;
+      ppo = orders.where((o) => '${o['status']}' != 'RECEIVED').length;
+      co = 0;
+      so = 0;
+      me = 0;
+    }
 
     final rows = <_ProjectRow>[];
     if (invoices.isNotEmpty) {
@@ -71,11 +97,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!mounted) return;
     setState(() {
-      runningProjects = results[0] as int;
-      pendingPurchaseOrders = results[1] as int;
-      customerOutstanding = results[2] as double;
-      supplierOutstanding = results[3] as double;
-      monthlyExpenses = results[4] as double;
+      runningProjects = rp;
+      pendingPurchaseOrders = ppo;
+      customerOutstanding = co;
+      supplierOutstanding = so;
+      monthlyExpenses = me;
       projectRows = rows;
       deadlines = critical;
       loading = false;

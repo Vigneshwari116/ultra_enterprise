@@ -3,7 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import 'invoice.dart';
 
 String _money(num v) => v.toStringAsFixed(2);
@@ -112,7 +112,7 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
 }
 
 Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
-  final bundle = await AppDatabase.instance.salesInvoicePrintBundle(invoiceId);
+  final bundle = await UltraRepository.instance.salesInvoicePrintBundle(invoiceId);
   if (bundle == null) return null;
   final inv = bundle['invoice'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;

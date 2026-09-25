@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/app_database.dart';
+import '../config/ultra_config.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
@@ -21,7 +21,7 @@ class SalesInvoiceScreen extends StatefulWidget {
 }
 
 class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
-  final db=AppDatabase.instance;
+  final repo = UltraRepository.instance;
   final po=TextEditingController(), challan=TextEditingController(), packages=TextEditingController(text:'0'), vehicle=TextEditingController(), due=TextEditingController(text:'0'), eway=TextEditingController();
   final customerAddress=TextEditingController(), city=TextEditingController(), pin=TextEditingController(), gstin=TextEditingController(), bank=TextEditingController(), account=TextEditingController(), shipping=TextEditingController();
   final fwdCharge = TextEditingController(text: '0');
@@ -40,10 +40,10 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   @override void initState(){super.initState();load();}
 
   Future<void> load() async {
-    customers = await db.customers();
-    products = await db.products();
-    units = await db.units();
-    final count = await db.nextSalesVoucherNo();
+    customers = await repo.customers();
+    products = await repo.products();
+    units = await repo.units();
+    final count = await repo.nextSalesVoucherNo();
     voucherNo = '$count';
     if (customers.isNotEmpty && customerId == null) {
       customerId = customers.first['id'];
@@ -55,8 +55,8 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   /// Refreshes product/UOM lists when returning from Unit Master.
   @override
   Future<void> refreshCatalog() async {
-    products = await db.products();
-    units = await db.units();
+    products = await repo.products();
+    units = await repo.units();
     if (mounted) setState(() {});
   }
 
@@ -106,8 +106,29 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       );
       return null;
     }
-    final uuid = db.newUuid();
-    final invoiceId = await db.db.insert('sales_invoices', {
+    final uuid = repo.newUuid();
+    final items = rows
+        .map(
+          (r) => {
+            'product_id': r.productId,
+            'description': r.description,
+            'uom': r.uom,
+            'hsn': r.hsn,
+            'quantity': r.qty,
+            'rate': r.rate,
+            'cgst_percent': r.cgstPct,
+            'sgst_percent': r.sgstPct,
+            'igst_percent': r.igstPct,
+            'taxable': r.taxable,
+            'cgst': r.cgst,
+            'sgst': r.sgst,
+            'igst': r.igst,
+            'total': r.total,
+          },
+        )
+        .toList();
+    try {
+    final invoiceId = await repo.createSalesInvoice({
       'uuid': uuid,
       'invoice_no': int.tryParse(voucherNo),
       'transaction_date': date,
@@ -127,34 +148,17 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       'igst_total': igst,
       'grand_total': netPayable,
       'status': 'POSTED',
-    });
-    for (final r in rows) {
-      await db.db.insert('sales_invoice_items', {
-        'invoice_id': invoiceId,
-        'product_id': r.productId,
-        'description': r.description,
-        'uom': r.uom,
-        'hsn': r.hsn,
-        'quantity': r.qty,
-        'rate': r.rate,
-        'cgst_percent': r.cgstPct,
-        'sgst_percent': r.sgstPct,
-        'igst_percent': r.igstPct,
-        'taxable': r.taxable,
-        'cgst': r.cgst,
-        'sgst': r.sgst,
-        'igst': r.igst,
-        'total': r.total,
-      });
-    }
-    await db.insertQueue({
-      'entity_type': 'SALES_INVOICE',
-      'entity_id': invoiceId,
-      'payload': jsonEncode({'uuid': uuid, 'customer_id': customerId, 'transaction_date': date}),
-      'status': 'PENDING',
-      'created_at': DateTime.now().toIso8601String(),
+      'items': items,
     });
     return invoiceId;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server save failed: $e')),
+        );
+      }
+      return null;
+    }
   }
 
   void _resetForm() {
@@ -176,7 +180,13 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     if (invoiceId == null) return;
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SALES INVOICE SAVED LOCALLY — PENDING SYNC')),
+        SnackBar(
+          content: Text(
+            UltraConfig.persistLocally
+                ? 'SALES INVOICE SAVED LOCALLY — PENDING SYNC'
+                : 'SALES INVOICE SAVED TO SERVER',
+          ),
+        ),
       );
     }
     await load();

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 
@@ -9,7 +9,7 @@ class PurchaseVoucherScreen extends StatefulWidget {
   @override State<PurchaseVoucherScreen> createState()=>_PurchaseVoucherScreenState();
 }
 class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
-  final db=AppDatabase.instance;
+  final repo = UltraRepository.instance;
   final supplierInvoiceNo=TextEditingController(), remarks=TextEditingController();
   final supplierAddress=TextEditingController(), city=TextEditingController(), pin=TextEditingController(), gstin=TextEditingController(), bank=TextEditingController(), account=TextEditingController();
 
@@ -24,11 +24,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
   @override void initState(){super.initState();load();}
 
   Future<void> load()async{
-    suppliers=await db.suppliers();
-    products=await db.products();
-    units=await db.units();
-    openOrders=await db.openPurchaseOrders();
-    voucherNo='${await db.nextPurchaseVoucherNo()}';
+    suppliers=await repo.suppliers();
+    products=await repo.products();
+    units=await repo.units();
+    openOrders=await repo.openPurchaseOrders();
+    voucherNo='${await repo.nextPurchaseVoucherNo()}';
     if(mounted)setState((){});
   }
 
@@ -41,7 +41,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     supplierId=po['supplier_id'] as int?;
     final s=suppliers.where((x)=>x['id']==supplierId);
     if(s.isNotEmpty)fillSupplier(s.first);
-    final items=await db.purchaseOrderItems(poId);
+    final items=await repo.purchaseOrderItems(poId);
     if(items.isNotEmpty){
       rows..clear()..addAll(items.map((it)=>_PvRow()
         ..productId=it['product_id'] as int?
@@ -87,18 +87,43 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a supplier before saving.')));
       return;
     }
-    final uuid=db.newUuid();
-    final voucherId=await db.db.insert('purchase_vouchers',{
-      'uuid':uuid,'voucher_no':int.tryParse(voucherNo),'voucher_date':voucherDate,
-      'supplier_invoice_no':supplierInvoiceNo.text,'supplier_invoice_date':supplierInvoiceDate,
-      'purchase_order_id':againstPoId,'supplier_id':supplierId,
-      'taxable_total':taxable,'cgst_total':cgst,'sgst_total':sgst,'igst_total':igst,'grand_total':total,'status':'POSTED'
+    final uuid=repo.newUuid();
+    final items = rows
+        .map(
+          (r) => {
+            'product_id': r.productId,
+            'description': r.description,
+            'uom': r.uom,
+            'hsn': r.hsn,
+            'quantity': r.qty,
+            'rate': r.rate,
+            'cgst_percent': r.cgstPct,
+            'sgst_percent': r.sgstPct,
+            'igst_percent': r.igstPct,
+            'taxable': r.taxable,
+            'cgst': r.cgst,
+            'sgst': r.sgst,
+            'igst': r.igst,
+            'total': r.total,
+          },
+        )
+        .toList();
+    await repo.createPurchaseVoucher({
+      'uuid': uuid,
+      'voucher_no': int.tryParse(voucherNo),
+      'voucher_date': voucherDate,
+      'supplier_invoice_no': supplierInvoiceNo.text,
+      'supplier_invoice_date': supplierInvoiceDate,
+      'purchase_order_id': againstPoId,
+      'supplier_id': supplierId,
+      'taxable_total': taxable,
+      'cgst_total': cgst,
+      'sgst_total': sgst,
+      'igst_total': igst,
+      'grand_total': total,
+      'status': 'POSTED',
+      'items': items,
     });
-    for(final r in rows){
-      await db.db.insert('purchase_voucher_items',{'voucher_id':voucherId,'product_id':r.productId,'description':r.description,'uom':r.uom,'hsn':r.hsn,'quantity':r.qty,'rate':r.rate,'cgst_percent':r.cgstPct,'sgst_percent':r.sgstPct,'igst_percent':r.igstPct,'taxable':r.taxable,'cgst':r.cgst,'sgst':r.sgst,'igst':r.igst,'total':r.total});
-      if(r.productId!=null)await db.incrementStock(r.productId!, r.qty);
-    }
-    if(againstPoId!=null)await db.markPurchaseOrderReceived(againstPoId!);
     if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('PURCHASE VOUCHER POSTED — STOCK UPDATED')));
     await load();
     setState(() {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_Report.dart';
@@ -12,7 +12,7 @@ class PurchaseReportsScreen extends StatefulWidget {
 }
 
 class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   bool loading = true;
 
   List<Map<String, dynamic>> vouchers = [];
@@ -33,9 +33,9 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
 
   Future<void> load() async {
     setState(() => loading = true);
-    vouchers = await db.purchaseVouchersWithParty();
-    payments = await db.allPayments();
-    suppliers = await db.suppliers();
+    vouchers = await repo.purchaseVouchersWithParty();
+    payments = await repo.allPayments();
+    suppliers = await repo.suppliers();
 
     paidBySupplier = {};
     for (final p in payments) {

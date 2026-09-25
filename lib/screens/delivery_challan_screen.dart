@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/delivery_challan_document.dart';
 import '../widgets/enterprise_widgets.dart';
@@ -51,7 +51,7 @@ class DeliveryChallanScreen extends StatefulWidget {
 }
 
 class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   DcKind kind = DcKind.outward;
   bool showHistory = false;
   String historyRegister = 'INWARD';
@@ -100,20 +100,20 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
   }
 
   Future<void> load() async {
-    customers = await db.customers();
-    suppliers = await db.suppliers();
-    products = await db.products();
-    units = await db.units();
+    customers = await repo.customers();
+    suppliers = await repo.suppliers();
+    products = await repo.products();
+    units = await repo.units();
     await refreshSerial();
     if (mounted) setState(() {});
   }
 
   Future<void> refreshSerial() async {
-    serialNo = '${await db.nextDeliveryChallanSerial(kind.dbType)}';
+    serialNo = '${await repo.nextDeliveryChallanSerial(kind.dbType)}';
   }
 
   Future<void> refreshHistory() async {
-    historyRows = await db.deliveryChallansList();
+    historyRows = await repo.deliveryChallansList();
     if (mounted) setState(() {});
   }
 
@@ -196,9 +196,26 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
       return;
     }
     final parts = partyKey!.split(':');
-    final uuid = db.newUuid();
+    final uuid = repo.newUuid();
     final docId = 'DC-${DateTime.now().year}-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
-    final id = await db.db.insert('delivery_challans', {
+    final items = rows
+        .map(
+          (r) => {
+            'product_id': r.productId,
+            'description': r.description,
+            'uom': r.uom,
+            'hsn': r.hsn,
+            'quantity': r.qty,
+            'rate': r.rate,
+            'cgst_percent': r.cgstPct,
+            'sgst_percent': r.sgstPct,
+            'igst_percent': r.igstPct,
+            'extended_value': r.extended + (kind == DcKind.proforma ? r.taxAmount : 0),
+            'remarks': r.remarks,
+          },
+        )
+        .toList();
+    final id = await repo.createDeliveryChallan({
       'uuid': uuid,
       'dc_type': kind.dbType,
       'serial_no': int.tryParse(serialNo),
@@ -225,23 +242,8 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
       'grand_total': grandTotal,
       'total_pcs': totalPcs,
       'created_at': DateTime.now().toIso8601String(),
+      'items': items,
     });
-    for (final r in rows) {
-      await db.db.insert('delivery_challan_items', {
-        'challan_id': id,
-        'product_id': r.productId,
-        'description': r.description,
-        'uom': r.uom,
-        'hsn': r.hsn,
-        'quantity': r.qty,
-        'rate': r.rate,
-        'cgst_percent': r.cgstPct,
-        'sgst_percent': r.sgstPct,
-        'igst_percent': r.igstPct,
-        'extended_value': r.extended + (kind == DcKind.proforma ? r.taxAmount : 0),
-        'remarks': r.remarks,
-      });
-    }
     await reprintDeliveryChallan(id);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('DELIVERY CHALLAN SAVED — PRINT OPENED')));

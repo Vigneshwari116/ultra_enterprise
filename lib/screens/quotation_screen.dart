@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/quotation_document.dart';
@@ -12,7 +12,7 @@ class QuotationScreen extends StatefulWidget {
 }
 
 class _QuotationScreenState extends State<QuotationScreen> {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   bool showHistory = false;
   bool partyIsSupplier = false;
   String partyFilter = 'ALL';
@@ -61,11 +61,11 @@ class _QuotationScreenState extends State<QuotationScreen> {
   }
 
   Future<void> load() async {
-    customers = await db.customers();
-    suppliers = await db.suppliers();
-    units = await db.units();
-    serial = '${await db.nextQuotationSerial()}';
-    historyRows = await db.quotationsWithParty();
+    customers = await repo.customers();
+    suppliers = await repo.suppliers();
+    units = await repo.units();
+    serial = '${await repo.nextQuotationSerial()}';
+    historyRows = await repo.quotationsWithParty();
     if (!partyIsSupplier && customers.isNotEmpty) {
       partyId = customers.first['id'] as int;
       _fillParty(customers.first);
@@ -118,9 +118,26 @@ class _QuotationScreenState extends State<QuotationScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a supplier or customer profile.')));
       return;
     }
-    final uuid = db.newUuid();
+    final uuid = repo.newUuid();
     final billRef = 'QT-${DateTime.now().year}-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
-    final id = await db.db.insert('quotations', {
+    final items = rows
+        .map(
+          (r) => {
+            'description': r.description,
+            'uom': r.uom,
+            'quantity': r.qty,
+            'rate': r.rate,
+            'line_total': r.lineTotal,
+          },
+        )
+        .toList();
+    final termRows = <Map<String, dynamic>>[];
+    for (var i = 0; i < terms.length; i++) {
+      final line = terms[i].controller.text.trim();
+      if (line.isEmpty) continue;
+      termRows.add({'sort_order': i + 1, 'text': line});
+    }
+    final id = await repo.createQuotation({
       'uuid': uuid,
       'ref_no': billRef,
       'serial_no': int.tryParse(serial),
@@ -142,22 +159,9 @@ class _QuotationScreenState extends State<QuotationScreen> {
       'total_qty': totalQty,
       'status': 'PENDING',
       'created_at': DateTime.now().toIso8601String(),
+      'items': items,
+      'terms': termRows,
     });
-    for (final r in rows) {
-      await db.db.insert('quotation_items', {
-        'quotation_id': id,
-        'description': r.description,
-        'uom': r.uom,
-        'quantity': r.qty,
-        'rate': r.rate,
-        'line_total': r.lineTotal,
-      });
-    }
-    for (var i = 0; i < terms.length; i++) {
-      final line = terms[i].controller.text.trim();
-      if (line.isEmpty) continue;
-      await db.db.insert('quotation_terms', {'quotation_id': id, 'sort_order': i + 1, 'text': line});
-    }
     await reprintQuotation(id);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('QUOTATION SAVED — PRINT OPENED')));
     await load();
@@ -302,8 +306,8 @@ class _QuotationScreenState extends State<QuotationScreen> {
                     ],
                     onChanged: (v) async {
                       if (v == null) return;
-                      await db.updateQuotationStatus(id, v);
-                      historyRows = await db.quotationsWithParty();
+                      await repo.updateQuotationStatus(id, v);
+                      historyRows = await repo.quotationsWithParty();
                       setState(() {});
                     },
                   ),
@@ -352,7 +356,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
                 ),
                 OutlinedButton.icon(
                   onPressed: () async {
-                    historyRows = await db.quotationsWithParty();
+                    historyRows = await repo.quotationsWithParty();
                     setState(() => showHistory = true);
                   },
                   icon: const Icon(Icons.list_alt, size: 16),

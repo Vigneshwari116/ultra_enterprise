@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 
@@ -21,7 +21,7 @@ class TransactionsHostScreen extends StatefulWidget {
 }
 
 class _TransactionsHostScreenState extends TransactionsHostScreenState {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   TxView view = TxView.adjustment;
 
   @override
@@ -52,7 +52,7 @@ class _AdjustmentReturnPanel extends StatefulWidget {
 }
 
 class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   bool isDebit = true;
   String noteNo = '1';
   String issueDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -82,11 +82,11 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
   }
 
   Future<void> load() async {
-    suppliers = await db.suppliers();
-    customers = await db.customers();
-    products = await db.products();
-    units = await db.units();
-    noteNo = '${await db.nextAdjustmentNoteNo(isDebit ? 'DEBIT' : 'CREDIT')}';
+    suppliers = await repo.suppliers();
+    customers = await repo.customers();
+    products = await repo.products();
+    units = await repo.units();
+    noteNo = '${await repo.nextAdjustmentNoteNo(isDebit ? 'DEBIT' : 'CREDIT')}';
     if (isDebit && suppliers.isNotEmpty) {
       partyId = suppliers.first['id'] as int;
       _fillParty(suppliers.first);
@@ -116,11 +116,27 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
 
   Future<void> _save() async {
     if (partyId == null) return;
-    final uuid = db.newUuid();
+    final uuid = repo.newUuid();
     final year = DateTime.now().year;
     final prefix = isDebit ? 'DN' : 'CN';
     final noteBillNo = '$prefix-$year-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
-    final id = await db.db.insert('adjustment_notes', {
+    final items = rows
+        .map(
+          (r) => {
+            'product_id': r.productId,
+            'description': r.description,
+            'uom': r.uom,
+            'hsn': r.hsn,
+            'quantity': r.qty,
+            'rate': r.rate,
+            'cgst_percent': r.cgstPct,
+            'sgst_percent': r.sgstPct,
+            'igst_percent': r.igstPct,
+            'extended_value': r.total,
+          },
+        )
+        .toList();
+    await repo.createAdjustmentNote({
       'uuid': uuid,
       'note_bill_no': noteBillNo,
       'note_type': isDebit ? 'DEBIT' : 'CREDIT',
@@ -142,22 +158,8 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
       'tax_total': taxTotal,
       'grand_total': grandTotal,
       'created_at': DateTime.now().toIso8601String(),
+      'items': items,
     });
-    for (final r in rows) {
-      await db.db.insert('adjustment_note_items', {
-        'note_id': id,
-        'product_id': r.productId,
-        'description': r.description,
-        'uom': r.uom,
-        'hsn': r.hsn,
-        'quantity': r.qty,
-        'rate': r.rate,
-        'cgst_percent': r.cgstPct,
-        'sgst_percent': r.sgstPct,
-        'igst_percent': r.igstPct,
-        'extended_value': r.total,
-      });
-    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(isDebit ? 'DEBIT NOTE POSTED' : 'CREDIT NOTE POSTED'),
@@ -477,7 +479,7 @@ class _CashBookPanel extends StatefulWidget {
 }
 
 class _CashBookPanelState extends State<_CashBookPanel> {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   bool isReceipt = true;
   String? partyKey;
   final amount = TextEditingController();
@@ -494,9 +496,9 @@ class _CashBookPanelState extends State<_CashBookPanel> {
   }
 
   Future<void> load() async {
-    customers = await db.customers();
-    suppliers = await db.suppliers();
-    passbook = await db.cashPassbookEntries();
+    customers = await repo.customers();
+    suppliers = await repo.suppliers();
+    passbook = await repo.cashPassbookEntries();
     if (mounted) setState(() {});
   }
 
@@ -549,7 +551,7 @@ class _CashBookPanelState extends State<_CashBookPanel> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Receipts must be allocated to a customer.')));
         return;
       }
-      await db.insertReceipt({
+      await repo.insertReceipt({
         'customer_id': id,
         'receipt_date': today,
         'amount': amt,
@@ -561,7 +563,7 @@ class _CashBookPanelState extends State<_CashBookPanel> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payments must be allocated to a supplier.')));
         return;
       }
-      await db.insertPayment({
+      await repo.insertPayment({
         'supplier_id': id,
         'payment_date': today,
         'amount': amt,
@@ -763,7 +765,7 @@ class _JournalEntryPanel extends StatefulWidget {
 }
 
 class _JournalEntryPanelState extends State<_JournalEntryPanel> {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   String voucherDate = DateFormat('dd-MMM-yyyy').format(DateTime.now()).toUpperCase();
   final narration = TextEditingController();
   List<Map<String, String>> accounts = [];
@@ -776,7 +778,7 @@ class _JournalEntryPanelState extends State<_JournalEntryPanel> {
   }
 
   Future<void> loadAccounts() async {
-    accounts = await db.masterAccountDirectory();
+    accounts = await repo.masterAccountDirectory();
     if (mounted) setState(() {});
   }
 
@@ -784,18 +786,12 @@ class _JournalEntryPanelState extends State<_JournalEntryPanel> {
 
   Future<void> _save() async {
     if (total <= 0) return;
-    final id = await db.db.insert('journal_vouchers', {
-      'voucher_date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
-      'narration': narration.text,
-      'total_amount': total,
-      'created_at': DateTime.now().toIso8601String(),
-    });
+    final linePayload = <Map<String, dynamic>>[];
     for (var i = 0; i < lines.length; i++) {
       final l = lines[i];
       final drLabel = accounts.firstWhere((a) => a['key'] == l.drKey, orElse: () => {'label': ''})['label'] ?? '';
       final crLabel = accounts.firstWhere((a) => a['key'] == l.crKey, orElse: () => {'label': ''})['label'] ?? '';
-      await db.db.insert('journal_voucher_lines', {
-        'voucher_id': id,
+      linePayload.add({
         'line_no': i + 1,
         'dr_account_key': l.drKey,
         'dr_account_label': drLabel,
@@ -804,6 +800,13 @@ class _JournalEntryPanelState extends State<_JournalEntryPanel> {
         'amount': l.amount,
       });
     }
+    await repo.createJournalVoucher({
+      'voucher_date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      'narration': narration.text,
+      'total_amount': total,
+      'created_at': DateTime.now().toIso8601String(),
+      'lines': linePayload,
+    });
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('JOURNAL RECORD SAVED')));
     setState(() {
       lines..clear()..add(_JournalLine());

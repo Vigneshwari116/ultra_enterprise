@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/adjustment_note_document.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/journal_summary_report.dart';
@@ -74,25 +74,20 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
 
   Future<void> _loadJournal() async {
     setState(() => loading = true);
-    journalLines = await AppDatabase.instance.journalSummaryLines();
+    journalLines = await UltraRepository.instance.journalSummaryLines();
     if (mounted) setState(() => loading = false);
   }
 
   Future<void> _loadNotes() async {
     setState(() => loading = true);
-    adjustmentNotes = await AppDatabase.instance.adjustmentNotesWithParty();
+    adjustmentNotes = await UltraRepository.instance.adjustmentNotesWithParty();
     if (mounted) setState(() => loading = false);
   }
 
   Future<void> _load() async {
     setState(() => loading = true);
-    final rows = await AppDatabase.instance.db.rawQuery('''
-      SELECT s.*, COALESCE(c.customer_name, '-') AS customer_name
-      FROM sales_invoices s
-      LEFT JOIN customers c ON c.id = s.customer_id
-      ORDER BY s.transaction_date DESC, s.id DESC
-    ''');
-    final cs = await AppDatabase.instance.customers();
+    final rows = await UltraRepository.instance.salesInvoicesWithParty();
+    final cs = await UltraRepository.instance.customers();
     if (!mounted) return;
     setState(() {
       invoices = rows;

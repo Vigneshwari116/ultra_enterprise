@@ -1,5 +1,5 @@
 import 'package:intl/intl.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import 'invoice.dart';
 
 String _fmtDate(String? iso) {
@@ -21,7 +21,7 @@ String _billNoForOrder(Map<String, dynamic> po) {
 }
 
 Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
-  final bundle = await AppDatabase.instance.purchaseOrderPrintBundle(purchaseOrderId);
+  final bundle = await UltraRepository.instance.purchaseOrderPrintBundle(purchaseOrderId);
   if (bundle == null) return null;
   final po = bundle['order'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;

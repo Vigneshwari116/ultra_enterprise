@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import '../widgets/enterprise_widgets.dart';
 
 final jobWorkHostKey = GlobalKey<JobWorkHostScreenState>();
@@ -48,7 +48,7 @@ class _MaterialTypeMasterPanel extends StatefulWidget {
 }
 
 class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   final filter = TextEditingController();
   final typeCode = TextEditingController();
   final description = TextEditingController();
@@ -62,7 +62,7 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
   }
 
   Future<void> load() async {
-    types = await db.materialTypes();
+    types = await repo.materialTypes();
     if (mounted) setState(() {});
   }
 
@@ -90,9 +90,9 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
     if (typeCode.text.trim().isEmpty) return;
     final row = {'type_code': typeCode.text.trim().toUpperCase(), 'description': description.text.trim()};
     if (editingId == null) {
-      await db.insertMaterialType(row);
+      await repo.insertMaterialType(row);
     } else {
-      await db.updateMaterialType(editingId!, row);
+      await repo.updateMaterialType(editingId!, row);
     }
     await load();
     _reset();
@@ -100,7 +100,7 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
   }
 
   Future<void> _delete(int id) async {
-    await db.deleteMaterialType(id);
+    await repo.deleteMaterialType(id);
     if (editingId == id) _reset();
     await load();
   }
@@ -234,7 +234,7 @@ class _MaterialMasterPanel extends StatefulWidget {
 }
 
 class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
-  final db = AppDatabase.instance;
+  final repo = UltraRepository.instance;
   final search = TextEditingController();
   final code = TextEditingController();
   final name = TextEditingController();
@@ -261,9 +261,9 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
   }
 
   Future<void> load() async {
-    products = await db.products();
-    units = await db.units();
-    materialTypes = await db.materialTypes();
+    products = await repo.products();
+    units = await repo.units();
+    materialTypes = await repo.materialTypes();
     if (unitId == null && units.isNotEmpty) unitId = units.first['id'] as int;
     if (materialTypeId == null && materialTypes.isNotEmpty) materialTypeId = materialTypes.first['id'] as int;
     if (mounted) setState(() {});
@@ -345,9 +345,9 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
     if (isNew) {
       row['opening_stock'] = 0;
       row['current_stock'] = 0;
-      await db.insertProduct(row);
+      await repo.insertProduct(row);
     } else {
-      await db.updateProduct(editingId!, row);
+      await repo.updateProduct(editingId!, row);
     }
     await load();
     _reset();

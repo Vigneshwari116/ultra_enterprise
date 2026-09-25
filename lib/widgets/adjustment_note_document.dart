@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import 'ultra_logo.dart';
 
 String _fmtDate(String? iso) {
@@ -35,7 +35,7 @@ Future<void> reprintAdjustmentNote(int noteId) async {
 }
 
 Future<Uint8List?> buildAdjustmentNotePdf(int noteId) async {
-  final bundle = await AppDatabase.instance.adjustmentNotePrintBundle(noteId);
+  final bundle = await UltraRepository.instance.adjustmentNotePrintBundle(noteId);
   if (bundle == null) return null;
   final note = bundle['note'] as Map<String, dynamic>;
   final items = bundle['items'] as List<Map<String, dynamic>>;

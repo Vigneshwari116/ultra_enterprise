@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'config/ultra_config.dart';
 import 'database/app_database.dart';
 import 'screens/login_screen.dart';
 import 'screens/app_shell.dart';
@@ -17,7 +18,9 @@ Future<void> main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  await AppDatabase.instance.init();
+  if (UltraConfig.persistLocally) {
+    await AppDatabase.instance.init();
+  }
 
   runApp(const UltraApp());
 }

@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../database/app_database.dart';
+import '../services/ultra_repository.dart';
 import 'ultra_logo.dart';
 
 String _fmtDate(String? iso) {
@@ -20,7 +20,7 @@ Future<void> reprintQuotation(int quotationId) async {
 }
 
 Future<Uint8List?> buildQuotationPdf(int quotationId) async {
-  final bundle = await AppDatabase.instance.quotationPrintBundle(quotationId);
+  final bundle = await UltraRepository.instance.quotationPrintBundle(quotationId);
   if (bundle == null) return null;
   final q = bundle['quotation'] as Map<String, dynamic>;
   final items = bundle['items'] as List<Map<String, dynamic>>;
