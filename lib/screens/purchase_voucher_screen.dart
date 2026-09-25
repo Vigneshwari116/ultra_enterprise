@@ -121,7 +121,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('PURCHASE VOUCHER — GOODS RECEIPT TERMINAL',
+                  const Text('COMMERCIAL PURCHASE TERMINAL',
                       style: TextStyle(color: Color(0xFF2FE6E0), fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: .4)),
                   const SizedBox(height: 10),
                   Row(children: [
@@ -155,7 +155,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
               children: [
                 Expanded(
                   child: _plainSection(
-                    title: 'SECTION 1: VOUCHER METADATA',
+                    title: 'SECTION 1: TRANSACTION METADATA',
                     children: [
                       _pair(
                         _outline('VOUCHER NO', controller: TextEditingController(text: voucherNo), readOnly: true, filled: true),
@@ -193,7 +193,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                 const SizedBox(width: 24),
                 Expanded(
                   child: _plainSection(
-                    title: 'SECTION 2: SUPPLIER PARTICULARS',
+                    title: 'SECTION 2: ACCOUNT / PARTY CONFIGURATION',
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
@@ -214,7 +214,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
               ],
             ),
             const SizedBox(height: 22),
-            const Text('SECTION 3: MATERIAL RECEIPT GRID', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
+            const Text('SECTION 3: QUANTITY MATRIX PRODUCT ENTRY', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
             const SizedBox(height: 4),
             Container(height: 1, color: border),
             const SizedBox(height: 14),

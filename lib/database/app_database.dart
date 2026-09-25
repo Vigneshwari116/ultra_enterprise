@@ -13,7 +13,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -448,6 +448,18 @@ class AppDatabase {
             )
           ''');
         }
+        if (oldVersion < 10) {
+          for (final col in [
+            'po_bill_no TEXT',
+            'state_zone TEXT',
+            'due_days INTEGER DEFAULT 0',
+            'estimated_freight REAL DEFAULT 0',
+          ]) {
+            try {
+              await db.execute('ALTER TABLE purchase_orders ADD COLUMN $col');
+            } catch (_) {}
+          }
+        }
         if (oldVersion < 9) {
           await db.execute('''
             CREATE TABLE IF NOT EXISTS ledger_accounts(
@@ -593,11 +605,33 @@ class AppDatabase {
   }
 
   Future<List<Map<String, dynamic>>> purchaseOrdersWithParty() => db.rawQuery('''
-        SELECT po.*, COALESCE(s.supplier_name, '-') AS party_name
+        SELECT po.*, COALESCE(s.supplier_name, '-') AS party_name,
+          (SELECT COALESCE(SUM(poi.quantity), 0) FROM purchase_order_items poi WHERE poi.purchase_order_id = po.id) AS total_qty
         FROM purchase_orders po
         LEFT JOIN suppliers s ON s.id = po.supplier_id
         ORDER BY po.po_date DESC, po.id DESC
       ''');
+
+  Future<Map<String, dynamic>?> purchaseOrderPrintBundle(int purchaseOrderId) async {
+    final rows = await db.rawQuery('''
+        SELECT po.*,
+          s.supplier_name, s.address, s.city, s.postal_pincode, s.gstin, s.primary_mobile,
+          s.bank_name, s.bank_account_no, s.ifsc_code, s.branch_address
+        FROM purchase_orders po
+        LEFT JOIN suppliers s ON s.id = po.supplier_id
+        WHERE po.id = ?
+      ''', [purchaseOrderId]);
+    if (rows.isEmpty) return null;
+    final items = await purchaseOrderItems(purchaseOrderId);
+    return {'order': rows.first, 'items': items};
+  }
+
+  Future<void> updatePurchaseOrderStatus(int purchaseOrderId, String status) => db.update(
+        'purchase_orders',
+        {'status': status},
+        where: 'id = ?',
+        whereArgs: [purchaseOrderId],
+      );
 
   // ---- Purchase Vouchers ----
 

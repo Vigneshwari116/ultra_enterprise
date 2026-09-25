@@ -41,6 +41,12 @@ class InvoiceData {
   final String accountNo;
   final String ifscCode;
   final String bankAddress;
+  /// Top-left document title (e.g. TAX INVOICE, PURCHASE ORDER).
+  final String documentTitle;
+  /// Left party block heading on the printed form.
+  final String partySectionTitle;
+  /// One page per label; sales uses five copies, PO typically one.
+  final List<String> copyLabels;
 
   const InvoiceData({
     required this.invoiceNo,
@@ -65,6 +71,9 @@ class InvoiceData {
     required this.accountNo,
     required this.ifscCode,
     required this.bankAddress,
+    this.documentTitle = 'TAX INVOICE',
+    this.partySectionTitle = 'NAME & ADDRESS OF CONSIGNEE',
+    this.copyLabels = ultraInvoiceCopyLabels,
   });
 
   double get subtotal => items.fold(0.0, (s, i) => s + i.amount);
@@ -95,7 +104,7 @@ Future<Uint8List> buildUltraInvoicePdf(InvoiceData data) async {
   final logoBytes = base64Decode(ultraLogoBase64);
   final logo = pw.MemoryImage(logoBytes);
 
-  for (final copyLabel in ultraInvoiceCopyLabels) {
+  for (final copyLabel in data.copyLabels) {
     doc.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -126,7 +135,7 @@ pw.Widget _invoicePage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        _topBar(copyLabel),
+        _topBar(d.documentTitle, copyLabel),
         _companyHeader(logo),
         _consigneeAndMeta(d),
         _itemsTable(d),
@@ -150,12 +159,12 @@ pw.Widget _cell({required pw.Widget child, bool right = false, bool bottom = fal
   );
 }
 
-pw.Widget _topBar(String copyLabel) {
+pw.Widget _topBar(String documentTitle, String copyLabel) {
   return pw.Container(
     decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
     child: pw.Row(
       children: [
-        pw.Expanded(child: _cell(right: true, child: pw.Text('TAX INVOICE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)))),
+        pw.Expanded(child: _cell(right: true, child: pw.Text(documentTitle, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)))),
         pw.Expanded(
           child: _cell(
             child: pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(copyLabel, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11))),
@@ -226,7 +235,7 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('NAME & ADDRESS OF CONSIGNEE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
+                      pw.Text(d.partySectionTitle, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5)),
                       pw.SizedBox(height: 4),
                       pw.Text(d.consigneeName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9.5)),
                       pw.Text(d.consigneeAddress, style: const pw.TextStyle(fontSize: 8)),
