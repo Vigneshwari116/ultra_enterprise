@@ -399,21 +399,32 @@ class _AppShellState extends State<AppShell> {
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: red.withOpacity(.35)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.logout, color: red, size: 16),
-                  SizedBox(width: 8),
-                  Text(
-                    'SIGN OUT ENGINE',
-                    style: TextStyle(
-                      color: red,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: .3,
-                    ),
-                  ),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 150;
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.logout, color: red, size: 16),
+                      if (!compact) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'SIGN OUT ENGINE',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: red,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
           ),
