@@ -22,7 +22,22 @@ class UltraRepository {
       return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     if (decoded is Map) {
-      for (final key in ['results', 'data', 'items', 'invoices', 'customers', 'units']) {
+      for (final key in [
+        'results',
+        'data',
+        'items',
+        'invoices',
+        'customers',
+        'units',
+        'products',
+        'suppliers',
+        'material_types',
+        'material-types',
+        'orders',
+        'quotations',
+        'notes',
+        'vouchers',
+      ]) {
         final inner = decoded[key];
         if (inner is List) {
           return inner.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -46,6 +61,7 @@ class UltraRepository {
       'unit',
       'supplier',
       'product',
+      'material_type',
       'order',
       'challan',
       'quotation',
@@ -62,7 +78,39 @@ class UltraRepository {
     final id = row['id'];
     if (id is int) return id;
     if (id is num) return id.toInt();
+    if (id is String) {
+      final parsed = int.tryParse(id.trim());
+      if (parsed != null) return parsed;
+    }
     throw Exception('API response missing id');
+  }
+
+  Map<String, dynamic> _normalizeProductRow(Map<String, dynamic> row) {
+    final out = Map<String, dynamic>.from(row);
+    out['product_code'] ??= out['barcode'];
+    out['product_name'] ??= out['name'];
+    out['sales_rate'] ??= out['rate'];
+    return out;
+  }
+
+  /// Maps Material Master form fields to live Product API JSON.
+  Map<String, dynamic> _mapProductToApi(Map<String, dynamic> row) {
+    final code = '${row['product_code'] ?? row['barcode'] ?? ''}'.trim();
+    final body = <String, dynamic>{
+      'product_name': row['product_name'],
+      'barcode': code,
+      'hsn': row['hsn'],
+      'unit_id': row['unit_id'],
+      'material_type_id': row['material_type_id'],
+      'sales_rate': row['sales_rate'] ?? row['rate'],
+      'purchase_rate': row['purchase_rate'],
+    };
+    final gst = row['gst_rate'] ?? row['gst_percent'];
+    if (gst != null) {
+      body['gst_rate'] = gst;
+    }
+    body.removeWhere((_, v) => v == null || (v is String && v.isEmpty));
+    return body;
   }
 
   Map<String, dynamic> _mapCustomerToApi(Map<String, dynamic> row) {
@@ -177,17 +225,17 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> products() async {
     if (UltraConfig.persistLocally) return _db.products();
-    return _asRowList(await _api.get('/api/products'));
+    return _asRowList(await _api.get('/api/products')).map(_normalizeProductRow).toList();
   }
 
   Future<int> insertProduct(Map<String, dynamic> row) async {
     if (UltraConfig.persistLocally) return _db.insertProduct(row);
-    return _idFromResponse(await _api.post('/api/products', row));
+    return _idFromResponse(await _api.post('/api/products', _mapProductToApi(row)));
   }
 
   Future<int> updateProduct(int id, Map<String, dynamic> row) async {
     if (UltraConfig.persistLocally) return _db.updateProduct(id, row);
-    await _api.put('/api/products/$id', row);
+    await _api.put('/api/products/$id', _mapProductToApi(row));
     return id;
   }
 
@@ -527,6 +575,16 @@ class UltraRepository {
     final doc = await _getDocument('/api/purchase-vouchers/$voucherId');
     if (doc == null) return [];
     return _asRowList(doc['items']);
+  }
+
+  Future<Map<String, dynamic>?> purchaseVoucherPrintBundle(int voucherId) async {
+    if (UltraConfig.persistLocally) return _db.purchaseVoucherPrintBundle(voucherId);
+    final doc = await _getDocument('/api/purchase-vouchers/$voucherId');
+    if (doc == null) return null;
+    return {
+      'voucher': Map<String, dynamic>.from(doc as Map),
+      'items': _asRowList(doc['items']),
+    };
   }
 
   Future<Map<String, dynamic>?> supplierById(int id) async {

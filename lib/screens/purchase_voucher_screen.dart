@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
+import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../widgets/transaction_line_math.dart';
 
 class PurchaseVoucherScreen extends StatefulWidget {
   const PurchaseVoucherScreen({super.key});
@@ -34,6 +36,20 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
 
   void fillSupplier(Map<String,dynamic> s){supplierAddress.text=s['address']??'';city.text=s['city']??'';pin.text=s['postal_pincode']??'';gstin.text=s['gstin']??'';bank.text=s['bank_name']??'';account.text=s['bank_account_no']??'';}
 
+  TransactionLineTotals _lineTotals(_PvRow r) => TransactionLineTotals.compute(
+        qty: r.qty,
+        rate: r.rate,
+        cgstPct: r.cgstPct,
+        sgstPct: r.sgstPct,
+        igstPct: r.igstPct,
+      );
+
+  double get taxable=>rows.fold(0,(s,r)=>s+_lineTotals(r).taxable);
+  double get cgst=>rows.fold(0,(s,r)=>s+_lineTotals(r).cgst);
+  double get sgst=>rows.fold(0,(s,r)=>s+_lineTotals(r).sgst);
+  double get igst=>rows.fold(0,(s,r)=>s+_lineTotals(r).igst);
+  double get total=>taxable+cgst+sgst+igst;
+
   Future<void> loadAgainstPo(int? poId)async{
     againstPoId=poId;
     if(poId==null)return;
@@ -44,10 +60,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     final items=await repo.purchaseOrderItems(poId);
     if(items.isNotEmpty){
       rows..clear()..addAll(items.map((it)=>_PvRow()
-        ..productId=it['product_id'] as int?
+        ..productId=coerceCatalogId(it['product_id'])
+        ..unitId=coerceCatalogId(it['unit_id'])
         ..description=it['description']??''
         ..uom=it['uom']??'PCS'
-        ..hsn=it['hsn']??''
+        ..hsn='${it['hsn']??''}'
         ..qty=(it['quantity']??0).toDouble()
         ..rate=(it['rate']??0).toDouble()
         ..cgstPct=(it['cgst_percent']??9).toDouble()
@@ -56,12 +73,6 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     }
     if(mounted)setState((){});
   }
-
-  double get taxable=>rows.fold(0,(s,r)=>s+r.taxable);
-  double get cgst=>rows.fold(0,(s,r)=>s+r.cgst);
-  double get sgst=>rows.fold(0,(s,r)=>s+r.sgst);
-  double get igst=>rows.fold(0,(s,r)=>s+r.igst);
-  double get total=>taxable+cgst+sgst+igst;
 
   @override void dispose(){for(final c in [supplierInvoiceNo,remarks,supplierAddress,city,pin,gstin,bank,account])c.dispose();super.dispose();}
 
@@ -90,7 +101,9 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     final uuid=repo.newUuid();
     final items = rows
         .map(
-          (r) => {
+          (r) {
+            final t = _lineTotals(r);
+            return {
             'product_id': r.productId,
             'description': r.description,
             'uom': r.uom,
@@ -100,11 +113,12 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
             'cgst_percent': r.cgstPct,
             'sgst_percent': r.sgstPct,
             'igst_percent': r.igstPct,
-            'taxable': r.taxable,
-            'cgst': r.cgst,
-            'sgst': r.sgst,
-            'igst': r.igst,
-            'total': r.total,
+            'taxable': t.taxable,
+            'cgst': t.cgst,
+            'sgst': t.sgst,
+            'igst': t.igst,
+            'total': t.total,
+          };
           },
         )
         .toList();
@@ -135,11 +149,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
   @override Widget build(BuildContext context){
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      child: enterpriseScrollColumn(children:[
         Container(
           width: double.infinity,
           color: const Color(0xFF19232C),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -173,7 +187,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,33 +198,33 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                     children: [
                       _pair(
                         _outline('VOUCHER NO', controller: TextEditingController(text: voucherNo), readOnly: true, filled: true),
-                        _outline('VOUCHER DATE', controller: TextEditingController(text: _display(voucherDate)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 15),
-                            onTap: () => _pickDate(voucherDate, (v) => setState(() => voucherDate = v))),
-                      ),
-                      _pair(
-                        _outline('SUPPLIER INVOICE NO', controller: supplierInvoiceNo),
-                        _outline('SUPPLIER INVOICE DATE', controller: TextEditingController(text: _display(supplierInvoiceDate)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 15),
-                            onTap: () => _pickDate(supplierInvoiceDate, (v) => setState(() => supplierInvoiceDate = v))),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: DropdownButtonFormField<int>(
-                          isExpanded: true,
-                          value: againstPoId,
-                          decoration: _decoration('AGAINST PURCHASE ORDER (OPTIONAL)'),
-                          hint: const Text('— No linked PO —', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
-                          items: [
-                            const DropdownMenuItem<int>(value: null, child: Text('— No linked PO —')),
-                            ...openOrders.map((o) => DropdownMenuItem<int>(value: o['id'] as int, child: Text('PO-${o['po_no']}  •  ${o['party_name']}'))),
-                          ],
-                          onChanged: (v) => loadAgainstPo(v),
+                        enterpriseInsetDateField(
+                          label: 'VOUCHER DATE',
+                          isoDate: voucherDate,
+                          onTap: () => _pickDate(voucherDate, (v) => setState(() => voucherDate = v)),
                         ),
                       ),
+                      _pair(
+                        _outline('SUPPLIER INVOICE NO', controller: supplierInvoiceNo, autofocus: true),
+                        enterpriseInsetDateField(
+                          label: 'SUPPLIER INVOICE DATE',
+                          isoDate: supplierInvoiceDate,
+                          onTap: () => _pickDate(supplierInvoiceDate, (v) => setState(() => supplierInvoiceDate = v)),
+                        ),
+                      ),
+                      enterpriseInsetDropdown<int?>(
+                        label: 'AGAINST PURCHASE ORDER (OPTIONAL)',
+                        value: againstPoId,
+                        hint: const Text('— No linked PO —', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
+                        items: [
+                          const DropdownMenuItem<int?>(value: null, child: Text('— No linked PO —')),
+                          ...openOrders.map((o) => DropdownMenuItem<int?>(value: o['id'] as int, child: Text('PO-${o['po_no']}  •  ${o['party_name']}'))),
+                        ],
+                        onChanged: (v) => loadAgainstPo(v),
+                      ),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
-                        child: TextField(controller: remarks, maxLines: 2, decoration: _decoration('REMARKS')),
+                        child: enterpriseInsetTextField(label: 'REMARKS', controller: remarks, maxLines: 2),
                       ),
                     ],
                   ),
@@ -222,12 +236,19 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
-                        child: DropdownButtonFormField<int>(
-                          isExpanded: true,
+                        child: enterpriseInsetDropdown<int>(
+                          label: 'SELECT SUPPLIER',
                           value: supplierId,
-                          decoration: _decoration('SELECT SUPPLIER'),
-                          items: suppliers.map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text('${s['supplier_name']}'))).toList(),
-                          onChanged: (v) { final s = suppliers.firstWhere((x) => x['id'] == v); setState(() { supplierId = v; fillSupplier(s); }); },
+                          items: suppliers
+                              .map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text('${s['supplier_name']}')))
+                              .toList(),
+                          onChanged: (v) {
+                            final s = suppliers.firstWhere((x) => x['id'] == v);
+                            setState(() {
+                              supplierId = v;
+                              fillSupplier(s);
+                            });
+                          },
                         ),
                       ),
                       _pair(_outline('ADDRESS', controller: supplierAddress, filled: true), _outline('CITY', controller: city, filled: true)),
@@ -243,37 +264,14 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
             const SizedBox(height: 4),
             Container(height: 1, color: border),
             const SizedBox(height: 14),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                  headingRowColor: const WidgetStatePropertyAll(navy2),
-                  columns: const [
-                    DataColumn(label:Text('SL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('MATERIAL PRODUCT DESCRIPTION', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('UOM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('HSN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('QTY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('RATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('CGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('SGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('IGST%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('COMPOUND TOTAL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                    DataColumn(label:Text('', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 10.5))),
-                  ],
-                  rows:List.generate(rows.length,(i)=>DataRow(cells:[
-                    DataCell(Text('${i+1}')),
-                    DataCell(SizedBox(width:190,child:DropdownButton<int>(isExpanded:true,hint: const Text('Item Description', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),value:rows[i].productId,items:products.map((p)=>DropdownMenuItem<int>(value:p['id'],child:Text('${p['product_name']}'))).toList(),onChanged:(v){final p=products.firstWhere((x)=>x['id']==v);setState(()=>rows[i].setProduct(p));}))),
-                    DataCell(SizedBox(width:90,child:DropdownButton<int>(isExpanded:true,underline: const SizedBox(),value:rows[i].unitId,hint: const Text('UOM', style: TextStyle(fontSize: 11.5)),items:units.map((u)=>DropdownMenuItem<int>(value:u['id'] as int,child:Text('${u['code']}'))).toList(),onChanged:(v){final u=units.firstWhere((x)=>x['id']==v);setState((){rows[i].unitId=v;rows[i].uom='${u['code']}';});}))),
-                    DataCell(Text(rows[i].hsn)),
-                    DataCell(SizedBox(width:65,child:TextField(key:ValueKey('q$i'),controller:TextEditingController(text: rows[i].qty==0?'':'${rows[i].qty}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].qty=double.tryParse(v)??0)))),
-                    DataCell(SizedBox(width:75,child:TextField(key:ValueKey('r$i'),controller:TextEditingController(text: rows[i].rate==0?'':'${rows[i].rate}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].rate=double.tryParse(v)??0)))),
-                    DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].cgstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].cgstPct=double.tryParse(v)??0)))),
-                    DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].sgstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].sgstPct=double.tryParse(v)??0)))),
-                    DataCell(SizedBox(width:65,child:TextField(controller:TextEditingController(text:'${rows[i].igstPct}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].igstPct=double.tryParse(v)??0)))),
-                    DataCell(Text('₹${rows[i].total.toStringAsFixed(2)}',style:const TextStyle(fontWeight:FontWeight.w800))),
-                    DataCell(IconButton(onPressed:rows.length==1?null:()=>setState(()=>rows.removeAt(i)),icon:const Icon(Icons.delete_outline,color:red,size:18))),
-                  ]))
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: border),
+                borderRadius: BorderRadius.circular(4),
               ),
+              child: enterpriseMatrixScroller(table: _productMatrixTable(context)),
             ),
             const SizedBox(height:12),
             Center(
@@ -290,18 +288,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
               ),
             ),
             const SizedBox(height:18),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              decoration: BoxDecoration(color: const Color(0xFF19232C), borderRadius: BorderRadius.circular(4)),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text('VALUE IN WORDS: ${_amountInWords(total)}',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: .3)),
-                  ),
-                ],
-              ),
-            ),
+            enterpriseValueWordsFooter(valueInWords: payableAmountInWords(total)),
             const SizedBox(height:8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -334,26 +321,15 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     );
   }
 
-  InputDecoration _decoration(String label, {bool filled = false}) => InputDecoration(
-    labelText: label,
-    floatingLabelBehavior: FloatingLabelBehavior.always,
-    isDense: true,
-    filled: filled,
-    fillColor: filled ? const Color(0xFFF1F3F7) : Colors.white,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: teal, width: 1.4)),
-    labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094), letterSpacing: .2),
-  );
-
-  Widget _outline(String label, {TextEditingController? controller, bool readOnly = false, bool filled = false, Widget? prefixIcon, VoidCallback? onTap}) {
-    return TextField(
+  Widget _outline(String label, {TextEditingController? controller, bool readOnly = false, bool filled = false, Widget? prefixIcon, VoidCallback? onTap, bool autofocus = false}) {
+    return enterpriseInsetTextField(
+      label: label,
       controller: controller,
       readOnly: readOnly,
+      filled: filled,
+      prefixIcon: prefixIcon,
       onTap: onTap,
-      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: navy),
-      decoration: _decoration(label, filled: filled).copyWith(prefixIcon: prefixIcon),
+      autofocus: autofocus,
     );
   }
 
@@ -366,7 +342,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     ],
   );
   Widget _pair(Widget a, Widget b) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.only(bottom: 6),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Expanded(child: a), const SizedBox(width: 14), Expanded(child: b),
     ]),
@@ -377,19 +353,189 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
       Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
       const SizedBox(height: 4),
       Container(height: 1, color: border),
-      const SizedBox(height: 16),
+      const SizedBox(height: 8),
       ...children,
     ],
   );
-  String _amountInWords(double v) => v == 0 ? 'ZERO RUPEES ONLY' : '₹${v.toStringAsFixed(2)} ONLY';
+  Table _productMatrixTable(BuildContext context) {
+    return Table(
+      columnWidths: enterpriseProductMatrixColumns,
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        TableRow(
+          decoration: const BoxDecoration(color: navy2),
+          children: [
+            enterpriseMatrixHeadCell('SL'),
+            enterpriseMatrixHeadCell('MATERIAL PRODUCT DESCRIPTION'),
+            enterpriseMatrixHeadCell('UOM'),
+            enterpriseMatrixHeadCell('HSN'),
+            enterpriseMatrixHeadCell('QTY'),
+            enterpriseMatrixHeadCell('RATE'),
+            enterpriseMatrixHeadCell('CGST%'),
+            enterpriseMatrixHeadCell('SGST%'),
+            enterpriseMatrixHeadCell('IGST%'),
+            enterpriseMatrixHeadCell('COMPOUND TOTAL'),
+            const SizedBox.shrink(),
+          ],
+        ),
+        ...List.generate(rows.length, (i) {
+          return TableRow(
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: border.withOpacity(.6))),
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
+                child: Text('${i + 1}', style: enterpriseMatrixCellStyle),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                child: DropdownButton<int>(
+                  isExpanded: true,
+                  isDense: true,
+                  hint: const Text('Item Description', style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
+                  value: catalogIdInList(rows[i].productId, products),
+                  items: products
+                      .map((p) {
+                        final id = coerceCatalogId(p['id']);
+                        if (id == null) return null;
+                        return DropdownMenuItem<int>(
+                          value: id,
+                          child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
+                        );
+                      })
+                      .whereType<DropdownMenuItem<int>>()
+                      .toList(),
+                  onChanged: (v) {
+                    final p = products.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    setState(() => rows[i].setProduct(p));
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                child: DropdownButton<int>(
+                  isExpanded: true,
+                  isDense: true,
+                  underline: const SizedBox(),
+                  value: catalogIdInList(rows[i].unitId, units),
+                  hint: const Text('UOM', style: TextStyle(fontSize: 9)),
+                  items: units
+                      .map((u) {
+                        final id = coerceCatalogId(u['id']);
+                        if (id == null) return null;
+                        return DropdownMenuItem<int>(
+                          value: id,
+                          child: Text('${u['code']}', style: const TextStyle(fontSize: 9)),
+                        );
+                      })
+                      .whereType<DropdownMenuItem<int>>()
+                      .toList(),
+                  onChanged: (v) {
+                    final u = units.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    setState(() {
+                      rows[i].unitId = v;
+                      rows[i].uom = '${u['code']}';
+                    });
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: Text(rows[i].hsn.isEmpty ? '—' : rows[i].hsn, style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('pvq$i'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('pvr$i'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('pvcg-$i-${rows[i].cgstPct}'),
+                  keyboardType: TextInputType.number,
+                  controller: TextEditingController(text: '${rows[i].cgstPct}'),
+                  onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('pvsg-$i-${rows[i].sgstPct}'),
+                  keyboardType: TextInputType.number,
+                  controller: TextEditingController(text: '${rows[i].sgstPct}'),
+                  onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('pvig-$i-${rows[i].igstPct}'),
+                  keyboardType: TextInputType.number,
+                  controller: TextEditingController(text: '${rows[i].igstPct}'),
+                  onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: Text(
+                  '₹${_lineTotals(rows[i]).total.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 9.5, color: navy),
+                ),
+              ),
+              IconButton(
+                onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
+                icon: const Icon(Icons.delete_outline, color: red, size: 15),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              ),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  String _amountInWords(double v) => payableAmountInWords(v);
 }
 
 class _PvRow{
-  int? productId; int? unitId; String description='Item Description',uom='PCS',hsn='123456'; double qty=0,rate=0,cgstPct=9,sgstPct=9,igstPct=0;
-  void setProduct(Map<String,dynamic> p){productId=p['id'];description=p['product_name']??'';unitId=p['unit_id'] as int?;uom=p['uom_code']??'PCS';hsn=p['hsn']??'';rate=(p['rate']??0).toDouble();}
-  double get taxable=>qty*rate;
-  double get cgst=>taxable*cgstPct/100;
-  double get sgst=>taxable*sgstPct/100;
-  double get igst=>taxable*igstPct/100;
-  double get total=>taxable+cgst+sgst+igst;
+  int? productId; int? unitId; String description='',uom='PCS',hsn=''; double qty=0,rate=0,cgstPct=9,sgstPct=9,igstPct=0;
+  void setProduct(Map<String,dynamic> p){
+    productId=coerceCatalogId(p['id']);
+    description='${p['product_name']??''}';
+    unitId=catalogUnitId(p);
+    uom=catalogUomCode(p);
+    hsn=catalogProductHsn(p);
+    rate=catalogPurchaseRate(p);
+    final productGst = catalogTotalGstPercent(p);
+    if (productGst != null && productGst > 0) {
+      applyZoneGstSplit(
+        interState: false,
+        totalGstPercent: productGst,
+        apply: (c, s, i) {
+          cgstPct = c;
+          sgstPct = s;
+          igstPct = i;
+        },
+      );
+    }
+  }
 }

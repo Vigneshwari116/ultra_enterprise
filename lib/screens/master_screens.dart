@@ -101,7 +101,27 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       'description': descCtrl.text.trim(),
     };
     if (selectedId == null) {
-      await UltraRepository.instance.insertUnit(row);
+      try {
+        await UltraRepository.instance.insertUnit(row);
+      } catch (e) {
+        final msg = e.toString().toLowerCase();
+        final duplicate = msg.contains('unique') ||
+            msg.contains('duplicate') ||
+            msg.contains('already exists') ||
+            msg.contains('409') ||
+            msg.contains('constraint');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+              duplicate
+                  ? 'Unit code already registered (for example PCS). Use a different UOM token.'
+                  : 'Could not save unit: $e',
+            ),
+          ));
+        }
+        setState(() => error = duplicate ? 'Duplicate UOM code — choose another token.' : 'Save failed.');
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit saved.')));
         salesInvoiceCatalogKey.currentState?.refreshCatalog();
@@ -110,7 +130,27 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       descCtrl.clear();
       setState(() => error = null);
     } else {
-      await UltraRepository.instance.updateUnit(selectedId!, row);
+      try {
+        await UltraRepository.instance.updateUnit(selectedId!, row);
+      } catch (e) {
+        final msg = e.toString().toLowerCase();
+        final duplicate = msg.contains('unique') ||
+            msg.contains('duplicate') ||
+            msg.contains('already exists') ||
+            msg.contains('409') ||
+            msg.contains('constraint');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+              duplicate
+                  ? 'Unit code already registered (for example PCS). Use a different UOM token.'
+                  : 'Could not update unit: $e',
+            ),
+          ));
+        }
+        setState(() => error = duplicate ? 'Duplicate UOM code — choose another token.' : 'Update failed.');
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit updated.')));
         salesInvoiceCatalogKey.currentState?.refreshCatalog();

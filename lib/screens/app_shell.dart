@@ -35,6 +35,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int index = 0;
+  String _activeNavLabel = 'Dashboard';
   bool sidebarOpen = true;
   bool _sidebarDefaultSet = false;
   final Set<String> expandedGroups = {
@@ -49,6 +50,17 @@ class _AppShellState extends State<AppShell> {
   };
 
   static const _sidebarWidth = 238.0;
+  static const _navOverlayBreakpoint = 900.0;
+
+  bool _useNavOverlay(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < _navOverlayBreakpoint;
+
+  void _toggleSidebar() => setState(() => sidebarOpen = !sidebarOpen);
+
+  void _closeSidebar() {
+    if (!sidebarOpen) return;
+    setState(() => sidebarOpen = false);
+  }
 
   late final List<Widget> pages = [
     const HomeScreen(),
@@ -110,8 +122,9 @@ class _AppShellState extends State<AppShell> {
     super.didChangeDependencies();
     if (!_sidebarDefaultSet) {
       _sidebarDefaultSet = true;
-      if (MediaQuery.sizeOf(context).width < 900) {
-        sidebarOpen = false;
+      final overlay = _useNavOverlay(context);
+      if (overlay && sidebarOpen) {
+        setState(() => sidebarOpen = false);
       }
     }
   }
@@ -123,7 +136,12 @@ class _AppShellState extends State<AppShell> {
   void _selectPage(int pageIndex, {String? leafLabel}) {
     setState(() {
       index = pageIndex;
-      if (MediaQuery.sizeOf(context).width < 900) {
+      if (leafLabel != null && leafLabel.isNotEmpty) {
+        _activeNavLabel = leafLabel;
+      } else if (pageIndex == 0) {
+        _activeNavLabel = 'Dashboard';
+      }
+      if (_useNavOverlay(context)) {
         sidebarOpen = false;
       }
     });
@@ -182,6 +200,38 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final overlay = _useNavOverlay(context);
+    final main = _buildMainColumn(context);
+
+    if (overlay) {
+      return Scaffold(
+        body: Stack(
+          children: [
+            main,
+            if (sidebarOpen) ...[
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _closeSidebar,
+                  child: ColoredBox(color: Colors.black.withOpacity(0.45)),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Material(
+                  elevation: 12,
+                  color: sidebarBg,
+                  child: _buildSidebarPanel(context, showCloseControl: true),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       body: Row(
         children: [
@@ -191,63 +241,178 @@ class _AppShellState extends State<AppShell> {
             width: sidebarOpen ? _sidebarWidth : 0,
             clipBehavior: Clip.hardEdge,
             decoration: const BoxDecoration(color: sidebarBg),
-            child: SizedBox(
-              width: _sidebarWidth,
-              child: Column(
-                children: [
-                  const SizedBox(height: 22),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 18),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Row(
-                        children: [
-                          Icon(Icons.grid_view_rounded, color: teal, size: 15),
-                          SizedBox(width: 8),
-                          Text(
-                            'NAVIGATION MATRIX',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: .8,
-                            ),
-                          ),
-                        ],
+            child: IgnorePointer(
+              ignoring: !sidebarOpen,
+              child: SizedBox(
+                width: _sidebarWidth,
+                child: _buildSidebarPanel(context, showCloseControl: true),
+              ),
+            ),
+          ),
+          Expanded(child: main),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainColumn(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          height: MediaQuery.sizeOf(context).width < 720 ? 58 : 66,
+          padding: EdgeInsets.symmetric(horizontal: MediaQuery.sizeOf(context).width < 720 ? 10 : 20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: border)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: sidebarOpen ? 'Close navigation' : 'Open navigation',
+                onPressed: _toggleSidebar,
+                icon: Icon(
+                  sidebarOpen ? Icons.close : Icons.grid_view_rounded,
+                  color: navy,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'COMMERCIAL ENTERPRISE PLATFORM ENGINE',
+                      style: TextStyle(
+                        color: navy,
+                        fontSize: MediaQuery.sizeOf(context).width < 720 ? 12 : 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _headerDate(),
+                      style: const TextStyle(
+                        color: Color(0xFF748094),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
+                  ],
+                ),
+              ),
+              if (MediaQuery.sizeOf(context).width >= 520) ...[
+                const Text(
+                  'ULTRA ENGINEERING',
+                  style: TextStyle(
+                    color: navy,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
                   ),
-                  const SizedBox(height: 18),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      children: [
-                        _dashboardItem(),
-                        ..._groups.map(_groupSection),
-                      ],
-                    ),
-                  ),
-                  const Divider(color: Color(0xFF31445F), height: 1),
-                  InkWell(
-                    onTap: () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    ),
-                    child: Container(
-                      margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                      decoration: BoxDecoration(
-                        color: red.withOpacity(.12),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: red.withOpacity(.35)),
+                ),
+                const SizedBox(width: 10),
+              ],
+              const Text(
+                'SUPERUSER',
+                style: TextStyle(
+                  color: teal,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 10),
+              CircleAvatar(
+                radius: 17,
+                backgroundColor: navy,
+                child: const Icon(Icons.person, size: 17, color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: IndexedStack(index: index, children: pages)),
+      ],
+    );
+  }
+
+  Widget _buildSidebarPanel(BuildContext context, {required bool showCloseControl}) {
+    return SizedBox(
+      width: _sidebarWidth,
+      child: Column(
+        children: [
+          const SizedBox(height: 22),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: InkWell(
+              onTap: _toggleSidebar,
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.grid_view_rounded, color: teal, size: 15),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'NAVIGATION MATRIX',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .8,
+                        ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.logout, color: red, size: 16),
-                          SizedBox(width: 8),
-                          Text(
+                    ),
+                    if (showCloseControl)
+                      Icon(
+                        sidebarOpen ? Icons.close : Icons.keyboard_arrow_right,
+                        color: Colors.white54,
+                        size: 18,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 8),
+              children: [
+                _dashboardItem(),
+                ..._groups.map(_groupSection),
+              ],
+            ),
+          ),
+          const Divider(color: Color(0xFF31445F), height: 1),
+          InkWell(
+            onTap: () => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            ),
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: red.withOpacity(.12),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: red.withOpacity(.35)),
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 150;
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.logout, color: red, size: 16),
+                      if (!compact) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
                             'SIGN OUT ENGINE',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                             style: TextStyle(
                               color: red,
                               fontSize: 11,
@@ -255,88 +420,12 @@ class _AppShellState extends State<AppShell> {
                               letterSpacing: .3,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Container(
-                  height: MediaQuery.sizeOf(context).width < 720 ? 58 : 66,
-                  padding: EdgeInsets.symmetric(horizontal: MediaQuery.sizeOf(context).width < 720 ? 10 : 20),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    border: Border(bottom: BorderSide(color: border)),
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: sidebarOpen ? 'Close navigation' : 'Open navigation',
-                        onPressed: () => setState(() => sidebarOpen = !sidebarOpen),
-                        icon: const Icon(Icons.menu, color: navy, size: 22),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'COMMERCIAL ENTERPRISE PLATFORM ENGINE',
-                              style: TextStyle(
-                                color: navy,
-                                fontSize: MediaQuery.sizeOf(context).width < 720 ? 12 : 14,
-                                fontWeight: FontWeight.w900,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              _headerDate(),
-                              style: const TextStyle(
-                                color: Color(0xFF748094),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
                         ),
-                      ),
-                      if (MediaQuery.sizeOf(context).width >= 520) ...[
-                        const Text(
-                          'ULTRA ENGINEERING',
-                          style: TextStyle(
-                            color: navy,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
                       ],
-                      const Text(
-                        'SUPERUSER',
-                        style: TextStyle(
-                          color: teal,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      CircleAvatar(
-                        radius: 17,
-                        backgroundColor: navy,
-                        child: const Icon(Icons.person, size: 17, color: Colors.white),
-                      ),
                     ],
-                  ),
-                ),
-                Expanded(child: IndexedStack(index: index, children: pages)),
-              ],
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -345,7 +434,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _dashboardItem() {
-    final selected = index == 0;
+    final selected = _activeNavLabel == 'Dashboard';
     return InkWell(
       onTap: () => _selectPage(0),
       child: Container(
@@ -381,7 +470,7 @@ class _AppShellState extends State<AppShell> {
 
   Widget _groupSection(_NavGroup group) {
     final expanded = expandedGroups.contains(group.title);
-    final childSelected = group.children.any((c) => c.pageIndex == index);
+    final childSelected = group.children.any((c) => c.label == _activeNavLabel);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -420,7 +509,7 @@ class _AppShellState extends State<AppShell> {
         ),
         if (expanded)
           ...group.children.map((leaf) {
-            final highlight = index == leaf.pageIndex;
+            final highlight = leaf.label == _activeNavLabel;
             return InkWell(
               onTap: () => _selectPage(leaf.pageIndex, leafLabel: leaf.label),
               child: Padding(
