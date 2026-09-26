@@ -340,7 +340,7 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
     );
   }
 
-  Widget _adjustmentMatrix() {
+  Table _adjustmentMatrix() {
     return Table(
       columnWidths: adjustmentNoteMatrixColumns,
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,

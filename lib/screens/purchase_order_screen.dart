@@ -769,7 +769,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     );
   }
 
-  Widget _productMatrixTable() {
+  Table _productMatrixTable() {
     return Table(
       columnWidths: enterpriseProductMatrixColumns,
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,

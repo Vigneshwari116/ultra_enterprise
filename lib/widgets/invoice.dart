@@ -487,7 +487,7 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
       pw.Text(d.partySectionTitle, style: _ts(size: 7.5, weight: pw.FontWeight.bold)),
-      const pw.SizedBox(height: 4),
+      pw.SizedBox(height: 4),
       ...d.preambleLines.map((l) => pw.Padding(
             padding: const pw.EdgeInsets.only(bottom: 2),
             child: pw.Text(l, style: _ts(size: 8)),
@@ -736,7 +736,7 @@ pw.Widget _totalsAndBank(InvoiceData d) {
               children: [
                 pw.Text('VALUE IN WORDS:', style: _ts(size: 8, weight: pw.FontWeight.bold)),
                 pw.Text(d.amountInWords, style: _ts(size: 9, weight: pw.FontWeight.bold)),
-                const pw.SizedBox(height: 10),
+                pw.SizedBox(height: 10),
                 pw.Text('BANK: ${d.bankName} | A/C: ${d.accountNo}', style: _ts(size: 8)),
                 pw.Text('IFS CODE: ${d.ifscCode} | ADDRESS: ${d.bankAddress}', style: _ts(size: 8)),
               ],
@@ -778,7 +778,7 @@ pw.Widget _termsAndSignature(InvoiceData d) {
             children: [
               pw.Text('TERMS & CONDITIONS:', style: _ts(size: 8, weight: pw.FontWeight.bold)),
               ...terms.map((t) => pw.Text(t, style: _ts(size: 7))),
-              const pw.SizedBox(height: 12),
+              pw.SizedBox(height: 12),
               pw.Text(d.leftSignatureLabel, style: _ts(size: 8)),
             ],
           ),

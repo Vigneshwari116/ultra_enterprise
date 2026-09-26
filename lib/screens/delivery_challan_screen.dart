@@ -546,7 +546,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     );
   }
 
-  Widget _matrix() {
+  Table _matrix() {
     final proforma = kind == DcKind.proforma;
     return Table(
       columnWidths: deliveryChallanMatrixColumns(proforma: proforma, includeRemarks: !proforma),

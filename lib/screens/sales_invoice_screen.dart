@@ -500,7 +500,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     );
   }
 
-  Widget _productMatrixTable() {
+  Table _productMatrixTable() {
     return Table(
       columnWidths: enterpriseProductMatrixColumns,
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
