@@ -113,14 +113,24 @@ Widget enterpriseInsetDropdown<T>({
   );
 }
 
-/// Horizontally scrollable line-item matrix with fixed column widths (matches web portal).
+/// Horizontally scrollable line-item matrix; stretches to full row width on wide layouts.
 Widget enterpriseMatrixScroller({required Table table, double minWidth = 640}) {
-  return SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: ConstrainedBox(
-      constraints: BoxConstraints(minWidth: minWidth),
-      child: table,
-    ),
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      var width = constraints.maxWidth;
+      if (!width.isFinite || width <= 0) {
+        width = minWidth;
+      }
+      final tableWidth = width < minWidth ? minWidth : width;
+      final content = SizedBox(width: tableWidth, child: table);
+      if (tableWidth > width + 1 && width.isFinite) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: content,
+        );
+      }
+      return content;
+    },
   );
 }
 
@@ -190,66 +200,56 @@ Widget enterpriseValueWordsFooter({
   );
 }
 
-/// Sales invoice / purchase order quantity matrix columns.
+/// Sales invoice / purchase order quantity matrix columns (flex = full-width grid).
 const Map<int, TableColumnWidth> enterpriseProductMatrixColumns = {
-  0: FixedColumnWidth(24),
-  1: FixedColumnWidth(128),
-  2: FixedColumnWidth(42),
-  3: FixedColumnWidth(46),
-  4: FixedColumnWidth(40),
-  5: FixedColumnWidth(44),
-  6: FixedColumnWidth(36),
-  7: FixedColumnWidth(36),
-  8: FixedColumnWidth(36),
-  9: FixedColumnWidth(54),
-  10: FixedColumnWidth(28),
+  0: FlexColumnWidth(0.55),
+  1: FlexColumnWidth(2.85),
+  2: FlexColumnWidth(0.9),
+  3: FlexColumnWidth(1.0),
+  4: FlexColumnWidth(0.85),
+  5: FlexColumnWidth(0.95),
+  6: FlexColumnWidth(0.75),
+  7: FlexColumnWidth(0.75),
+  8: FlexColumnWidth(0.75),
+  9: FlexColumnWidth(1.15),
+  10: FlexColumnWidth(0.55),
 };
 
 /// Delivery challan material matrix (non-proforma base columns).
 Map<int, TableColumnWidth> deliveryChallanMatrixColumns({required bool proforma, required bool includeRemarks}) {
-  final widths = <int, TableColumnWidth>{
-    0: const FixedColumnWidth(28),
-    1: const FixedColumnWidth(128),
-    2: const FixedColumnWidth(44),
-    3: const FixedColumnWidth(48),
-    4: const FixedColumnWidth(40),
-    5: const FixedColumnWidth(44),
-  };
-  var col = 6;
+  final flex = <double>[0.55, 2.65, 0.9, 1.0, 0.85, 0.95];
   if (proforma) {
-    widths[col++] = const FixedColumnWidth(38);
-    widths[col++] = const FixedColumnWidth(38);
-    widths[col++] = const FixedColumnWidth(38);
+    flex.addAll([0.75, 0.75, 0.75]);
   }
-  widths[col++] = const FixedColumnWidth(52);
-  if (includeRemarks) widths[col++] = const FixedColumnWidth(92);
-  widths[col] = const FixedColumnWidth(28);
-  return widths;
+  flex.add(1.1);
+  if (includeRemarks) flex.add(2.0);
+  flex.add(0.55);
+  return {for (var i = 0; i < flex.length; i++) i: FlexColumnWidth(flex[i])};
 }
 
 const Map<int, TableColumnWidth> quotationMatrixColumns = {
-  0: FixedColumnWidth(28),
-  1: FixedColumnWidth(136),
-  2: FixedColumnWidth(48),
-  3: FixedColumnWidth(52),
-  4: FixedColumnWidth(52),
-  5: FixedColumnWidth(58),
-  6: FixedColumnWidth(28),
+  0: FlexColumnWidth(0.55),
+  1: FlexColumnWidth(2.75),
+  2: FlexColumnWidth(0.95),
+  3: FlexColumnWidth(1.0),
+  4: FlexColumnWidth(1.0),
+  5: FlexColumnWidth(1.15),
+  6: FlexColumnWidth(0.55),
 };
 
 /// Debit/credit note reversal line matrix (matches sales invoice grid).
 const Map<int, TableColumnWidth> adjustmentNoteMatrixColumns = {
-  0: FixedColumnWidth(24),
-  1: FixedColumnWidth(128),
-  2: FixedColumnWidth(42),
-  3: FixedColumnWidth(46),
-  4: FixedColumnWidth(40),
-  5: FixedColumnWidth(44),
-  6: FixedColumnWidth(36),
-  7: FixedColumnWidth(36),
-  8: FixedColumnWidth(36),
-  9: FixedColumnWidth(54),
-  10: FixedColumnWidth(28),
+  0: FlexColumnWidth(0.55),
+  1: FlexColumnWidth(2.85),
+  2: FlexColumnWidth(0.9),
+  3: FlexColumnWidth(1.0),
+  4: FlexColumnWidth(0.85),
+  5: FlexColumnWidth(0.95),
+  6: FlexColumnWidth(0.75),
+  7: FlexColumnWidth(0.75),
+  8: FlexColumnWidth(0.75),
+  9: FlexColumnWidth(1.15),
+  10: FlexColumnWidth(0.55),
 };
 
 const TextStyle enterpriseMatrixHeadStyle = TextStyle(

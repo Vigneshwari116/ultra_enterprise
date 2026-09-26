@@ -289,6 +289,7 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
                 ),
                 const SizedBox(height: 8),
                 Container(
+                  width: double.infinity,
                   decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4), color: Colors.white),
                   child: enterpriseMatrixScroller(minWidth: 720, table: _adjustmentMatrix()),
                 ),

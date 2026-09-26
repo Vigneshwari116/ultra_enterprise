@@ -494,6 +494,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                 const Text('SECTION 3: MATERIAL MATRIX GRID ENTRY', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy)),
                 const SizedBox(height: 8),
                 Container(
+                  width: double.infinity,
                   decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4), color: Colors.white),
                   child: enterpriseMatrixScroller(table: _matrix()),
                 ),

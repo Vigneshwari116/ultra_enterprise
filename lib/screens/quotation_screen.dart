@@ -449,6 +449,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
                 const SizedBox(height: 14),
                 _sec('SECTION 4: SPECIFICATION MATRIX & PRICING GRID', [
                   Container(
+                    width: double.infinity,
                     decoration: BoxDecoration(border: Border.all(color: border), color: Colors.white),
                     child: enterpriseMatrixScroller(
                       minWidth: 520,
