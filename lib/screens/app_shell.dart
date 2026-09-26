@@ -35,6 +35,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int index = 0;
+  String _activeNavLabel = 'Dashboard';
   bool sidebarOpen = true;
   bool _sidebarDefaultSet = false;
   final Set<String> expandedGroups = {
@@ -135,6 +136,11 @@ class _AppShellState extends State<AppShell> {
   void _selectPage(int pageIndex, {String? leafLabel}) {
     setState(() {
       index = pageIndex;
+      if (leafLabel != null && leafLabel.isNotEmpty) {
+        _activeNavLabel = leafLabel;
+      } else if (pageIndex == 0) {
+        _activeNavLabel = 'Dashboard';
+      }
       if (_useNavOverlay(context)) {
         sidebarOpen = false;
       }
@@ -417,7 +423,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _dashboardItem() {
-    final selected = index == 0;
+    final selected = _activeNavLabel == 'Dashboard';
     return InkWell(
       onTap: () => _selectPage(0),
       child: Container(
@@ -453,7 +459,7 @@ class _AppShellState extends State<AppShell> {
 
   Widget _groupSection(_NavGroup group) {
     final expanded = expandedGroups.contains(group.title);
-    final childSelected = group.children.any((c) => c.pageIndex == index);
+    final childSelected = group.children.any((c) => c.label == _activeNavLabel);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -492,7 +498,7 @@ class _AppShellState extends State<AppShell> {
         ),
         if (expanded)
           ...group.children.map((leaf) {
-            final highlight = index == leaf.pageIndex;
+            final highlight = leaf.label == _activeNavLabel;
             return InkWell(
               onTap: () => _selectPage(leaf.pageIndex, leafLabel: leaf.label),
               child: Padding(

@@ -67,6 +67,8 @@ Widget enterpriseInsetTextField({
   TextStyle? style,
   Widget? suffixIcon,
   Widget? prefixIcon,
+  TextInputType? keyboardType,
+  ValueChanged<String>? onChanged,
 }) {
   return enterpriseInsetFieldShell(
     label: label,
@@ -76,6 +78,8 @@ Widget enterpriseInsetTextField({
       maxLines: maxLines,
       readOnly: readOnly,
       onTap: onTap,
+      keyboardType: keyboardType,
+      onChanged: onChanged,
       style: style ?? enterpriseInsetValueStyle,
       decoration: enterpriseInsetInputDecoration(suffixIcon: suffixIcon, prefixIcon: prefixIcon),
     ),
@@ -221,3 +225,45 @@ const Map<int, TableColumnWidth> quotationMatrixColumns = {
   5: FixedColumnWidth(58),
   6: FixedColumnWidth(28),
 };
+
+/// Debit/credit note reversal line matrix (matches sales invoice grid).
+const Map<int, TableColumnWidth> adjustmentNoteMatrixColumns = {
+  0: FixedColumnWidth(24),
+  1: FixedColumnWidth(128),
+  2: FixedColumnWidth(42),
+  3: FixedColumnWidth(46),
+  4: FixedColumnWidth(40),
+  5: FixedColumnWidth(44),
+  6: FixedColumnWidth(36),
+  7: FixedColumnWidth(36),
+  8: FixedColumnWidth(36),
+  9: FixedColumnWidth(54),
+  10: FixedColumnWidth(28),
+};
+
+const TextStyle enterpriseMatrixHeadStyle = TextStyle(
+  color: Colors.white,
+  fontWeight: FontWeight.w800,
+  fontSize: 7.5,
+  height: 1.15,
+);
+
+const TextStyle enterpriseMatrixCellStyle = TextStyle(
+  fontSize: 9.5,
+  fontWeight: FontWeight.w600,
+  color: navy,
+);
+
+final InputDecoration enterpriseMatrixInputDecoration = InputDecoration(
+  isDense: true,
+  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+  border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
+  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
+);
+
+Widget enterpriseMatrixHeadCell(String label) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+    child: Text(label, style: enterpriseMatrixHeadStyle, maxLines: 2, overflow: TextOverflow.ellipsis),
+  );
+}
