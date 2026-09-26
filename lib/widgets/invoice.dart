@@ -96,7 +96,57 @@ const List<String> ultraInvoiceCopyLabels = [
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
 final PdfColor _grey = PdfColor.fromInt(0xFF748094);
 
+const int _minItemRows = 8;
+
+pw.TextStyle _ts({double size = 8, pw.FontWeight weight = pw.FontWeight.normal}) =>
+    pw.TextStyle(font: weight == pw.FontWeight.bold ? pw.Font.helveticaBold() : pw.Font.helvetica(), fontSize: size, color: _black);
+
 String _money(double v) => v.toStringAsFixed(2);
+
+/// Indian-style amount in words for printed tax invoices (matches portal PDFs).
+String formatUltraAmountInWords(double amount) {
+  if (amount == 0) return 'ZERO RUPEES ONLY';
+  final rupees = amount.round();
+  if (rupees == 0) return 'ZERO RUPEES ONLY';
+
+  const ones = [
+    '', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN',
+    'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN',
+  ];
+  const tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+
+  String under1000(int n) {
+    if (n == 0) return '';
+    if (n < 20) return ones[n];
+    if (n < 100) {
+      final t = tens[n ~/ 10];
+      final r = n % 10;
+      return r == 0 ? t : '$t ${ones[r]}';
+    }
+    final h = n ~/ 100;
+    final r = n % 100;
+    return r == 0 ? '${ones[h]} HUNDRED' : '${ones[h]} HUNDRED AND ${under1000(r)}';
+  }
+
+  String chunk(int n, String label) {
+    if (n == 0) return '';
+    return '${under1000(n)} $label'.trim();
+  }
+
+  var n = rupees;
+  final parts = <String>[];
+  final crore = n ~/ 10000000;
+  n %= 10000000;
+  final lakh = n ~/ 100000;
+  n %= 100000;
+  final thousand = n ~/ 1000;
+  n %= 1000;
+  if (crore > 0) parts.add(chunk(crore, 'CRORE'));
+  if (lakh > 0) parts.add(chunk(lakh, 'LAKH'));
+  if (thousand > 0) parts.add(chunk(thousand, 'THOUSAND'));
+  if (n > 0) parts.add(under1000(n));
+  return '${parts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim()} RUPEES ONLY';
+}
 
 /// Builds the full multi-copy PDF (one page per copy label) for [data].
 Future<Uint8List> buildUltraInvoicePdf(InvoiceData data) async {
@@ -116,9 +166,16 @@ Future<Uint8List> buildUltraInvoicePdf(InvoiceData data) async {
   return doc.save();
 }
 
-/// Shows the OS print / save-as-PDF dialog for the full 5-copy document.
+/// Shows the OS save/share dialog with vector PDF bytes (searchable text, full footer).
 Future<void> printUltraInvoice(InvoiceData data) async {
-  await Printing.layoutPdf(onLayout: (format) => buildUltraInvoicePdf(data));
+  final bytes = await buildUltraInvoicePdf(data);
+  await Printing.sharePdf(bytes: bytes, filename: '${data.invoiceNo}.pdf');
+}
+
+/// Opens the system print dialog with the vector PDF (optional physical print).
+Future<void> layoutPrintUltraInvoice(InvoiceData data) async {
+  final bytes = await buildUltraInvoicePdf(data);
+  await Printing.layoutPdf(onLayout: (_) async => bytes);
 }
 
 /// Lets the user share / save the PDF file directly (e.g. WhatsApp, email,
@@ -130,6 +187,7 @@ Future<void> shareUltraInvoicePdf(InvoiceData data, {String? filename}) async {
 
 pw.Widget _invoicePage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
   final border = pw.BoxDecoration(border: pw.Border.all(color: _black, width: 1));
+  final fillerRows = (_minItemRows - d.items.length).clamp(0, 24);
   return pw.Container(
     decoration: border,
     child: pw.Column(
@@ -138,7 +196,7 @@ pw.Widget _invoicePage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
         _topBar(d.documentTitle, copyLabel),
         _companyHeader(logo),
         _consigneeAndMeta(d),
-        _itemsTable(d),
+        pw.Expanded(child: _itemsTable(d, fillerRows: fillerRows)),
         _totalsAndBank(d),
         _termsAndSignature(),
       ],
@@ -164,10 +222,10 @@ pw.Widget _topBar(String documentTitle, String copyLabel) {
     decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
     child: pw.Row(
       children: [
-        pw.Expanded(child: _cell(right: true, child: pw.Text(documentTitle, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)))),
+        pw.Expanded(child: _cell(right: true, child: pw.Text(documentTitle, style: _ts(size: 11, weight: pw.FontWeight.bold)))),
         pw.Expanded(
           child: _cell(
-            child: pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(copyLabel, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11))),
+            child: pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(copyLabel, style: _ts(size: 11, weight: pw.FontWeight.bold))),
           ),
         ),
       ],
@@ -291,80 +349,76 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
   );
 }
 
-class _Col {
-  final String header;
-  final double width;
-  final pw.TextAlign align;
-  const _Col(this.header, this.width, [this.align = pw.TextAlign.left]);
-}
+pw.Widget _itemsTable(InvoiceData d, {required int fillerRows}) {
+  const border = pw.TableBorder(
+    left: pw.BorderSide(color: _black, width: 1),
+    right: pw.BorderSide(color: _black, width: 1),
+    top: pw.BorderSide(color: _black, width: 1),
+    bottom: pw.BorderSide(color: _black, width: 1),
+    horizontalInside: pw.BorderSide(color: _black, width: 1),
+    verticalInside: pw.BorderSide(color: _black, width: 1),
+  );
 
-pw.Widget _itemsTable(InvoiceData d) {
-  const cols = [
-    _Col('SL', 22, pw.TextAlign.center),
-    _Col('DESCRIPTION', 210),
-    _Col('HSN CODE', 60, pw.TextAlign.center),
-    _Col('QTY', 45, pw.TextAlign.center),
-    _Col('PRICE', 55, pw.TextAlign.right),
-    _Col('AMOUNT', 65, pw.TextAlign.right),
-  ];
-  List<String> rowValues(int i) {
-    final it = d.items[i];
-    return [
-      '${i + 1}',
-      it.description,
-      it.hsnCode,
-      it.qty.toStringAsFixed(2),
-      _money(it.price),
-      _money(it.amount),
-    ];
-  }
+  pw.Widget cell(String text, {pw.TextAlign align = pw.TextAlign.left, double vPad = 5}) => pw.Padding(
+        padding: pw.EdgeInsets.symmetric(horizontal: 4, vertical: vPad),
+        child: pw.Text(text, style: _ts(size: 8.5), textAlign: align),
+      );
 
-  pw.Widget columnBox(_Col col, int colIndex, {required bool isLast}) {
-    return pw.Container(
-      width: col.width,
-      decoration: pw.BoxDecoration(border: pw.Border(right: isLast ? pw.BorderSide.none : const pw.BorderSide(color: _black, width: 1))),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+  pw.TableRow headerRow() => pw.TableRow(
+        decoration: const pw.BoxDecoration(color: PdfColors.white),
         children: [
-          pw.Container(
-            decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
-            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-            child: pw.Text(col.header, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8), textAlign: col.align),
-          ),
-          pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: List.generate(
-                d.items.length,
-                    (i) => pw.Padding(
-                  padding: const pw.EdgeInsets.only(bottom: 3),
-                  child: pw.Text(rowValues(i)[colIndex], style: const pw.TextStyle(fontSize: 8.5), textAlign: col.align),
-                ),
-              ),
-            ),
-          ),
+          cell('SL', align: pw.TextAlign.center),
+          cell('DESCRIPTION'),
+          cell('HSN CODE', align: pw.TextAlign.center),
+          cell('QTY', align: pw.TextAlign.center),
+          cell('PRICE', align: pw.TextAlign.right),
+          cell('AMOUNT', align: pw.TextAlign.right),
         ],
-      ),
+      );
+
+  pw.TableRow itemRow(int index) {
+    final it = d.items[index];
+    return pw.TableRow(
+      children: [
+        cell('${index + 1}', align: pw.TextAlign.center),
+        cell(it.description),
+        cell(it.hsnCode, align: pw.TextAlign.center),
+        cell(it.qty.toStringAsFixed(2), align: pw.TextAlign.center),
+        cell(_money(it.price), align: pw.TextAlign.right),
+        cell(_money(it.amount), align: pw.TextAlign.right),
+      ],
     );
   }
 
-  return pw.Container(
-    height: 430,
-    decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
-    child: pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      children: List.generate(cols.length, (i) => columnBox(cols[i], i, isLast: i == cols.length - 1)),
-    ),
+  pw.TableRow emptyRow() => pw.TableRow(
+        children: List.generate(6, (_) => pw.SizedBox(height: 18)),
+      );
+
+  return pw.Table(
+    border: border,
+    columnWidths: const {
+      0: pw.FixedColumnWidth(24),
+      1: pw.FlexColumnWidth(3.2),
+      2: pw.FixedColumnWidth(58),
+      3: pw.FixedColumnWidth(42),
+      4: pw.FixedColumnWidth(48),
+      5: pw.FixedColumnWidth(52),
+    },
+    defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+    children: [
+      headerRow(),
+      ...List.generate(d.items.length, itemRow),
+      ...List.generate(fillerRows, (_) => emptyRow()),
+    ],
   );
 }
 
 pw.TableRow _totalsRow(String label, String value, {bool bold = false}) => pw.TableRow(
   children: [
-    pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: pw.Text(label, style: pw.TextStyle(fontSize: 8.5, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
+    pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: pw.Text(label, style: _ts(size: 8.5, weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
     pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      child: pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(value, style: pw.TextStyle(fontSize: 8.5, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
+      child: pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(value, style: _ts(size: 8.5, weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
     ),
   ],
 );
@@ -383,11 +437,11 @@ pw.Widget _totalsAndBank(InvoiceData d) {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text('RUPEES IN WORDS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                pw.Text(d.amountInWords, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                pw.Text('RUPEES IN WORDS:', style: _ts(size: 8, weight: pw.FontWeight.bold)),
+                pw.Text(d.amountInWords, style: _ts(size: 9, weight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 10),
-                pw.Text('BANK: ${d.bankName} | A/C: ${d.accountNo}', style: const pw.TextStyle(fontSize: 8)),
-                pw.Text('IFS CODE: ${d.ifscCode} | ADDRESS: ${d.bankAddress}', style: const pw.TextStyle(fontSize: 8)),
+                pw.Text('BANK: ${d.bankName} | A/C: ${d.accountNo}', style: _ts(size: 8)),
+                pw.Text('IFS CODE: ${d.ifscCode} | ADDRESS: ${d.bankAddress}', style: _ts(size: 8)),
               ],
             ),
           ),
@@ -431,10 +485,10 @@ pw.Widget _termsAndSignature() {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('TERMS & CONDITIONS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-              ...terms.map((t) => pw.Text(t, style: const pw.TextStyle(fontSize: 7))),
-              pw.SizedBox(height: 16),
-              pw.Text('Receiver signature', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text('TERMS & CONDITIONS:', style: _ts(size: 8, weight: pw.FontWeight.bold)),
+              ...terms.map((t) => pw.Text(t, style: _ts(size: 7))),
+              pw.SizedBox(height: 12),
+              pw.Text('Receiver signature', style: _ts(size: 8)),
             ],
           ),
         ),
@@ -447,13 +501,13 @@ pw.Widget _termsAndSignature() {
             pw.Container(
               decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
               padding: const pw.EdgeInsets.all(6),
-              child: pw.Text('For ULTRA ENGINEERING WORKS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
+              child: pw.Text('For ULTRA ENGINEERING WORKS', style: _ts(size: 8.5, weight: pw.FontWeight.bold)),
             ),
             pw.Container(
               padding: const pw.EdgeInsets.all(6),
-              height: 40,
+              height: 48,
               alignment: pw.Alignment.bottomLeft,
-              child: pw.Text('Authorised Signatory', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
+              child: pw.Text('Authorised Signatory', style: _ts(size: 8.5, weight: pw.FontWeight.bold)),
             ),
           ],
         ),

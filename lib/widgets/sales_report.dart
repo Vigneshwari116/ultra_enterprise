@@ -128,6 +128,11 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
       .toList();
   final zone = '${inv['state_zone'] ?? ''}'.toLowerCase();
   final isInter = zone.contains('inter');
+  final subtotal = items.fold<double>(0, (s, i) => s + i.amount);
+  final cgstAmt = isInter ? 0.0 : subtotal * 0.09;
+  final sgstAmt = isInter ? 0.0 : subtotal * 0.09;
+  final igstAmt = isInter ? subtotal * 0.18 : 0.0;
+  final grand = subtotal + cgstAmt + sgstAmt + igstAmt;
   return InvoiceData(
     invoiceNo: '${inv['invoice_no'] ?? ''}',
     date: _fmtDate(inv['transaction_date'] as String?),
@@ -146,7 +151,7 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
     sgstPercent: isInter ? 0 : 9,
     igstPercent: isInter ? 18 : 0,
     pAndF: 0,
-    amountInWords: 'RUPEES ONLY',
+    amountInWords: formatUltraAmountInWords(grand),
     bankName: '${inv['bank_name'] ?? ''}',
     accountNo: '${inv['bank_account_no'] ?? ''}',
     ifscCode: '${inv['ifsc_code'] ?? ''}',
