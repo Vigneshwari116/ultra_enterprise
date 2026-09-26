@@ -22,7 +22,22 @@ class UltraRepository {
       return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     if (decoded is Map) {
-      for (final key in ['results', 'data', 'items', 'invoices', 'customers', 'units']) {
+      for (final key in [
+        'results',
+        'data',
+        'items',
+        'invoices',
+        'customers',
+        'units',
+        'products',
+        'suppliers',
+        'material_types',
+        'material-types',
+        'orders',
+        'quotations',
+        'notes',
+        'vouchers',
+      ]) {
         final inner = decoded[key];
         if (inner is List) {
           return inner.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -46,6 +61,7 @@ class UltraRepository {
       'unit',
       'supplier',
       'product',
+      'material_type',
       'order',
       'challan',
       'quotation',

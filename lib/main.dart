@@ -10,7 +10,8 @@ import 'screens/app_shell.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (!kIsWeb &&
+  if (UltraConfig.persistLocally &&
+      !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
           defaultTargetPlatform == TargetPlatform.linux ||
           defaultTargetPlatform == TargetPlatform.macOS)) {
@@ -18,7 +19,9 @@ Future<void> main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  await AppDatabase.instance.init();
+  if (UltraConfig.persistLocally) {
+    await AppDatabase.instance.init();
+  }
 
   runApp(const UltraApp());
 }
