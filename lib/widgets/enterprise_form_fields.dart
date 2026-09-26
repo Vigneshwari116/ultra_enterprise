@@ -158,7 +158,7 @@ Widget enterpriseInsetDropdown<T>({
   Color? borderColor,
 }) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.only(bottom: 4),
     child: enterpriseInsetFieldShell(
       label: label,
       borderColor: borderColor,
@@ -332,7 +332,7 @@ const TextStyle enterpriseMatrixCellStyle = TextStyle(
 
 final InputDecoration enterpriseMatrixInputDecoration = InputDecoration(
   isDense: true,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
   border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
 );

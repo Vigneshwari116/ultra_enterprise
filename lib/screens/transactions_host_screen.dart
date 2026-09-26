@@ -236,7 +236,7 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
                         _dateInset('NOTE ISSUE DATE', issueDate, (v) => issueDate = v),
                       ),
                       _pair(
-                        enterpriseInsetTextField(label: 'ORIGINAL INVOICE REF NO', controller: origInvRef),
+                        enterpriseInsetTextField(label: 'ORIGINAL INVOICE REF NO', controller: origInvRef, autofocus: true),
                         _dateInset('ORIGINAL INVOICE DATE', origInvDate, (v) => origInvDate = v),
                       ),
                       enterpriseInsetDropdown<String>(
@@ -410,54 +410,49 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
                 child: Text(r.hsn, style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('adj-q-$i'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
                   onChanged: (v) => setState(() => r.qty = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('adj-r-$i'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
                   onChanged: (v) => setState(() => r.rate = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('adj-cg-$i-${r.cgstPct}'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
                   controller: TextEditingController(text: r.cgstPct == 0 ? '' : '${r.cgstPct}'),
                   onChanged: (v) => setState(() => r.cgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('adj-sg-$i-${r.sgstPct}'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
                   controller: TextEditingController(text: r.sgstPct == 0 ? '' : '${r.sgstPct}'),
                   onChanged: (v) => setState(() => r.sgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('adj-ig-$i-${r.igstPct}'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
                   controller: TextEditingController(text: r.igstPct == 0 ? '' : '${r.igstPct}'),
                   onChanged: (v) => setState(() => r.igstPct = double.tryParse(v) ?? 0),
                 ),
@@ -652,7 +647,7 @@ class _CashBookPanelState extends State<_CashBookPanel> {
   Widget build(BuildContext context) {
     final accent = isReceipt ? green : red;
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -715,13 +710,14 @@ class _CashBookPanelState extends State<_CashBookPanel> {
                         enterpriseInsetTextField(
                           label: 'TRANSACTION VOUCHER AMOUNT *',
                           controller: amount,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy),
+                          autofocus: true,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy),
                         ),
                         const SizedBox(height: 4),
                         enterpriseInsetTextField(
                           label: 'VOUCHER REMARKS / NARRATION',
                           controller: remarks,
-                          maxLines: 3,
+                          maxLines: 2,
                         ),
                         const Spacer(),
                         SizedBox(

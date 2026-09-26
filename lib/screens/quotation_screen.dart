@@ -384,7 +384,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
                     final stacked = constraints.maxWidth < formTwoColumnMinWidth;
                     final section1 = _sec('SECTION 1: QUOTATION METADATA & REFERENCES', [
                       _pair(_ro('QUOTATION SERIAL NO (AUTO)', serial), _date('QUOTATION DATE', qtDate, (v) => qtDate = v)),
-                      _pair(_field('VALIDITY (DAYS)', validity), _field('REFERENCE NO', refNo)),
+                      _pair(_field('VALIDITY (DAYS)', validity, autofocus: true), _field('REFERENCE NO', refNo)),
                       _pair(_field('REFERENCE NAME / KIND...', refName), _date('REFERENCE DATE', refDate, (v) => refDate = v)),
                     ]);
                     final section2 = _sec('SECTION 2: PARTY ALLOCATION', [
@@ -470,11 +470,12 @@ class _QuotationScreenState extends State<QuotationScreen> {
                             children: [
                               Text('${i + 1}', style: const TextStyle(fontSize: 9)),
                               Padding(
-                                padding: const EdgeInsets.all(3),
-                                child: TextField(
-                                  decoration: const InputDecoration(isDense: true, hintText: 'Enter Particulars'),
-                                  style: const TextStyle(fontSize: 9),
-                                  onChanged: (v) => r.description = v,
+                                padding: const EdgeInsets.all(2),
+                                child: Builder(
+                                  builder: (ctx) => enterpriseMatrixTextField(
+                                    context: ctx,
+                                    onChanged: (v) => r.description = v,
+                                  ),
                                 ),
                               ),
                               DropdownButton<int>(
@@ -491,8 +492,8 @@ class _QuotationScreenState extends State<QuotationScreen> {
                                   });
                                 },
                               ),
-                              _qtNum((v) => r.qty = v),
-                              _qtNum((v) => r.rate = v),
+                              _qtNum(context, (v) => r.qty = v),
+                              _qtNum(context, (v) => r.rate = v),
                               Text(r.lineTotal.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
                               IconButton(
                                 onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
@@ -536,7 +537,9 @@ class _QuotationScreenState extends State<QuotationScreen> {
                           child: TextField(
                             controller: terms[i].controller,
                             onChanged: (v) => terms[i].text = v,
-                            decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) => enterpriseAdvanceFocus(context),
+                            decoration: enterpriseMatrixInputDecoration,
                             style: const TextStyle(fontSize: 11),
                           ),
                         ),
@@ -596,12 +599,11 @@ class _QuotationScreenState extends State<QuotationScreen> {
     );
   }
 
-  Widget _qtNum(ValueChanged<double> on) => Padding(
-        padding: const EdgeInsets.all(3),
-        child: TextField(
+  Widget _qtNum(BuildContext context, ValueChanged<double> on) => Padding(
+        padding: const EdgeInsets.all(2),
+        child: enterpriseMatrixTextField(
+          context: context,
           keyboardType: TextInputType.number,
-          style: const TextStyle(fontSize: 9),
-          decoration: const InputDecoration(isDense: true),
           onChanged: (v) => setState(() => on(double.tryParse(v) ?? 0)),
         ),
       );
@@ -624,17 +626,17 @@ class _QuotationScreenState extends State<QuotationScreen> {
       );
 
   Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: 6),
         child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]),
       );
 
-  Widget _field(String label, TextEditingController c, {int maxLines = 1}) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines),
+  Widget _field(String label, TextEditingController c, {int maxLines = 1, bool autofocus = false}) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines, autofocus: autofocus),
       );
 
   Widget _ro(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: 6),
         child: enterpriseInsetTextField(
           label: label,
           controller: TextEditingController(text: value),
@@ -644,7 +646,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
       );
 
   Widget _date(String label, String iso, ValueChanged<String> on) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: 6),
         child: enterpriseInsetDateField(
           label: label,
           isoDate: iso,

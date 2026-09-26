@@ -153,7 +153,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
         Container(
           width: double.infinity,
           color: const Color(0xFF19232C),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -187,7 +187,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +205,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                         ),
                       ),
                       _pair(
-                        _outline('SUPPLIER INVOICE NO', controller: supplierInvoiceNo),
+                        _outline('SUPPLIER INVOICE NO', controller: supplierInvoiceNo, autofocus: true),
                         enterpriseInsetDateField(
                           label: 'SUPPLIER INVOICE DATE',
                           isoDate: supplierInvoiceDate,
@@ -271,7 +271,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                 border: Border.all(color: border),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: enterpriseMatrixScroller(table: _productMatrixTable()),
+              child: enterpriseMatrixScroller(table: _productMatrixTable(context)),
             ),
             const SizedBox(height:12),
             Center(
@@ -321,7 +321,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     );
   }
 
-  Widget _outline(String label, {TextEditingController? controller, bool readOnly = false, bool filled = false, Widget? prefixIcon, VoidCallback? onTap}) {
+  Widget _outline(String label, {TextEditingController? controller, bool readOnly = false, bool filled = false, Widget? prefixIcon, VoidCallback? onTap, bool autofocus = false}) {
     return enterpriseInsetTextField(
       label: label,
       controller: controller,
@@ -329,6 +329,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
       filled: filled,
       prefixIcon: prefixIcon,
       onTap: onTap,
+      autofocus: autofocus,
     );
   }
 
@@ -341,7 +342,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     ],
   );
   Widget _pair(Widget a, Widget b) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.only(bottom: 6),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Expanded(child: a), const SizedBox(width: 14), Expanded(child: b),
     ]),
@@ -352,11 +353,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
       Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
       const SizedBox(height: 4),
       Container(height: 1, color: border),
-      const SizedBox(height: 16),
+      const SizedBox(height: 8),
       ...children,
     ],
   );
-  Table _productMatrixTable() {
+  Table _productMatrixTable(BuildContext context) {
     return Table(
       columnWidths: enterpriseProductMatrixColumns,
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -444,52 +445,50 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                 child: Text(rows[i].hsn.isEmpty ? '—' : rows[i].hsn, style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('pvq$i'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('pvr$i'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
-                  controller: TextEditingController(text: '${rows[i].cgstPct}'),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('pvcg-$i-${rows[i].cgstPct}'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
+                  controller: TextEditingController(text: '${rows[i].cgstPct}'),
                   onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
-                  controller: TextEditingController(text: '${rows[i].sgstPct}'),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('pvsg-$i-${rows[i].sgstPct}'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
+                  controller: TextEditingController(text: '${rows[i].sgstPct}'),
                   onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
-                  controller: TextEditingController(text: '${rows[i].igstPct}'),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('pvig-$i-${rows[i].igstPct}'),
                   keyboardType: TextInputType.number,
-                  style: enterpriseMatrixCellStyle,
-                  decoration: enterpriseMatrixInputDecoration,
+                  controller: TextEditingController(text: '${rows[i].igstPct}'),
                   onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
                 ),
               ),

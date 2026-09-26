@@ -455,7 +455,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                           _date('DOCUMENT DATE', docDate, (v) => setState(() => docDate = v)),
                         ),
                         _pair(
-                          _field('PO REFERENCE NO', poRef),
+                          _field('PO REFERENCE NO', poRef, autofocus: true),
                           _date('PO REFERENCE DATE', poRefDate, (v) => setState(() => poRefDate = v)),
                         ),
                         _pair(
@@ -495,7 +495,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4), color: Colors.white),
-                  child: enterpriseMatrixScroller(table: _matrix()),
+                  child: enterpriseMatrixScroller(table: _matrix(context)),
                 ),
                 const SizedBox(height: 10),
                 Center(
@@ -546,7 +546,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     );
   }
 
-  Table _matrix() {
+  Table _matrix(BuildContext context) {
     final proforma = kind == DcKind.proforma;
     return Table(
       columnWidths: deliveryChallanMatrixColumns(proforma: proforma, includeRemarks: !proforma),
@@ -577,19 +577,20 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
               _prodDrop(i),
               _uomDrop(i),
               Text(r.hsn, style: const TextStyle(fontSize: 9)),
-              _num(i, (v) => r.qty = v),
-              _num(i, (v) => r.rate = v, rate: true),
-              if (proforma) _num(i, (v) => r.cgstPct = v, pct: true, val: r.cgstPct),
-              if (proforma) _num(i, (v) => r.sgstPct = v, pct: true, val: r.sgstPct),
-              if (proforma) _num(i, (v) => r.igstPct = v, pct: true, val: r.igstPct),
+              _num(context, i, (v) => r.qty = v),
+              _num(context, i, (v) => r.rate = v, rate: true),
+              if (proforma) _num(context, i, (v) => r.cgstPct = v, pct: true, val: r.cgstPct),
+              if (proforma) _num(context, i, (v) => r.sgstPct = v, pct: true, val: r.sgstPct),
+              if (proforma) _num(context, i, (v) => r.igstPct = v, pct: true, val: r.igstPct),
               Text((proforma ? r.displayExtended : r.extended).toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
               if (!proforma)
                 Padding(
                   padding: const EdgeInsets.all(2),
-                  child: TextField(
-                    decoration: const InputDecoration(isDense: true, hintText: 'Delivery Purpose'),
-                    style: const TextStyle(fontSize: 9),
-                    onChanged: (v) => r.remarks = v,
+                  child: Builder(
+                    builder: (ctx) => enterpriseMatrixTextField(
+                      context: ctx,
+                      onChanged: (v) => r.remarks = v,
+                    ),
                   ),
                 ),
               IconButton(
@@ -630,13 +631,12 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
         },
       );
 
-  Widget _num(int i, ValueChanged<double> on, {bool rate = false, bool pct = false, double? val}) => Padding(
+  Widget _num(BuildContext context, int i, ValueChanged<double> on, {bool rate = false, bool pct = false, double? val}) => Padding(
         padding: const EdgeInsets.all(2),
-        child: TextField(
+        child: enterpriseMatrixTextField(
+          context: context,
           keyboardType: TextInputType.number,
-          style: const TextStyle(fontSize: 9),
           controller: pct ? TextEditingController(text: '${val ?? 0}') : null,
-          decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(4)),
           onChanged: (v) => setState(() => on(double.tryParse(v) ?? 0)),
         ),
       );
@@ -661,17 +661,17 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
       );
 
   Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: 6),
         child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]),
       );
 
-  Widget _field(String label, TextEditingController c, {int maxLines = 1}) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines),
+  Widget _field(String label, TextEditingController c, {int maxLines = 1, bool autofocus = false}) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines, autofocus: autofocus),
       );
 
   Widget _ro(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: 6),
         child: enterpriseInsetTextField(
           label: label,
           controller: TextEditingController(text: value),
@@ -681,7 +681,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
       );
 
   Widget _date(String label, String iso, ValueChanged<String> on) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: 6),
         child: enterpriseInsetDateField(
           label: label,
           isoDate: iso,

@@ -523,7 +523,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         ),
                         _zoneField(),
                         _pair(
-                          _outline('DELIVERY TIMELINE VALIDITY (DAYS)', controller: dueDays,
+                          _outline('DELIVERY TIMELINE VALIDITY (DAYS)', controller: dueDays, autofocus: true,
                               onChanged: (_) {
                                 _syncDueDateFromDays();
                                 setState(() {});
@@ -630,30 +630,35 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Container(
-                      width: 120,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF19232C),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('ESTIMATED FREIGHT',
-                              style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
-                          TextField(
-                            controller: freight,
-                            keyboardType: TextInputType.number,
-                            onChanged: (_) => setState(() {}),
-                            style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 16),
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
+                    SizedBox(
+                      width: 200,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF19232C),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('ESTIMATED FREIGHT',
+                                style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              height: 26,
+                              child: TextField(
+                                controller: freight,
+                                keyboardType: TextInputType.number,
+                                onChanged: (_) => setState(() {}),
+                                textInputAction: TextInputAction.done,
+                                style: const TextStyle(
+                                    color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.1),
+                                decoration: enterpriseInsetInputDecoration(),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -692,7 +697,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       bool filled = false,
       Widget? prefixIcon,
       VoidCallback? onTap,
-      ValueChanged<String>? onChanged}) {
+      ValueChanged<String>? onChanged,
+      bool autofocus = false}) {
     return enterpriseInsetTextField(
       label: label,
       controller: controller,
@@ -700,6 +706,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       filled: filled,
       prefixIcon: prefixIcon,
       onTap: onTap,
+      onChanged: onChanged,
+      autofocus: autofocus,
     );
   }
 
