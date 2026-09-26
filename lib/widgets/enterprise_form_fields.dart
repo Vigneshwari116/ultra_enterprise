@@ -124,7 +124,7 @@ Widget enterpriseMatrixScroller({required Table table, double minWidth = 640}) {
   );
 }
 
-/// Original portal layout: freight/fwd box above, full-width value-in-words bar below.
+/// Original portal layout: value-in-words bar with charge panel on the right (same row).
 Widget enterpriseValueWordsFooter({
   required String valueInWords,
   String wordsLabel = 'VALUE IN WORDS',
@@ -133,49 +133,60 @@ Widget enterpriseValueWordsFooter({
   ValueChanged<String>? onChargeChanged,
   Color wordsColor = Colors.white,
 }) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      if (chargeController != null)
-        Align(
-          alignment: Alignment.centerRight,
+  final wordsBar = Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    decoration: BoxDecoration(
+      color: const Color(0xFF19232C),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(
+      '$wordsLabel: $valueInWords',
+      style: TextStyle(color: wordsColor, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3),
+    ),
+  );
+
+  if (chargeController == null) {
+    return wordsBar;
+  }
+
+  return IntrinsicHeight(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: wordsBar),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 220,
           child: Container(
-            width: 118,
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
             decoration: BoxDecoration(
               color: const Color(0xFF19232C),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(chargeLabel, style: const TextStyle(color: Colors.white54, fontSize: 8, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
+                Text(
+                  chargeLabel,
+                  style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
                 TextField(
                   controller: chargeController,
                   keyboardType: TextInputType.number,
                   onChanged: onChargeChanged,
-                  style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 13),
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 16),
                   decoration: enterpriseInsetInputDecoration(),
                 ),
               ],
             ),
           ),
         ),
-      if (chargeController != null) const SizedBox(height: 8),
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF19232C),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          '$wordsLabel: $valueInWords',
-          style: TextStyle(color: wordsColor, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3),
-        ),
-      ),
-    ],
+      ],
+    ),
   );
 }
 
