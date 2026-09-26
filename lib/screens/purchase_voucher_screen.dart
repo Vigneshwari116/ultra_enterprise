@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
+import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 
 class PurchaseVoucherScreen extends StatefulWidget {
@@ -194,23 +195,19 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                             prefixIcon: const Icon(Icons.calendar_today_outlined, size: 15),
                             onTap: () => _pickDate(supplierInvoiceDate, (v) => setState(() => supplierInvoiceDate = v))),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: DropdownButtonFormField<int>(
-                          isExpanded: true,
-                          value: againstPoId,
-                          decoration: _decoration('AGAINST PURCHASE ORDER (OPTIONAL)'),
-                          hint: const Text('— No linked PO —', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
-                          items: [
-                            const DropdownMenuItem<int>(value: null, child: Text('— No linked PO —')),
-                            ...openOrders.map((o) => DropdownMenuItem<int>(value: o['id'] as int, child: Text('PO-${o['po_no']}  •  ${o['party_name']}'))),
-                          ],
-                          onChanged: (v) => loadAgainstPo(v),
-                        ),
+                      enterpriseInsetDropdown<int?>(
+                        label: 'AGAINST PURCHASE ORDER (OPTIONAL)',
+                        value: againstPoId,
+                        hint: const Text('— No linked PO —', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
+                        items: [
+                          const DropdownMenuItem<int?>(value: null, child: Text('— No linked PO —')),
+                          ...openOrders.map((o) => DropdownMenuItem<int?>(value: o['id'] as int, child: Text('PO-${o['po_no']}  •  ${o['party_name']}'))),
+                        ],
+                        onChanged: (v) => loadAgainstPo(v),
                       ),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
-                        child: TextField(controller: remarks, maxLines: 2, decoration: _decoration('REMARKS')),
+                        child: enterpriseInsetTextField(label: 'REMARKS', controller: remarks, maxLines: 2),
                       ),
                     ],
                   ),
@@ -222,12 +219,19 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
-                        child: DropdownButtonFormField<int>(
-                          isExpanded: true,
+                        child: enterpriseInsetDropdown<int>(
+                          label: 'SELECT SUPPLIER',
                           value: supplierId,
-                          decoration: _decoration('SELECT SUPPLIER'),
-                          items: suppliers.map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text('${s['supplier_name']}'))).toList(),
-                          onChanged: (v) { final s = suppliers.firstWhere((x) => x['id'] == v); setState(() { supplierId = v; fillSupplier(s); }); },
+                          items: suppliers
+                              .map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text('${s['supplier_name']}')))
+                              .toList(),
+                          onChanged: (v) {
+                            final s = suppliers.firstWhere((x) => x['id'] == v);
+                            setState(() {
+                              supplierId = v;
+                              fillSupplier(s);
+                            });
+                          },
                         ),
                       ),
                       _pair(_outline('ADDRESS', controller: supplierAddress, filled: true), _outline('CITY', controller: city, filled: true)),
@@ -262,7 +266,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                   ],
                   rows:List.generate(rows.length,(i)=>DataRow(cells:[
                     DataCell(Text('${i+1}')),
-                    DataCell(SizedBox(width:190,child:DropdownButton<int>(isExpanded:true,hint: const Text('Item Description', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),value:rows[i].productId,items:products.map((p)=>DropdownMenuItem<int>(value:p['id'],child:Text('${p['product_name']}'))).toList(),onChanged:(v){final p=products.firstWhere((x)=>x['id']==v);setState(()=>rows[i].setProduct(p));}))),
+                    DataCell(SizedBox(width:128,child:DropdownButton<int>(isExpanded:true,hint: const Text('Item Description', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),value:rows[i].productId,items:products.map((p)=>DropdownMenuItem<int>(value:p['id'],child:Text('${p['product_name']}', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)))).toList(),onChanged:(v){final p=products.firstWhere((x)=>x['id']==v);setState(()=>rows[i].setProduct(p));}))),
                     DataCell(SizedBox(width:90,child:DropdownButton<int>(isExpanded:true,underline: const SizedBox(),value:rows[i].unitId,hint: const Text('UOM', style: TextStyle(fontSize: 11.5)),items:units.map((u)=>DropdownMenuItem<int>(value:u['id'] as int,child:Text('${u['code']}'))).toList(),onChanged:(v){final u=units.firstWhere((x)=>x['id']==v);setState((){rows[i].unitId=v;rows[i].uom='${u['code']}';});}))),
                     DataCell(Text(rows[i].hsn)),
                     DataCell(SizedBox(width:65,child:TextField(key:ValueKey('q$i'),controller:TextEditingController(text: rows[i].qty==0?'':'${rows[i].qty}'),keyboardType:TextInputType.number,decoration:const InputDecoration(isDense:true),onChanged:(v)=>setState(()=>rows[i].qty=double.tryParse(v)??0)))),
@@ -290,18 +294,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
               ),
             ),
             const SizedBox(height:18),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              decoration: BoxDecoration(color: const Color(0xFF19232C), borderRadius: BorderRadius.circular(4)),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text('VALUE IN WORDS: ${_amountInWords(total)}',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: .3)),
-                  ),
-                ],
-              ),
-            ),
+            enterpriseValueWordsFooter(valueInWords: _amountInWords(total)),
             const SizedBox(height:8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -334,26 +327,14 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     );
   }
 
-  InputDecoration _decoration(String label, {bool filled = false}) => InputDecoration(
-    labelText: label,
-    floatingLabelBehavior: FloatingLabelBehavior.always,
-    isDense: true,
-    filled: filled,
-    fillColor: filled ? const Color(0xFFF1F3F7) : Colors.white,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: teal, width: 1.4)),
-    labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094), letterSpacing: .2),
-  );
-
   Widget _outline(String label, {TextEditingController? controller, bool readOnly = false, bool filled = false, Widget? prefixIcon, VoidCallback? onTap}) {
-    return TextField(
+    return enterpriseInsetTextField(
+      label: label,
       controller: controller,
       readOnly: readOnly,
+      filled: filled,
+      prefixIcon: prefixIcon,
       onTap: onTap,
-      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: navy),
-      decoration: _decoration(label, filled: filled).copyWith(prefixIcon: prefixIcon),
     );
   }
 

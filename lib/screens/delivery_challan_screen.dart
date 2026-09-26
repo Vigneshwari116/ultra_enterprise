@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/delivery_challan_document.dart';
+import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 
 final deliveryChallanScreenKey = GlobalKey<DeliveryChallanScreenState>();
@@ -471,10 +472,9 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                     final s2 = _section(
                       'SECTION 2: ACCOUNT / PARTY INFORMATION',
                       [
-                        DropdownButtonFormField<String>(
+                        enterpriseInsetDropdown<String>(
+                          label: 'SELECT TRANS-PARTY PROFILE (SUPPLIER / CUSTOMER) *',
                           value: partyKey,
-                          isExpanded: true,
-                          decoration: _dec('SELECT TRANS-PARTY PROFILE (SUPPLIER / CUSTOMER) *'),
                           hint: const Text('Choose supplier or customer', style: TextStyle(fontSize: 11)),
                           items: _partyItems,
                           onChanged: (v) => setState(() => _fillParty(v!)),
@@ -495,7 +495,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4), color: Colors.white),
-                  child: _matrix(),
+                  child: enterpriseMatrixScroller(table: _matrix()),
                 ),
                 const SizedBox(height: 10),
                 Center(
@@ -506,35 +506,10 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                   ),
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        color: const Color(0xFF19232C),
-                        child: Text('VALUE IN WORDS: ${_words(grandTotal)}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      width: 110,
-                      padding: const EdgeInsets.all(10),
-                      color: const Color(0xFF19232C),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('FWD CHARGE', style: TextStyle(color: Colors.white54, fontSize: 8)),
-                          TextField(
-                            controller: fwd,
-                            keyboardType: TextInputType.number,
-                            onChanged: (_) => setState(() {}),
-                            style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900),
-                            decoration: const InputDecoration(isDense: true, border: InputBorder.none),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                enterpriseValueWordsFooter(
+                  valueInWords: _words(grandTotal),
+                  chargeController: fwd,
+                  onChargeChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 16),
                 Center(
@@ -573,25 +548,8 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
 
   Widget _matrix() {
     final proforma = kind == DcKind.proforma;
-    final widths = <int, TableColumnWidth>{
-      0: const FixedColumnWidth(22),
-      1: const FlexColumnWidth(2.2),
-      2: const FixedColumnWidth(38),
-      3: const FixedColumnWidth(42),
-      4: const FixedColumnWidth(36),
-      5: const FixedColumnWidth(40),
-    };
-    var col = 6;
-    if (proforma) {
-      widths[col++] = const FixedColumnWidth(32);
-      widths[col++] = const FixedColumnWidth(32);
-      widths[col++] = const FixedColumnWidth(32);
-    }
-    widths[col++] = const FixedColumnWidth(48);
-    if (!proforma) widths[col++] = const FixedColumnWidth(56);
-    widths[col] = const FixedColumnWidth(26);
     return Table(
-      columnWidths: widths,
+      columnWidths: deliveryChallanMatrixColumns(proforma: proforma, includeRemarks: !proforma),
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(
@@ -707,33 +665,28 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
         child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]),
       );
 
-  InputDecoration _dec(String label) => InputDecoration(
-        labelText: label,
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-        isDense: true,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-      );
-
   Widget _field(String label, TextEditingController c, {int maxLines = 1}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(controller: c, maxLines: maxLines, decoration: _dec(label), style: const TextStyle(fontSize: 11.5)),
+        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines),
       );
 
   Widget _ro(String label, String value) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(
-          readOnly: true,
+        child: enterpriseInsetTextField(
+          label: label,
           controller: TextEditingController(text: value),
-          decoration: _dec(label).copyWith(fillColor: const Color(0xFFF1F3F7), filled: true),
+          readOnly: true,
+          filled: true,
         ),
       );
 
   Widget _date(String label, String iso, ValueChanged<String> on) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(
-          readOnly: true,
+        child: enterpriseInsetTextField(
+          label: label,
           controller: TextEditingController(text: _display(iso)),
-          decoration: _dec(label).copyWith(prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16)),
+          readOnly: true,
+          prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF748094)),
           onTap: () => _pickDate(iso, (v) => setState(() => on(v))),
         ),
       );

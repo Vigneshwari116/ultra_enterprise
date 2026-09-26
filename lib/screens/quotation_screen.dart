@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
+import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/quotation_document.dart';
 
@@ -399,10 +400,9 @@ class _QuotationScreenState extends State<QuotationScreen> {
                       Text('PARTY TYPE: ${partyIsSupplier ? 'SUPPLIER' : 'CUSTOMER'}',
                           style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<int>(
+                      enterpriseInsetDropdown<int>(
+                        label: partyIsSupplier ? 'TARGET REGISTERED SUPPLIER PROFILES *' : 'TARGET REGISTERED CUSTOMER PROFILES *',
                         value: partyId,
-                        isExpanded: true,
-                        decoration: _dec(partyIsSupplier ? 'TARGET REGISTERED SUPPLIER PROFILES *' : 'TARGET REGISTERED CUSTOMER PROFILES *'),
                         items: (partyIsSupplier ? suppliers : customers)
                             .map((p) => DropdownMenuItem<int>(
                                   value: p['id'] as int,
@@ -450,16 +450,10 @@ class _QuotationScreenState extends State<QuotationScreen> {
                 _sec('SECTION 4: SPECIFICATION MATRIX & PRICING GRID', [
                   Container(
                     decoration: BoxDecoration(border: Border.all(color: border), color: Colors.white),
-                    child: Table(
-                      columnWidths: const {
-                        0: FixedColumnWidth(24),
-                        1: FlexColumnWidth(2.5),
-                        2: FixedColumnWidth(50),
-                        3: FixedColumnWidth(50),
-                        4: FixedColumnWidth(55),
-                        5: FixedColumnWidth(60),
-                        6: FixedColumnWidth(28),
-                      },
+                    child: enterpriseMatrixScroller(
+                      minWidth: 520,
+                      table: Table(
+                      columnWidths: quotationMatrixColumns,
                       children: [
                         TableRow(
                           decoration: const BoxDecoration(color: navy2),
@@ -509,6 +503,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
                         }),
                       ],
                     ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
@@ -554,35 +549,13 @@ class _QuotationScreenState extends State<QuotationScreen> {
                   );
                 }),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        color: const Color(0xFF19232C),
-                        child: Text('NET TOTAL IN WORDS: ${_words(netTotal)}', style: const TextStyle(color: teal, fontSize: 11, fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      width: 120,
-                      padding: const EdgeInsets.all(10),
-                      color: const Color(0xFF19232C),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('FREIGHT CHARGES', style: TextStyle(color: Colors.white54, fontSize: 8)),
-                          TextField(
-                            controller: freight,
-                            keyboardType: TextInputType.number,
-                            onChanged: (_) => setState(() {}),
-                            style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900),
-                            decoration: const InputDecoration(isDense: true, border: InputBorder.none),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                enterpriseValueWordsFooter(
+                  valueInWords: _words(netTotal),
+                  wordsLabel: 'NET TOTAL IN WORDS',
+                  wordsColor: teal,
+                  chargeController: freight,
+                  chargeLabel: 'FREIGHT CHARGES',
+                  onChargeChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 16),
                 Center(
@@ -655,33 +628,28 @@ class _QuotationScreenState extends State<QuotationScreen> {
         child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]),
       );
 
-  InputDecoration _dec(String label) => InputDecoration(
-        labelText: label,
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-        isDense: true,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-      );
-
   Widget _field(String label, TextEditingController c, {int maxLines = 1}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(controller: c, maxLines: maxLines, decoration: _dec(label), style: const TextStyle(fontSize: 11.5)),
+        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines),
       );
 
   Widget _ro(String label, String value) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(
-          readOnly: true,
+        child: enterpriseInsetTextField(
+          label: label,
           controller: TextEditingController(text: value),
-          decoration: _dec(label).copyWith(filled: true, fillColor: const Color(0xFFF1F3F7)),
+          readOnly: true,
+          filled: true,
         ),
       );
 
   Widget _date(String label, String iso, ValueChanged<String> on) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(
-          readOnly: true,
+        child: enterpriseInsetTextField(
+          label: label,
           controller: TextEditingController(text: _display(iso)),
-          decoration: _dec(label).copyWith(prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16)),
+          readOnly: true,
+          prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF748094)),
           onTap: () => _pickDate(iso, (v) => setState(() => on(v))),
         ),
       );

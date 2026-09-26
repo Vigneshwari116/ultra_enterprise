@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
+import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_order_document.dart';
 
@@ -506,10 +507,9 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                     final section2 = _plainSection(
                       title: 'SECTION 2: PARTY ALLOCATION — SUPPLIER',
                       children: [
-                        DropdownButtonFormField<int>(
+                        enterpriseInsetDropdown<int>(
+                          label: 'TARGET REGISTERED SUPPLIER PROFILES *',
                           value: supplierId,
-                          isExpanded: true,
-                          decoration: _decoration('TARGET REGISTERED SUPPLIER PROFILES *'),
                           items: suppliers
                               .map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text('${s['supplier_name']}')))
                               .toList(),
@@ -564,7 +564,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   width: double.infinity,
-                  child: _productMatrixTable(),
+                  child: enterpriseMatrixScroller(table: _productMatrixTable()),
                 ),
                 const SizedBox(height: 12),
                 Center(
@@ -652,19 +652,6 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     );
   }
 
-  InputDecoration _decoration(String label, {bool filled = false}) => InputDecoration(
-        labelText: label,
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-        isDense: true,
-        filled: filled,
-        fillColor: filled ? const Color(0xFFF1F3F7) : Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: teal, width: 1.4)),
-        labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094), letterSpacing: .2),
-      );
-
   Widget _outline(String label,
       {TextEditingController? controller,
       bool readOnly = false,
@@ -672,39 +659,28 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       Widget? prefixIcon,
       VoidCallback? onTap,
       ValueChanged<String>? onChanged}) {
-    return TextField(
+    return enterpriseInsetTextField(
+      label: label,
       controller: controller,
       readOnly: readOnly,
+      filled: filled,
+      prefixIcon: prefixIcon,
       onTap: onTap,
-      onChanged: onChanged,
-      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: navy),
-      decoration: _decoration(label, filled: filled).copyWith(prefixIcon: prefixIcon),
     );
   }
 
   Widget _zoneField() {
     final mandatory = zone.isEmpty;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: DropdownButtonFormField<String>(
-        value: zone.isEmpty ? null : zone,
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: 'TAX MATRIX PREFERENCE APPLICABILITY *',
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: mandatory ? red : border)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: mandatory ? red : border)),
-          labelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: mandatory ? red : const Color(0xFF748094), letterSpacing: .2),
-        ),
-        hint: const Text('Choose Option (Mandatory Entry Row)', style: TextStyle(color: red, fontSize: 12.5, fontWeight: FontWeight.w600)),
-        items: const [
-          DropdownMenuItem(value: 'Intra State', child: Text('Intra State')),
-          DropdownMenuItem(value: 'Inter State', child: Text('Inter State')),
-        ],
-        onChanged: (v) => setState(() => zone = v ?? ''),
-      ),
+    return enterpriseInsetDropdown<String>(
+      label: 'TAX MATRIX PREFERENCE APPLICABILITY *',
+      value: zone.isEmpty ? null : zone,
+      borderColor: mandatory ? red : null,
+      hint: const Text('Choose Option (Mandatory Entry Row)', style: TextStyle(color: red, fontSize: 12.5, fontWeight: FontWeight.w600)),
+      items: const [
+        DropdownMenuItem(value: 'Intra State', child: Text('Intra State')),
+        DropdownMenuItem(value: 'Inter State', child: Text('Inter State')),
+      ],
+      onChanged: (v) => setState(() => zone = v ?? ''),
     );
   }
 
@@ -758,19 +734,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 
   Widget _productMatrixTable() {
     return Table(
-      columnWidths: const {
-        0: FixedColumnWidth(20),
-        1: FlexColumnWidth(2.4),
-        2: FixedColumnWidth(40),
-        3: FixedColumnWidth(44),
-        4: FixedColumnWidth(38),
-        5: FixedColumnWidth(42),
-        6: FixedColumnWidth(36),
-        7: FixedColumnWidth(36),
-        8: FixedColumnWidth(36),
-        9: FixedColumnWidth(52),
-        10: FixedColumnWidth(26),
-      },
+      columnWidths: enterpriseProductMatrixColumns,
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(
