@@ -406,7 +406,7 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
       row['opening_stock'] = 0;
       row['current_stock'] = 0;
       final newId = await repo.insertProduct(row);
-      editingId = newId;
+      editingId = _coerceMasterId(newId);
     } else {
       await repo.updateProduct(editingId!, row);
     }

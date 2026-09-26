@@ -5,6 +5,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_order_document.dart';
+import '../widgets/transaction_line_math.dart';
 
 class PurchaseOrderScreen extends StatefulWidget {
   const PurchaseOrderScreen({super.key});
@@ -76,10 +77,36 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     dueDate = DateFormat('yyyy-MM-dd').format(base.add(Duration(days: days)));
   }
 
-  double get taxable => rows.fold(0, (s, r) => s + r.taxable);
-  double get cgst => rows.fold(0, (s, r) => s + r.cgst);
-  double get sgst => rows.fold(0, (s, r) => s + r.sgst);
-  double get igst => rows.fold(0, (s, r) => s + r.igst);
+  TransactionLineTotals _lineTotals(_PoRow r) => TransactionLineTotals.compute(
+        qty: r.qty,
+        rate: r.rate,
+        cgstPct: r.cgstPct,
+        sgstPct: r.sgstPct,
+        igstPct: r.igstPct,
+        stateZone: zone,
+      );
+
+  void _applyZoneToRows() {
+    final inter = isInterStateZone(zone);
+    for (final r in rows) {
+      applyZoneGstFromPercents(
+        interState: inter,
+        cgstPct: r.cgstPct,
+        sgstPct: r.sgstPct,
+        igstPct: r.igstPct,
+        apply: (c, s, i) {
+          r.cgstPct = c;
+          r.sgstPct = s;
+          r.igstPct = i;
+        },
+      );
+    }
+  }
+
+  double get taxable => rows.fold(0, (s, r) => s + _lineTotals(r).taxable);
+  double get cgst => rows.fold(0, (s, r) => s + _lineTotals(r).cgst);
+  double get sgst => rows.fold(0, (s, r) => s + _lineTotals(r).sgst);
+  double get igst => rows.fold(0, (s, r) => s + _lineTotals(r).igst);
   double get gstTotal => cgst + sgst + igst;
   double get freightVal => double.tryParse(freight.text) ?? 0;
   double get total => taxable + gstTotal + freightVal;
@@ -172,7 +199,9 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     final billNo = 'PO-${DateTime.now().year}-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
     final items = rows
         .map(
-          (r) => {
+          (r) {
+            final t = _lineTotals(r);
+            return {
             'product_id': r.productId,
             'description': r.description,
             'uom': r.uom,
@@ -182,11 +211,12 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
             'cgst_percent': r.cgstPct,
             'sgst_percent': r.sgstPct,
             'igst_percent': r.igstPct,
-            'taxable': r.taxable,
-            'cgst': r.cgst,
-            'sgst': r.sgst,
-            'igst': r.igst,
-            'total': r.total,
+            'taxable': t.taxable,
+            'cgst': t.cgst,
+            'sgst': t.sgst,
+            'igst': t.igst,
+            'total': t.total,
+          };
           },
         )
         .toList();
@@ -629,6 +659,10 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   ],
                 ),
                 const SizedBox(height: 18),
+                enterpriseValueWordsFooter(
+                  valueInWords: payableAmountInWords(total),
+                ),
+                const SizedBox(height: 18),
                 Center(
                   child: ElevatedButton.icon(
                     onPressed: saveAndPrint,
@@ -680,7 +714,10 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
         DropdownMenuItem(value: 'Intra State', child: Text('Intra State')),
         DropdownMenuItem(value: 'Inter State', child: Text('Inter State')),
       ],
-      onChanged: (v) => setState(() => zone = v ?? ''),
+      onChanged: (v) => setState(() {
+        zone = v ?? '';
+        _applyZoneToRows();
+      }),
     );
   }
 
@@ -767,16 +804,21 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   isExpanded: true,
                   isDense: true,
                   hint: const Text('Enter Description', style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
-                  value: rows[i].productId,
+                  value: catalogIdInList(rows[i].productId, products),
                   items: products
-                      .map((p) => DropdownMenuItem<int>(
-                            value: p['id'] as int,
-                            child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
-                          ))
+                      .map((p) {
+                        final id = coerceCatalogId(p['id']);
+                        if (id == null) return null;
+                        return DropdownMenuItem<int>(
+                          value: id,
+                          child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
+                        );
+                      })
+                      .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final p = products.firstWhere((x) => x['id'] == v);
-                    setState(() => rows[i].setProduct(p));
+                    final p = products.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    setState(() => rows[i].setProduct(p, stateZone: zone));
                   },
                 ),
               ),
@@ -786,16 +828,21 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   isExpanded: true,
                   isDense: true,
                   underline: const SizedBox(),
-                  value: rows[i].unitId,
+                  value: catalogIdInList(rows[i].unitId, units),
                   hint: const Text('UOM', style: TextStyle(fontSize: 9)),
                   items: units
-                      .map((u) => DropdownMenuItem<int>(
-                            value: u['id'] as int,
-                            child: Text('${u['code']}', style: const TextStyle(fontSize: 9)),
-                          ))
+                      .map((u) {
+                        final id = coerceCatalogId(u['id']);
+                        if (id == null) return null;
+                        return DropdownMenuItem<int>(
+                          value: id,
+                          child: Text('${u['code']}', style: const TextStyle(fontSize: 9)),
+                        );
+                      })
+                      .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final u = units.firstWhere((x) => x['id'] == v);
+                    final u = units.firstWhere((x) => coerceCatalogId(x['id']) == v);
                     setState(() {
                       rows[i].unitId = v;
                       rows[i].uom = '${u['code']}';
@@ -859,7 +906,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-                child: Text(rows[i].total.toStringAsFixed(2), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
+                child: Text(_lineTotals(rows[i]).total.toStringAsFixed(2), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
@@ -881,27 +928,45 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 class _PoRow {
   int? productId;
   int? unitId;
-  String description = 'Item Description';
+  String description = '';
   String uom = 'PCS';
-  String hsn = '123456';
+  String hsn = '';
   double qty = 0;
   double rate = 0;
   double cgstPct = 9;
   double sgstPct = 9;
-  double igstPct = 18;
+  double igstPct = 0;
 
-  void setProduct(Map<String, dynamic> p) {
-    productId = p['id'] as int?;
-    description = p['product_name'] ?? '';
-    unitId = p['unit_id'] as int?;
-    uom = p['uom_code'] ?? 'PCS';
-    hsn = p['hsn'] ?? '';
-    rate = (p['rate'] ?? 0).toDouble();
+  void setProduct(Map<String, dynamic> p, {required String stateZone}) {
+    productId = coerceCatalogId(p['id']);
+    description = '${p['product_name'] ?? ''}';
+    unitId = catalogUnitId(p);
+    uom = catalogUomCode(p);
+    hsn = catalogProductHsn(p);
+    rate = catalogPurchaseRate(p);
+    final productGst = catalogTotalGstPercent(p);
+    if (productGst != null && productGst > 0) {
+      applyZoneGstSplit(
+        interState: isInterStateZone(stateZone),
+        totalGstPercent: productGst,
+        apply: (c, s, i) {
+          cgstPct = c;
+          sgstPct = s;
+          igstPct = i;
+        },
+      );
+    } else if (stateZone.trim().isNotEmpty) {
+      applyZoneGstFromPercents(
+        interState: isInterStateZone(stateZone),
+        cgstPct: cgstPct,
+        sgstPct: sgstPct,
+        igstPct: igstPct,
+        apply: (c, s, i) {
+          cgstPct = c;
+          sgstPct = s;
+          igstPct = i;
+        },
+      );
+    }
   }
-
-  double get taxable => qty * rate;
-  double get cgst => taxable * cgstPct / 100;
-  double get sgst => taxable * sgstPct / 100;
-  double get igst => taxable * igstPct / 100;
-  double get total => taxable + cgst + sgst + igst;
 }
