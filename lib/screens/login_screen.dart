@@ -75,6 +75,13 @@ class _LoginScreenState extends State<LoginScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: compact ? MainAxisAlignment.start : MainAxisAlignment.center,
         children: [
+          Image.asset(
+            'assets/images/ultra_logo.png',
+            height: compact ? 52 : 64,
+            fit: BoxFit.contain,
+            alignment: Alignment.centerLeft,
+          ),
+          SizedBox(height: compact ? 16 : 24),
           Row(
             children: const [
               Icon(Icons.account_balance_outlined, color: _signInTeal, size: 22),

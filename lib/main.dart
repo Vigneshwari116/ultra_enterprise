@@ -29,7 +29,7 @@ class UltraApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Ultra Enterprise',
+      title: 'Ultra Engineering Works',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
