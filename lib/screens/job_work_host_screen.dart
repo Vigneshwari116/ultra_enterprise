@@ -381,7 +381,22 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
   }
 
   Future<void> _save() async {
-    if (code.text.trim().isEmpty || name.text.trim().isEmpty) return;
+    if (code.text.trim().isEmpty || name.text.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Material code and product name are required.')),
+        );
+      }
+      return;
+    }
+    if (unitId == null || materialTypeId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Select UOM and Material Type before saving.')),
+        );
+      }
+      return;
+    }
     final purchase = double.tryParse(purchaseRate.text) ?? 0;
     final sales = double.tryParse(salesRate.text) ?? 0;
     final row = {
@@ -402,13 +417,22 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
     };
     final isNew = editingId == null;
     final savedId = editingId;
-    if (isNew) {
-      row['opening_stock'] = 0;
-      row['current_stock'] = 0;
-      final newId = await repo.insertProduct(row);
-      editingId = _coerceMasterId(newId);
-    } else {
-      await repo.updateProduct(editingId!, row);
+    try {
+      if (isNew) {
+        row['opening_stock'] = 0;
+        row['current_stock'] = 0;
+        final newId = await repo.insertProduct(row);
+        editingId = _coerceMasterId(newId);
+      } else {
+        await repo.updateProduct(editingId!, row);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Material save failed: $e')),
+        );
+      }
+      return;
     }
     await load();
     final keepId = isNew ? editingId : savedId;
