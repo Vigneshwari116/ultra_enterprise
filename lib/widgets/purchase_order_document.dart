@@ -45,6 +45,11 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
   final freight = (po['estimated_freight'] as num?)?.toDouble() ?? 0;
+  final subtotal = items.fold<double>(0, (s, i) => s + i.amount);
+  final cgstAmt = isInter ? 0.0 : subtotal * 0.09;
+  final sgstAmt = isInter ? 0.0 : subtotal * 0.09;
+  final igstAmt = isInter ? subtotal * 0.18 : 0.0;
+  final grand = subtotal + cgstAmt + sgstAmt + igstAmt + freight;
 
   return InvoiceData(
     invoiceNo: _billNoForOrder(po),
@@ -64,7 +69,7 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
     sgstPercent: isInter ? 0 : 9,
     igstPercent: isInter ? 18 : 0,
     pAndF: freight,
-    amountInWords: 'RUPEES ONLY',
+    amountInWords: formatUltraAmountInWords(grand),
     bankName: '${po['bank_name'] ?? ''}',
     accountNo: '${po['bank_account_no'] ?? ''}',
     ifscCode: '${po['ifsc_code'] ?? ''}',
