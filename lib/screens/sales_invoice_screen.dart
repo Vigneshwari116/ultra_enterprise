@@ -243,7 +243,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   @override Widget build(BuildContext context){
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      child: enterpriseScrollColumn(children:[
         Container(
           width: double.infinity,
           color: const Color(0xFF19232C),
@@ -291,23 +291,29 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                     children: [
                       _pair(
                         _outline('SALES VOUCHER NO (AUTO)', controller: TextEditingController(text: voucherNo), readOnly: true, filled: true),
-                        _outline('TRANSACTION DATE', controller: TextEditingController(text: _display(date)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
-                            onTap: () => _pickDate(date, (v) => setState(() => date = v))),
+                        enterpriseInsetDateField(
+                          label: 'TRANSACTION DATE',
+                          isoDate: date,
+                          onTap: () => _pickDate(date, (v) => setState(() => date = v)),
+                        ),
                       ),
                       _pair(
                         _outline('PO NO', controller: po),
-                        _outline('PO DATE', controller: TextEditingController(text: _display(poDate)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
-                            onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v))),
+                        enterpriseInsetDateField(
+                          label: 'PO DATE',
+                          isoDate: poDate,
+                          onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v)),
+                        ),
                       ),
                       _zoneField(),
                       const SizedBox(height: 14),
                       _pair(
                         _outline('CHALLAN / DC NO', controller: challan),
-                        _outline('CHALLAN / DC DATE', controller: TextEditingController(text: _display(challanDate)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
-                            onTap: () => _pickDate(challanDate, (v) => setState(() => challanDate = v))),
+                        enterpriseInsetDateField(
+                          label: 'CHALLAN / DC DATE',
+                          isoDate: challanDate,
+                          onTap: () => _pickDate(challanDate, (v) => setState(() => challanDate = v)),
+                        ),
                       ),
                       _pair(
                         _outline('TOTAL NO OF PACKAGES', controller: packages),

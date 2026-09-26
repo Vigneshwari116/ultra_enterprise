@@ -177,8 +177,7 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(
-        children: [
+      child: enterpriseScrollColumn(children: [
           Container(
             width: double.infinity,
             color: _accent,
@@ -482,12 +481,9 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
   }
 
   Widget _dateInset(String label, String iso, ValueChanged<String> on) {
-    final display = DateFormat('dd-MM-yyyy').format(DateTime.tryParse(iso) ?? DateTime.now());
-    return enterpriseInsetTextField(
+    return enterpriseInsetDateField(
       label: label,
-      readOnly: true,
-      controller: TextEditingController(text: display),
-      prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF748094)),
+      isoDate: iso,
       onTap: () async {
         final picked = await pickCompactDate(context, initialDate: DateTime.tryParse(iso) ?? DateTime.now());
         if (picked != null) setState(() => on(formatIsoDate(picked)));

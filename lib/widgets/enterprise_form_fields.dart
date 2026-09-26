@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'enterprise_widgets.dart';
 
@@ -86,6 +87,53 @@ Widget enterpriseInsetTextField({
   );
 }
 
+/// Tappable date row: value left, calendar right (no wide empty TextField gap).
+Widget enterpriseInsetDateField({
+  required String label,
+  required String isoDate,
+  required VoidCallback onTap,
+  bool filled = false,
+}) {
+  final parsed = DateTime.tryParse(isoDate);
+  final display = parsed == null ? isoDate : DateFormat('dd-MM-yyyy').format(parsed);
+  return enterpriseInsetFieldShell(
+    label: label,
+    filled: filled,
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            Text(display, style: enterpriseInsetValueStyle),
+            const Spacer(),
+            const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF748094)),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// [SingleChildScrollView] child: forces full viewport width for matrices/footers.
+Widget enterpriseScrollColumn({required List<Widget> children}) {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final minW = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+          ? constraints.maxWidth
+          : MediaQuery.sizeOf(context).width;
+      return ConstrainedBox(
+        constraints: BoxConstraints(minWidth: minW),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: children,
+        ),
+      );
+    },
+  );
+}
+
 Widget enterpriseInsetDropdown<T>({
   required String label,
   required T? value,
@@ -119,11 +167,11 @@ Widget enterpriseMatrixScroller({required Table table, double minWidth = 640}) {
     builder: (context, constraints) {
       var width = constraints.maxWidth;
       if (!width.isFinite || width <= 0) {
-        width = minWidth;
+        width = MediaQuery.sizeOf(context).width;
       }
       final tableWidth = width < minWidth ? minWidth : width;
       final content = SizedBox(width: tableWidth, child: table);
-      if (tableWidth > width + 1 && width.isFinite) {
+      if (tableWidth > width + 1 && width.isFinite && width > 0) {
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: content,

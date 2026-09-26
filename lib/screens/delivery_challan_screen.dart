@@ -399,8 +399,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     final accent = kind.accent;
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(
-        children: [
+      child: enterpriseScrollColumn(children: [
           Container(
             width: double.infinity,
             color: const Color(0xFF19232C),
@@ -683,11 +682,9 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
 
   Widget _date(String label, String iso, ValueChanged<String> on) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: enterpriseInsetTextField(
+        child: enterpriseInsetDateField(
           label: label,
-          controller: TextEditingController(text: _display(iso)),
-          readOnly: true,
-          prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF748094)),
+          isoDate: iso,
           onTap: () => _pickDate(iso, (v) => setState(() => on(v))),
         ),
       );

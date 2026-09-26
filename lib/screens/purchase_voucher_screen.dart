@@ -149,7 +149,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
   @override Widget build(BuildContext context){
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      child: enterpriseScrollColumn(children:[
         Container(
           width: double.infinity,
           color: const Color(0xFF19232C),
@@ -198,15 +198,19 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                     children: [
                       _pair(
                         _outline('VOUCHER NO', controller: TextEditingController(text: voucherNo), readOnly: true, filled: true),
-                        _outline('VOUCHER DATE', controller: TextEditingController(text: _display(voucherDate)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 15),
-                            onTap: () => _pickDate(voucherDate, (v) => setState(() => voucherDate = v))),
+                        enterpriseInsetDateField(
+                          label: 'VOUCHER DATE',
+                          isoDate: voucherDate,
+                          onTap: () => _pickDate(voucherDate, (v) => setState(() => voucherDate = v)),
+                        ),
                       ),
                       _pair(
                         _outline('SUPPLIER INVOICE NO', controller: supplierInvoiceNo),
-                        _outline('SUPPLIER INVOICE DATE', controller: TextEditingController(text: _display(supplierInvoiceDate)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 15),
-                            onTap: () => _pickDate(supplierInvoiceDate, (v) => setState(() => supplierInvoiceDate = v))),
+                        enterpriseInsetDateField(
+                          label: 'SUPPLIER INVOICE DATE',
+                          isoDate: supplierInvoiceDate,
+                          onTap: () => _pickDate(supplierInvoiceDate, (v) => setState(() => supplierInvoiceDate = v)),
+                        ),
                       ),
                       enterpriseInsetDropdown<int?>(
                         label: 'AGAINST PURCHASE ORDER (OPTIONAL)',

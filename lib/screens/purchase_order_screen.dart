@@ -449,9 +449,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Widget _buildEntryView() {
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: enterpriseScrollColumn(children: [
           Container(
             width: double.infinity,
             color: const Color(0xFF19232C),
@@ -517,9 +515,11 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                       children: [
                         _pair(
                           _outline('PO NUMERIC SERIAL NO (AUTO)', controller: TextEditingController(text: poNo), readOnly: true, filled: true),
-                          _outline('ORDER PLACEMENT DATE', controller: TextEditingController(text: _display(poDate)), readOnly: true,
-                              prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
-                              onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v))),
+                          enterpriseInsetDateField(
+                            label: 'ORDER PLACEMENT DATE',
+                            isoDate: poDate,
+                            onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v)),
+                          ),
                         ),
                         _zoneField(),
                         _pair(
