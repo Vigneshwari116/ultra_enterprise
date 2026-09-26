@@ -529,6 +529,16 @@ class UltraRepository {
     return _asRowList(doc['items']);
   }
 
+  Future<Map<String, dynamic>?> purchaseVoucherPrintBundle(int voucherId) async {
+    if (UltraConfig.persistLocally) return _db.purchaseVoucherPrintBundle(voucherId);
+    final doc = await _getDocument('/api/purchase-vouchers/$voucherId');
+    if (doc == null) return null;
+    return {
+      'voucher': Map<String, dynamic>.from(doc as Map),
+      'items': _asRowList(doc['items']),
+    };
+  }
+
   Future<Map<String, dynamic>?> supplierById(int id) async {
     if (UltraConfig.persistLocally) return _db.supplierById(id);
     try {

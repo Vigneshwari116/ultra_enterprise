@@ -5,6 +5,7 @@ import 'package:printing/printing.dart';
 
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
+import 'ultra_print_helpers.dart';
 
 String _money(num v) => v.toStringAsFixed(2);
 
@@ -128,12 +129,14 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
       .toList();
   final zone = '${inv['state_zone'] ?? ''}'.toLowerCase();
   final isInter = zone.contains('inter');
-  final subtotal = items.fold<double>(0, (s, i) => s + i.amount);
-  final cgstAmt = isInter ? 0.0 : subtotal * 0.09;
-  final sgstAmt = isInter ? 0.0 : subtotal * 0.09;
-  final igstAmt = isInter ? subtotal * 0.18 : 0.0;
-  final grand = subtotal + cgstAmt + sgstAmt + igstAmt;
+  final taxable = (inv['taxable_total'] as num?)?.toDouble() ?? items.fold<double>(0, (s, i) => s + i.amount);
+  final cgstAmt = (inv['cgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : taxable * 0.09);
+  final sgstAmt = (inv['sgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : taxable * 0.09);
+  final igstAmt = (inv['igst_total'] as num?)?.toDouble() ?? (isInter ? taxable * 0.18 : 0.0);
+  final grand = (inv['grand_total'] as num?)?.toDouble() ?? taxable + cgstAmt + sgstAmt + igstAmt;
+  final freight = grand - taxable - cgstAmt - sgstAmt - igstAmt;
   return InvoiceData(
+    kind: UltraBillKind.taxInvoice,
     invoiceNo: '${inv['invoice_no'] ?? ''}',
     date: _fmtDate(inv['transaction_date'] as String?),
     custPo: '${inv['po_no'] ?? ''}',
@@ -150,12 +153,16 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
     cgstPercent: isInter ? 0 : 9,
     sgstPercent: isInter ? 0 : 9,
     igstPercent: isInter ? 18 : 0,
-    pAndF: 0,
+    pAndF: freight > 0 ? freight : 0,
+    cgstAmountOverride: cgstAmt,
+    sgstAmountOverride: sgstAmt,
+    igstAmountOverride: igstAmt,
+    grandTotalOverride: grand,
     amountInWords: formatUltraAmountInWords(grand),
-    bankName: '${inv['bank_name'] ?? ''}',
-    accountNo: '${inv['bank_account_no'] ?? ''}',
-    ifscCode: '${inv['ifsc_code'] ?? ''}',
-    bankAddress: '${inv['branch_address'] ?? ''}',
+    bankName: ultraBankName(inv, 'bank_name'),
+    accountNo: ultraBankAccount(inv, 'bank_account_no'),
+    ifscCode: ultraBankIfsc(inv, 'ifsc_code'),
+    bankAddress: ultraBankAddress(inv, 'branch_address'),
   );
 }
 

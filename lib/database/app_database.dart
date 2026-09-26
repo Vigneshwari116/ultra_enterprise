@@ -922,6 +922,32 @@ class AppDatabase {
   Future<List<Map<String, dynamic>>> purchaseVoucherItems(int voucherId) =>
       db.query('purchase_voucher_items', where: 'voucher_id = ?', whereArgs: [voucherId]);
 
+  Future<Map<String, dynamic>?> purchaseVoucherPrintBundle(int voucherId) async {
+    final rows = await db.rawQuery('''
+        SELECT pv.*,
+          COALESCE(s.supplier_name, '-') AS supplier_name,
+          COALESCE(s.address, '') AS address,
+          COALESCE(s.city, '') AS city,
+          COALESCE(s.postal_pincode, '') AS postal_pincode,
+          COALESCE(s.gstin, '') AS gstin,
+          COALESCE(s.primary_mobile, '') AS primary_mobile,
+          COALESCE(s.bank_name, '') AS bank_name,
+          COALESCE(s.bank_account_no, '') AS bank_account_no,
+          COALESCE(s.ifsc_code, '') AS ifsc_code,
+          COALESCE(s.branch_address, '') AS branch_address,
+          po.po_no AS linked_po_no,
+          po.po_date AS linked_po_date
+        FROM purchase_vouchers pv
+        LEFT JOIN suppliers s ON s.id = pv.supplier_id
+        LEFT JOIN purchase_orders po ON po.id = pv.purchase_order_id
+        WHERE pv.id = ?
+        LIMIT 1
+      ''', [voucherId]);
+    if (rows.isEmpty) return null;
+    final items = await purchaseVoucherItems(voucherId);
+    return {'voucher': rows.first, 'items': items};
+  }
+
   Future<Map<String, dynamic>?> supplierById(int id) async {
     final rows = await db.query('suppliers', where: 'id = ?', whereArgs: [id], limit: 1);
     return rows.isEmpty ? null : rows.first;
