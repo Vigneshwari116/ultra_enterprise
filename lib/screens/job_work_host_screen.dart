@@ -5,6 +5,63 @@ import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/enterprise_widgets.dart';
 
+int? _coerceMasterId(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim());
+  return null;
+}
+
+List<Map<String, dynamic>> _uniqueMasterRowsById(List<Map<String, dynamic>> rows) {
+  final seen = <int>{};
+  final unique = <Map<String, dynamic>>[];
+  for (final row in rows) {
+    final id = _coerceMasterId(row['id']);
+    if (id == null || seen.contains(id)) continue;
+    seen.add(id);
+    unique.add(row);
+  }
+  return unique;
+}
+
+int? _idPresentInRows(int? id, List<Map<String, dynamic>> rows) {
+  if (id == null) return null;
+  for (final row in rows) {
+    if (_coerceMasterId(row['id']) == id) return id;
+  }
+  return null;
+}
+
+int? _firstRowId(List<Map<String, dynamic>> rows) {
+  if (rows.isEmpty) return null;
+  return _coerceMasterId(rows.first['id']);
+}
+
+int? _productUnitId(Map<String, dynamic> product) {
+  return _coerceMasterId(product['unit_id']) ??
+      _coerceMasterId(product['unitId']) ??
+      (product['unit'] is Map ? _coerceMasterId((product['unit'] as Map)['id']) : null);
+}
+
+int? _productMaterialTypeId(Map<String, dynamic> product) {
+  return _coerceMasterId(product['material_type_id']) ??
+      _coerceMasterId(product['materialTypeId']) ??
+      (product['material_type'] is Map ? _coerceMasterId((product['material_type'] as Map)['id']) : null);
+}
+
+List<DropdownMenuItem<int>> _masterDropdownItems(List<Map<String, dynamic>> rows, String labelKey) {
+  final seen = <int>{};
+  final items = <DropdownMenuItem<int>>[];
+  for (final row in rows) {
+    final id = _coerceMasterId(row['id']);
+    if (id == null || seen.contains(id)) continue;
+    seen.add(id);
+    items.add(DropdownMenuItem(value: id, child: Text('${row[labelKey] ?? ''}')));
+  }
+  return items;
+}
+
 final jobWorkHostKey = GlobalKey<JobWorkHostScreenState>();
 
 enum JobWorkView { materialType, materialMaster }
@@ -262,10 +319,10 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
 
   Future<void> load() async {
     products = await repo.products();
-    units = await repo.units();
-    materialTypes = await repo.materialTypes();
-    if (unitId == null && units.isNotEmpty) unitId = units.first['id'] as int;
-    if (materialTypeId == null && materialTypes.isNotEmpty) materialTypeId = materialTypes.first['id'] as int;
+    units = _uniqueMasterRowsById(await repo.units());
+    materialTypes = _uniqueMasterRowsById(await repo.materialTypes());
+    unitId = _idPresentInRows(unitId, units) ?? _firstRowId(units);
+    materialTypeId = _idPresentInRows(materialTypeId, materialTypes) ?? _firstRowId(materialTypes);
     if (mounted) setState(() {});
   }
 
@@ -276,11 +333,11 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
   }
 
   void _select(Map<String, dynamic> p) {
-    editingId = p['id'] as int;
+    editingId = _coerceMasterId(p['id']);
     code.text = '${p['product_code'] ?? ''}';
     name.text = '${p['product_name'] ?? ''}';
-    unitId = p['unit_id'] as int?;
-    materialTypeId = p['material_type_id'] as int?;
+    unitId = _idPresentInRows(_productUnitId(p), units) ?? _firstRowId(units);
+    materialTypeId = _idPresentInRows(_productMaterialTypeId(p), materialTypes) ?? _firstRowId(materialTypes);
     unitsBound.text = '${p['units_bound'] ?? 1}';
     rawSize.text = '${p['raw_material_size'] ?? ''}';
     finishSize.text = '${p['finishing_size'] ?? ''}';
@@ -310,6 +367,8 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
     hsn.clear();
     imageBase64 = null;
     logDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
+    unitId = _firstRowId(units);
+    materialTypeId = _firstRowId(materialTypes);
     setState(() {});
   }
 
@@ -342,14 +401,29 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
       'status': 'ACTIVE',
     };
     final isNew = editingId == null;
+    final savedId = editingId;
     if (isNew) {
       row['opening_stock'] = 0;
       row['current_stock'] = 0;
-      await repo.insertProduct(row);
+      final newId = await repo.insertProduct(row);
+      editingId = newId;
     } else {
       await repo.updateProduct(editingId!, row);
     }
     await load();
+    final keepId = isNew ? editingId : savedId;
+    if (keepId != null) {
+      final match = products.where((p) => _coerceMasterId(p['id']) == keepId).toList();
+      if (match.isNotEmpty) {
+        _select(match.first);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(isNew ? 'MATERIAL MASTER SAVED' : 'MATERIAL MASTER UPDATED')),
+          );
+        }
+        return;
+      }
+    }
     _reset();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isNew ? 'MATERIAL MASTER SAVED' : 'MATERIAL MASTER UPDATED')));
@@ -390,7 +464,7 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                     itemCount: _filtered.length,
                     itemBuilder: (_, i) {
                       final p = _filtered[i];
-                      final selected = editingId == p['id'];
+                      final selected = editingId != null && editingId == _coerceMasterId(p['id']);
                       final thumb = p['image_base64'] as String?;
                       return Material(
                         color: selected ? sidebarActiveBg.withOpacity(.2) : Colors.transparent,
@@ -469,10 +543,10 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<int>(
-                        value: unitId,
+                        value: _idPresentInRows(unitId, units),
                         decoration: _fieldDec('UOM Parameter Spec *'),
-                        items: units.map((u) => DropdownMenuItem(value: u['id'] as int, child: Text('${u['code']}'))).toList(),
-                        onChanged: (v) => setState(() => unitId = v),
+                        items: _masterDropdownItems(units, 'code'),
+                        onChanged: units.isEmpty ? null : (v) => setState(() => unitId = v),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -480,12 +554,10 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<int>(
-                        value: materialTypeId,
+                        value: _idPresentInRows(materialTypeId, materialTypes),
                         decoration: _fieldDec('Material Master Type *'),
-                        items: materialTypes
-                            .map((t) => DropdownMenuItem(value: t['id'] as int, child: Text('${t['type_code']}')))
-                            .toList(),
-                        onChanged: (v) => setState(() => materialTypeId = v),
+                        items: _masterDropdownItems(materialTypes, 'type_code'),
+                        onChanged: materialTypes.isEmpty ? null : (v) => setState(() => materialTypeId = v),
                       ),
                     ),
                   ],
