@@ -38,11 +38,12 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
   final freight = (po['estimated_freight'] as num?)?.toDouble() ?? 0;
-  final subtotal = items.fold<double>(0, (s, i) => s + i.amount);
-  final cgstAmt = isInter ? 0.0 : subtotal * 0.09;
-  final sgstAmt = isInter ? 0.0 : subtotal * 0.09;
-  final igstAmt = isInter ? subtotal * 0.18 : 0.0;
-  final grand = subtotal + cgstAmt + sgstAmt + igstAmt + freight;
+  final subtotal = (po['taxable_total'] as num?)?.toDouble() ?? items.fold<double>(0, (s, i) => s + i.amount);
+  final cgstAmt = (po['cgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : subtotal * 0.09);
+  final sgstAmt = (po['sgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : subtotal * 0.09);
+  final igstAmt = (po['igst_total'] as num?)?.toDouble() ?? (isInter ? subtotal * 0.18 : 0.0);
+  final grand = (po['grand_total'] as num?)?.toDouble() ?? subtotal + cgstAmt + sgstAmt + igstAmt + freight;
+  final pAndF = freight > 0 ? freight : (grand - subtotal - cgstAmt - sgstAmt - igstAmt).clamp(0, double.infinity);
 
   return InvoiceData(
     kind: UltraBillKind.purchaseOrder,
@@ -62,7 +63,11 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
     cgstPercent: isInter ? 0 : 9,
     sgstPercent: isInter ? 0 : 9,
     igstPercent: isInter ? 18 : 0,
-    pAndF: freight,
+    pAndF: pAndF.toDouble(),
+    cgstAmountOverride: cgstAmt,
+    sgstAmountOverride: sgstAmt,
+    igstAmountOverride: igstAmt,
+    grandTotalOverride: grand,
     amountInWords: formatUltraAmountInWords(grand),
     bankName: ultraBankName(po, 'bank_name'),
     accountNo: ultraBankAccount(po, 'bank_account_no'),
