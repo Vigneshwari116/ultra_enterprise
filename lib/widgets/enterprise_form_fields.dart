@@ -36,12 +36,17 @@ BoxDecoration enterpriseInsetBoxDecoration({bool filled = false, Color? borderCo
   );
 }
 
+/// Moves keyboard focus to the next field (Enter / Next).
+void enterpriseAdvanceFocus(BuildContext context) {
+  FocusScope.of(context).nextFocus();
+}
+
 Widget enterpriseInsetFieldShell({
   required String label,
   required Widget child,
   bool filled = false,
   Color? borderColor,
-  EdgeInsets padding = const EdgeInsets.fromLTRB(10, 7, 10, 6),
+  EdgeInsets padding = const EdgeInsets.fromLTRB(8, 5, 8, 5),
 }) {
   return Container(
     decoration: enterpriseInsetBoxDecoration(filled: filled, borderColor: borderColor),
@@ -51,7 +56,7 @@ Widget enterpriseInsetFieldShell({
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label, style: enterpriseInsetLabelStyle),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
         child,
       ],
     ),
@@ -70,19 +75,29 @@ Widget enterpriseInsetTextField({
   Widget? prefixIcon,
   TextInputType? keyboardType,
   ValueChanged<String>? onChanged,
+  bool advanceFocusOnSubmit = true,
+  bool autofocus = false,
 }) {
   return enterpriseInsetFieldShell(
     label: label,
     filled: filled,
-    child: TextField(
-      controller: controller,
-      maxLines: maxLines,
-      readOnly: readOnly,
-      onTap: onTap,
-      keyboardType: keyboardType,
-      onChanged: onChanged,
-      style: style ?? enterpriseInsetValueStyle,
-      decoration: enterpriseInsetInputDecoration(suffixIcon: suffixIcon, prefixIcon: prefixIcon),
+    child: Builder(
+      builder: (ctx) {
+        return TextField(
+          controller: controller,
+          maxLines: maxLines,
+          readOnly: readOnly,
+          autofocus: autofocus,
+          onTap: onTap,
+          keyboardType: keyboardType,
+          onChanged: onChanged,
+          style: style ?? enterpriseInsetValueStyle,
+          textInputAction: advanceFocusOnSubmit ? TextInputAction.next : TextInputAction.done,
+          onSubmitted: advanceFocusOnSubmit ? (_) => enterpriseAdvanceFocus(ctx) : null,
+          decoration: enterpriseInsetInputDecoration(suffixIcon: suffixIcon, prefixIcon: prefixIcon),
+          scrollPadding: EdgeInsets.zero,
+        );
+      },
     ),
   );
 }
@@ -143,7 +158,7 @@ Widget enterpriseInsetDropdown<T>({
   Color? borderColor,
 }) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.only(bottom: 6),
     child: enterpriseInsetFieldShell(
       label: label,
       borderColor: borderColor,
@@ -193,7 +208,7 @@ Widget enterpriseValueWordsFooter({
 }) {
   final wordsBar = Container(
     width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     decoration: BoxDecoration(
       color: const Color(0xFF19232C),
       borderRadius: BorderRadius.circular(4),
@@ -208,43 +223,45 @@ Widget enterpriseValueWordsFooter({
     return wordsBar;
   }
 
-  return IntrinsicHeight(
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(child: wordsBar),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 220,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF19232C),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  chargeLabel,
-                  style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                TextField(
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(child: wordsBar),
+      const SizedBox(width: 10),
+      SizedBox(
+        width: 200,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF19232C),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                chargeLabel,
+                style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 26,
+                child: TextField(
                   controller: chargeController,
                   keyboardType: TextInputType.number,
                   onChanged: onChargeChanged,
                   textAlign: TextAlign.right,
-                  style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 16),
+                  textInputAction: TextInputAction.done,
+                  style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.1),
                   decoration: enterpriseInsetInputDecoration(),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      ],
-    ),
+      ),
+    ],
   );
 }
 
@@ -315,10 +332,30 @@ const TextStyle enterpriseMatrixCellStyle = TextStyle(
 
 final InputDecoration enterpriseMatrixInputDecoration = InputDecoration(
   isDense: true,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
   border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
 );
+
+Widget enterpriseMatrixTextField({
+  required BuildContext context,
+  Key? key,
+  TextEditingController? controller,
+  TextStyle? style,
+  TextInputType? keyboardType,
+  ValueChanged<String>? onChanged,
+}) {
+  return TextField(
+    key: key,
+    controller: controller,
+    keyboardType: keyboardType,
+    onChanged: onChanged,
+    style: style ?? enterpriseMatrixCellStyle,
+    textInputAction: TextInputAction.next,
+    onSubmitted: (_) => enterpriseAdvanceFocus(context),
+    decoration: enterpriseMatrixInputDecoration,
+  );
+}
 
 Widget enterpriseMatrixHeadCell(String label) {
   return Padding(

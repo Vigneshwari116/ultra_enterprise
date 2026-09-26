@@ -58,7 +58,7 @@ class UltraApp extends StatelessWidget {
             borderSide: const BorderSide(color: Color(0xFF17365D), width: 1.2),
           ),
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           isDense: true,
         ),
       ),

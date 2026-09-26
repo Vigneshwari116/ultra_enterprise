@@ -731,7 +731,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       );
 
   Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: 6),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -748,7 +748,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
           Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
           const SizedBox(height: 4),
           Container(height: 1, color: border),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           ...children,
         ],
       );
@@ -855,52 +855,47 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 child: Text(rows[i].hsn, style: _matrixCellStyle, overflow: TextOverflow.ellipsis),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('q$i'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('r$i'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   controller: TextEditingController(text: '${rows[i].cgstPct}'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   controller: TextEditingController(text: '${rows[i].sgstPct}'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   controller: TextEditingController(text: '${rows[i].igstPct}'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
                 ),
               ),

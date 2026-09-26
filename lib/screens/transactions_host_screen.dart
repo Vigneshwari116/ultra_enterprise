@@ -662,9 +662,16 @@ class _CashBookPanelState extends State<_CashBookPanel> {
           const SizedBox(height: 14),
           Row(
             children: [
-              _modeBtn('RECEIPT', true, green),
-              const SizedBox(width: 8),
-              _modeBtn('PAYMENT', false, red),
+              SizedBox(
+                width: 280,
+                child: Row(
+                  children: [
+                    Expanded(child: _modeBtn('RECEIPT', true, green)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _modeBtn('PAYMENT', false, red)),
+                  ],
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -673,9 +680,11 @@ class _CashBookPanelState extends State<_CashBookPanel> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  flex: 4,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
+                  flex: 5,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: Container(
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border), borderRadius: BorderRadius.circular(6)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -726,6 +735,7 @@ class _CashBookPanelState extends State<_CashBookPanel> {
                       ],
                     ),
                   ),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -763,17 +773,16 @@ class _CashBookPanelState extends State<_CashBookPanel> {
 
   Widget _modeBtn(String label, bool receipt, Color color) {
     final active = isReceipt == receipt;
-    return Expanded(
-      child: OutlinedButton(
-        onPressed: () => setState(() => isReceipt = receipt),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: active ? color : Colors.white,
-          foregroundColor: active ? Colors.white : navy,
-          side: BorderSide(color: active ? color : border),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-        child: Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+    return OutlinedButton(
+      onPressed: () => setState(() => isReceipt = receipt),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: active ? color : Colors.white,
+        foregroundColor: active ? Colors.white : navy,
+        side: BorderSide(color: active ? color : border),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        minimumSize: const Size(0, 36),
       ),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
     );
   }
 
