@@ -138,31 +138,41 @@ class _QuotationScreenState extends State<QuotationScreen> {
       if (line.isEmpty) continue;
       termRows.add({'sort_order': i + 1, 'text': line});
     }
-    final id = await repo.createQuotation({
-      'uuid': uuid,
-      'ref_no': billRef,
-      'serial_no': int.tryParse(serial),
-      'quotation_date': qtDate,
-      'validity_days': int.tryParse(validity.text) ?? 0,
-      'reference_name': refName.text,
-      'reference_date': refDate,
-      'party_kind': partyIsSupplier ? 'SUPPLIER' : 'CUSTOMER',
-      'party_id': partyId,
-      'address': address.text,
-      'city': city.text,
-      'pincode': pin.text,
-      'gstin': gstin.text,
-      'salutation': salutation.text,
-      'subject': subject.text,
-      'body_text': body.text,
-      'freight': double.tryParse(freight.text) ?? 0,
-      'net_total': netTotal,
-      'total_qty': totalQty,
-      'status': 'PENDING',
-      'created_at': DateTime.now().toIso8601String(),
-      'items': items,
-      'terms': termRows,
-    });
+    int id;
+    try {
+      id = await repo.createQuotation({
+        'uuid': uuid,
+        'ref_no': billRef,
+        'serial_no': int.tryParse(serial),
+        'quotation_date': qtDate,
+        'validity_days': int.tryParse(validity.text) ?? 0,
+        'reference_name': refName.text,
+        'reference_date': refDate,
+        'party_kind': partyIsSupplier ? 'SUPPLIER' : 'CUSTOMER',
+        'party_id': partyId,
+        'address': address.text,
+        'city': city.text,
+        'pincode': pin.text,
+        'gstin': gstin.text,
+        'salutation': salutation.text,
+        'subject': subject.text,
+        'body_text': body.text,
+        'freight': double.tryParse(freight.text) ?? 0,
+        'net_total': netTotal,
+        'total_qty': totalQty,
+        'status': 'PENDING',
+        'created_at': DateTime.now().toIso8601String(),
+        'items': items,
+        'terms': termRows,
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server save failed: $e')),
+        );
+      }
+      return;
+    }
     await reprintQuotation(id);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('QUOTATION SAVED — PRINT OPENED')));
     await load();

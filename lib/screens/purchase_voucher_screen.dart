@@ -122,22 +122,31 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
           },
         )
         .toList();
-    await repo.createPurchaseVoucher({
-      'uuid': uuid,
-      'voucher_no': int.tryParse(voucherNo),
-      'voucher_date': voucherDate,
-      'supplier_invoice_no': supplierInvoiceNo.text,
-      'supplier_invoice_date': supplierInvoiceDate,
-      'purchase_order_id': againstPoId,
-      'supplier_id': supplierId,
-      'taxable_total': taxable,
-      'cgst_total': cgst,
-      'sgst_total': sgst,
-      'igst_total': igst,
-      'grand_total': total,
-      'status': 'POSTED',
-      'items': items,
-    });
+    try {
+      await repo.createPurchaseVoucher({
+        'uuid': uuid,
+        'voucher_no': int.tryParse(voucherNo),
+        'voucher_date': voucherDate,
+        'supplier_invoice_no': supplierInvoiceNo.text,
+        'supplier_invoice_date': supplierInvoiceDate,
+        'purchase_order_id': againstPoId,
+        'supplier_id': supplierId,
+        'taxable_total': taxable,
+        'cgst_total': cgst,
+        'sgst_total': sgst,
+        'igst_total': igst,
+        'grand_total': total,
+        'status': 'POSTED',
+        'items': items,
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server save failed: $e')),
+        );
+      }
+      return;
+    }
     if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('PURCHASE VOUCHER POSTED — STOCK UPDATED')));
     await load();
     setState(() {

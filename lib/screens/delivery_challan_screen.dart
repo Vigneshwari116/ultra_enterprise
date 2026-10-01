@@ -216,35 +216,45 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
           },
         )
         .toList();
-    final id = await repo.createDeliveryChallan({
-      'uuid': uuid,
-      'dc_type': kind.dbType,
-      'serial_no': int.tryParse(serialNo),
-      'doc_id': docId,
-      'document_date': docDate,
-      'po_ref_no': poRef.text,
-      'po_ref_date': poRefDate,
-      'total_packages': int.tryParse(packages.text) ?? 0,
-      'vehicle_dispatch': vehicle.text,
-      'credit_due_days': int.tryParse(creditDays.text) ?? 0,
-      'eway_bill_no': eway.text,
-      'validity_days': int.tryParse(validityDays.text) ?? 0,
-      'party_kind': parts[0],
-      'party_id': int.parse(parts[1]),
-      'billing_address': billingAddress.text,
-      'city': city.text,
-      'pincode': pin.text,
-      'gstin': gstin.text,
-      'account_ref': accountRef.text,
-      'delivery_site_address': deliverySite.text,
-      'fwd_charge': fwdVal,
-      'base_value': baseValue,
-      'tax_total': taxTotal,
-      'grand_total': grandTotal,
-      'total_pcs': totalPcs,
-      'created_at': DateTime.now().toIso8601String(),
-      'items': items,
-    });
+    int id;
+    try {
+      id = await repo.createDeliveryChallan({
+        'uuid': uuid,
+        'dc_type': kind.dbType,
+        'serial_no': int.tryParse(serialNo),
+        'doc_id': docId,
+        'document_date': docDate,
+        'po_ref_no': poRef.text,
+        'po_ref_date': poRefDate,
+        'total_packages': int.tryParse(packages.text) ?? 0,
+        'vehicle_dispatch': vehicle.text,
+        'credit_due_days': int.tryParse(creditDays.text) ?? 0,
+        'eway_bill_no': eway.text,
+        'validity_days': int.tryParse(validityDays.text) ?? 0,
+        'party_kind': parts[0],
+        'party_id': int.parse(parts[1]),
+        'billing_address': billingAddress.text,
+        'city': city.text,
+        'pincode': pin.text,
+        'gstin': gstin.text,
+        'account_ref': accountRef.text,
+        'delivery_site_address': deliverySite.text,
+        'fwd_charge': fwdVal,
+        'base_value': baseValue,
+        'tax_total': taxTotal,
+        'grand_total': grandTotal,
+        'total_pcs': totalPcs,
+        'created_at': DateTime.now().toIso8601String(),
+        'items': items,
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server save failed: $e')),
+        );
+      }
+      return;
+    }
     await reprintDeliveryChallan(id);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('DELIVERY CHALLAN SAVED — PRINT OPENED')));
