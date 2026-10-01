@@ -96,7 +96,13 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   double get igst => rows.fold(0, (s, r) => s + _lineTotals(r).igst);
   double get total => taxable + cgst + sgst + igst;
 
-  @override void dispose(){for(final c in [po,challan,packages,vehicle,due,eway,customerAddress,city,pin,gstin,bank,account,shipping,fwdCharge])c.dispose();super.dispose();}
+  @override
+  void dispose() {
+    for (final c in [po, challan, packages, vehicle, due, eway, customerAddress, city, pin, gstin, bank, account, shipping, fwdCharge]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _pickDate(String currentIso, ValueChanged<String> onPicked) async {
     final now = DateTime.now();
@@ -110,11 +116,6 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     if (picked != null) {
       onPicked(formatIsoDate(picked));
     }
-  }
-
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
   double get fwd => double.tryParse(fwdCharge.text) ?? 0;
@@ -489,16 +490,8 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       ...children,
     ],
   );
-  String _amountInWords(double v) => payableAmountInWords(v);
-
   static const _matrixHeadStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 7.5, height: 1.15);
   static const _matrixCellStyle = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
-  static final _matrixInputDecoration = InputDecoration(
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
-  );
 
   Widget _matrixHeadCell(String label) {
     return Padding(
@@ -531,7 +524,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
         ...List.generate(rows.length, (i) {
           return TableRow(
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: border.withOpacity(.6))),
+              border: Border(bottom: BorderSide(color: border.withValues(alpha: .6))),
             ),
             children: [
               Padding(

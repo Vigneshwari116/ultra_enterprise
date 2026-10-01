@@ -30,7 +30,6 @@ Future<InvoiceData?> adjustmentNoteInvoiceData(int noteId) async {
         (it) {
           final qty = (it['quantity'] as num?)?.toDouble() ?? 0;
           final rate = (it['rate'] as num?)?.toDouble() ?? 0;
-          final ext = (it['extended_value'] as num?)?.toDouble();
           return InvoiceItem(
             description: '${it['description'] ?? ''}',
             hsnCode: '${it['hsn'] ?? ''}',

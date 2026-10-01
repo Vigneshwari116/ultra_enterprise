@@ -133,7 +133,7 @@ class UltraRepository {
     final zone = out.remove('state_zone');
     if (zone != null && out['state_zone_id'] == null) {
       final id = _stateZoneIdByLabel['$zone'] ??
-          _stateZoneIdByLabel['${zone.toString().toUpperCase()}'];
+          _stateZoneIdByLabel[zone.toString().toUpperCase()];
       if (id != null) out['state_zone_id'] = id;
     }
     if (out.containsKey('challan_no')) {

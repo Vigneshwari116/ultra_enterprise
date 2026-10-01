@@ -16,7 +16,6 @@ abstract class SalesReportsScreenState extends State<SalesReportsScreen> {
 }
 
 const _navy = Color(0xFF122746);
-const _navy2 = Color(0xFF19385F);
 const _pageBg = Color(0xFFF1F4F8);
 const _border = Color(0xFFD8DEE7);
 const _green = Color(0xFF2FAE55);
@@ -459,7 +458,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      color: accent.withOpacity(.15),
+                      color: accent.withValues(alpha: .15),
                       child: Text('${r['note_type']}', style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800, color: accent)),
                     ),
                   ],
@@ -697,11 +696,11 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
         Expanded(flex: 1, child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
         Expanded(flex: 1, child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))),
         Expanded(flex: 4, child: Text('${r['customer_name']}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['taxable_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['cgst_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['sgst_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['igst_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['grand_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
+        Expanded(child: Text(_asDouble(r['taxable_total']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+        Expanded(child: Text(_asDouble(r['cgst_total']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+        Expanded(child: Text(_asDouble(r['sgst_total']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+        Expanded(child: Text(_asDouble(r['igst_total']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+        Expanded(child: Text(_asDouble(r['grand_total']).toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
       ]),
     );
   }
@@ -715,7 +714,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           DropdownButtonFormField<String>(
-            value: selectedCustomer,
+            initialValue: selectedCustomer,
             isExpanded: true,
             decoration: const InputDecoration(hintText: 'CHOOSE OR SELECT DEBTOR CUSTOMER CLIENT REGISTER PROFILE...', filled: true, fillColor: Colors.white),
             items: customers.map((c) => DropdownMenuItem<String>(value: '${c['customer_name']}', child: Text('${c['id']} - ${c['customer_name']}', style: const TextStyle(fontSize: 10)))).toList(),

@@ -154,7 +154,6 @@ const List<String> ultraInvoiceCopyLabels = [
 ];
 
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
-final PdfColor _grey = PdfColor.fromInt(0xFF748094);
 
 const int _minItemRows = 8;
 

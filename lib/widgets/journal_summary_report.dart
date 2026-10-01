@@ -12,7 +12,7 @@ Future<void> printJournalSummaryReport(List<Map<String, dynamic>> lines) async {
         pw.Text('JOURNAL SUMMARY REGISTER', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
         pw.Text('DOUBLE ENTRY FINANCIAL ADJUSTMENT INTERCEPTOR JOURNAL', style: const pw.TextStyle(fontSize: 9)),
         pw.SizedBox(height: 12),
-        pw.Table.fromTextArray(
+        pw.TableHelper.fromTextArray(
           headers: ['VOUCHER DATE', 'NARRATION', 'DEBIT (TO) ACCOUNT', 'CREDIT (BY) ACCOUNT', 'AMOUNT'],
           data: lines
               .map((r) => [

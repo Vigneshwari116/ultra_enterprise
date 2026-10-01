@@ -108,7 +108,7 @@ class SectionHeader extends StatelessWidget {
             height: 28,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.12),
+              color: Colors.white.withValues(alpha: .12),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(number,

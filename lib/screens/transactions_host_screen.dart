@@ -364,7 +364,7 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
         ...List.generate(rows.length, (i) {
           final r = rows[i];
           return TableRow(
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: border.withOpacity(.6)))),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: border.withValues(alpha: .6)))),
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
