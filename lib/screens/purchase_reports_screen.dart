@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
-import '../widgets/purchase_Report.dart';
+import '../widgets/purchase_report.dart';
 
 class PurchaseReportsScreen extends StatefulWidget {
   const PurchaseReportsScreen({super.key});
@@ -206,7 +206,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       Row(children: [
         Container(
           padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(color: color.withOpacity(.12), shape: BoxShape.circle),
+          decoration: BoxDecoration(color: color.withValues(alpha: .12), shape: BoxShape.circle),
           child: Icon(icon, size: 15, color: color),
         ),
         const SizedBox(width: 8),
@@ -329,7 +329,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
 
   Widget _badge(String text, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(color: color.withOpacity(.12), borderRadius: BorderRadius.circular(3)),
+    decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(3)),
     child: Text(text, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: color)),
   );
 

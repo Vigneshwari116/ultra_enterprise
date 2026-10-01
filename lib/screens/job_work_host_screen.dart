@@ -203,7 +203,7 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
                       final id = t['id'] as int;
                       final selected = editingId == id;
                       return Material(
-                        color: selected ? sidebarActiveBg.withOpacity(.25) : Colors.transparent,
+                        color: selected ? sidebarActiveBg.withValues(alpha: .25) : Colors.transparent,
                         child: InkWell(
                           onTap: () => _select(t),
                           child: Padding(
@@ -491,7 +491,7 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                       final selected = editingId != null && editingId == _coerceMasterId(p['id']);
                       final thumb = p['image_base64'] as String?;
                       return Material(
-                        color: selected ? sidebarActiveBg.withOpacity(.2) : Colors.transparent,
+                        color: selected ? sidebarActiveBg.withValues(alpha: .2) : Colors.transparent,
                         child: InkWell(
                           onTap: () => _select(p),
                           child: Padding(
@@ -567,7 +567,7 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<int>(
-                        value: _idPresentInRows(unitId, units),
+                        initialValue: _idPresentInRows(unitId, units),
                         decoration: _fieldDec('UOM Parameter Spec *'),
                         items: _masterDropdownItems(units, 'code'),
                         onChanged: units.isEmpty ? null : (v) => setState(() => unitId = v),
@@ -578,7 +578,7 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<int>(
-                        value: _idPresentInRows(materialTypeId, materialTypes),
+                        initialValue: _idPresentInRows(materialTypeId, materialTypes),
                         decoration: _fieldDec('Material Master Type *'),
                         items: _masterDropdownItems(materialTypes, 'type_code'),
                         onChanged: materialTypes.isEmpty ? null : (v) => setState(() => materialTypeId = v),

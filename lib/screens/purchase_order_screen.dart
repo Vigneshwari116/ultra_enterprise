@@ -149,11 +149,6 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     }
   }
 
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
-  }
-
   String _billNoForRow(Map<String, dynamic> po) {
     final stored = '${po['po_bill_no'] ?? ''}'.trim();
     if (stored.isNotEmpty) return stored;
@@ -298,7 +293,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   children: [
                     Text('PURCHASE ORDERS LOGS DIRECTORY',
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy, letterSpacing: .3)),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text('REAL-TIME PROCUREMENT ORDER REGISTER & SUPPLIER COMMITMENT TRACKER',
                         style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF748094), letterSpacing: .25)),
                   ],
@@ -763,12 +758,6 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 
   static const _matrixHeadStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 7.5, height: 1.15);
   static const _matrixCellStyle = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
-  static final _matrixInputDecoration = InputDecoration(
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
-  );
 
   Widget _matrixHeadCell(String label) {
     return Padding(
@@ -800,7 +789,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
         ),
         ...List.generate(rows.length, (i) {
           return TableRow(
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: border.withOpacity(.6)))),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: border.withValues(alpha: .6)))),
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),

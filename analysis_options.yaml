@@ -1,5 +1,6 @@
 analyzer:
   exclude:
+    - project_backup/**
     - build/**
     - android/**
     - ios/**

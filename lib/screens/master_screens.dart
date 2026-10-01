@@ -237,7 +237,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
                         margin: const EdgeInsets.symmetric(vertical: 3),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
-                          color: selected ? sidebarActiveBg : Colors.white.withOpacity(.04),
+                          color: selected ? sidebarActiveBg : Colors.white.withValues(alpha: .04),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Row(
@@ -956,7 +956,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
                         margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                         decoration: BoxDecoration(
-                          color: selected ? sidebarActiveBg : Colors.white.withOpacity(.04),
+                          color: selected ? sidebarActiveBg : Colors.white.withValues(alpha: .04),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Row(children: [
@@ -971,7 +971,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
                                 const SizedBox(height: 3),
                                 Text('Mob: ${(c['primary_mobile'] ?? '').toString().isEmpty ? 'N/A' : c['primary_mobile']} | GST: ${(c['gstin'] ?? '').toString().isEmpty ? 'N/A' : c['gstin']}',
                                     style: TextStyle(
-                                        color: selected ? navy.withOpacity(.7) : Colors.white60,
+                                        color: selected ? navy.withValues(alpha: .7) : Colors.white60,
                                         fontSize: 9.5, fontWeight: FontWeight.w600)),
                               ],
                             ),
@@ -1002,7 +1002,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
                     const SizedBox(width: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: amber.withOpacity(.15), borderRadius: BorderRadius.circular(3)),
+                      decoration: BoxDecoration(color: amber.withValues(alpha: .15), borderRadius: BorderRadius.circular(3)),
                       child: const Text('EDITING', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: amber)),
                     ),
                   ],
@@ -1129,7 +1129,7 @@ class _ProductMasterScreenState extends State<ProductMasterScreen>{
   Future<void> load()async{data=await UltraRepository.instance.products();if(mounted)setState((){});}
   Future<void> add()async{
     final n=TextEditingController(), code=TextEditingController(), hsn=TextEditingController(), rate=TextEditingController(text:'0');
-    await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('ADD MATERIAL'),content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:code,decoration:const InputDecoration(labelText:'PRODUCT CODE')),TextField(controller:n,decoration:const InputDecoration(labelText:'PRODUCT NAME')),TextField(controller:hsn,decoration:const InputDecoration(labelText:'HSN')),TextField(controller:rate,decoration:const InputDecoration(labelText:'RATE'))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('CANCEL')),ElevatedButton(onPressed:()async{await UltraRepository.instance.insertProduct({'product_code':code.text,'product_name':n.text,'unit_id':1,'hsn':hsn.text,'rate':double.tryParse(rate.text)??0,'opening_stock':0,'current_stock':0});if(context.mounted)Navigator.pop(context);await load();},child:const Text('SAVE'))]));
+    await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('ADD MATERIAL'),content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:code,decoration:const InputDecoration(labelText:'PRODUCT CODE')),TextField(controller:n,decoration:const InputDecoration(labelText:'PRODUCT NAME')),TextField(controller:hsn,decoration:const InputDecoration(labelText:'HSN')),TextField(controller:rate,decoration:const InputDecoration(labelText:'RATE'))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('CANCEL')),ElevatedButton(onPressed:()async{await UltraRepository.instance.insertProduct({'product_code':code.text,'product_name':n.text,'unit_id':1,'hsn':hsn.text,'rate':double.tryParse(rate.text)??0,'opening_stock':0,'current_stock':0});if (!mounted) return; Navigator.pop(context);await load();},child:const Text('SAVE'))]));
   }
   @override Widget build(BuildContext context)=>MasterPage(title:'PRODUCT / MATERIAL MASTER',section:'04',tableTitle:'MATERIAL PRODUCT CONFIGURATION',columns:const['CODE','PRODUCT','UOM','HSN','RATE','STOCK','STATUS'],rows:data.map((x)=>['${x['product_code']}','${x['product_name']}','${x['uom_code']}','${x['hsn']??''}','${x['rate']}','${x['current_stock']}','${x['status']}']).toList(),onAdd:add);
 }
@@ -1405,7 +1405,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
                         margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                         decoration: BoxDecoration(
-                          color: selected ? sidebarActiveBg : Colors.white.withOpacity(.04),
+                          color: selected ? sidebarActiveBg : Colors.white.withValues(alpha: .04),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Row(children: [
@@ -1420,7 +1420,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
                                 const SizedBox(height: 3),
                                 Text('Mob: ${(s['primary_mobile'] ?? '').toString().isEmpty ? 'N/A' : s['primary_mobile']} | GST: ${(s['gstin'] ?? '').toString().isEmpty ? 'N/A' : s['gstin']}',
                                     style: TextStyle(
-                                        color: selected ? navy.withOpacity(.7) : Colors.white60,
+                                        color: selected ? navy.withValues(alpha: .7) : Colors.white60,
                                         fontSize: 9.5, fontWeight: FontWeight.w600)),
                               ],
                             ),
@@ -1451,7 +1451,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
                     const SizedBox(width: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: amber.withOpacity(.15), borderRadius: BorderRadius.circular(3)),
+                      decoration: BoxDecoration(color: amber.withValues(alpha: .15), borderRadius: BorderRadius.circular(3)),
                       child: const Text('EDITING', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: amber)),
                     ),
                   ],

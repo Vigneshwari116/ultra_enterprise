@@ -100,11 +100,6 @@ class _QuotationScreenState extends State<QuotationScreen> {
     if (picked != null) on(formatIsoDate(picked));
   }
 
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
-  }
-
   String _refForRow(Map<String, dynamic> q) {
     final stored = '${q['ref_no'] ?? ''}'.trim();
     if (stored.isNotEmpty) return stored;
@@ -206,7 +201,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     Text('QUOTATION LOGS DIRECTORY', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
                     Text('COMMERCIAL QUOTATIONS TRACK REVERSALS AUDIT TRAIL REPOSITORY',
                         style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600)),

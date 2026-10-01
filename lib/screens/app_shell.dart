@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:ultra_enterprise/screens/purchase_reports_Screen.dart';
+import 'package:ultra_enterprise/screens/purchase_reports_screen.dart';
 import '../widgets/enterprise_widgets.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
@@ -213,7 +213,7 @@ class _AppShellState extends State<AppShell> {
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: _closeSidebar,
-                  child: ColoredBox(color: Colors.black.withOpacity(0.45)),
+                  child: ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
                 ),
               ),
               Positioned(
@@ -395,9 +395,9 @@ class _AppShellState extends State<AppShell> {
               margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
               decoration: BoxDecoration(
-                color: red.withOpacity(.12),
+                color: red.withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: red.withOpacity(.35)),
+                border: Border.all(color: red.withValues(alpha: .35)),
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -481,7 +481,7 @@ class _AppShellState extends State<AppShell> {
             margin: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
             decoration: BoxDecoration(
-              color: childSelected && !expanded ? Colors.white.withOpacity(.06) : Colors.transparent,
+              color: childSelected && !expanded ? Colors.white.withValues(alpha: .06) : Colors.transparent,
               borderRadius: BorderRadius.circular(3),
             ),
             child: Row(

@@ -289,7 +289,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     Text('INVENTORY VOUCHERS DIRECTORY', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
                     Text('LOGISTICS DISPATCH MATERIAL MOVEMENT RUNNING AUDIT TRAILS',
                         style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF748094))),

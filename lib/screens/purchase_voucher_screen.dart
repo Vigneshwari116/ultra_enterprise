@@ -74,7 +74,13 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     if(mounted)setState((){});
   }
 
-  @override void dispose(){for(final c in [supplierInvoiceNo,remarks,supplierAddress,city,pin,gstin,bank,account])c.dispose();super.dispose();}
+  @override
+  void dispose() {
+    for (final c in [supplierInvoiceNo, remarks, supplierAddress, city, pin, gstin, bank, account]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _pickDate(String currentIso, ValueChanged<String> onPicked) async {
     final now = DateTime.now();
@@ -86,11 +92,6 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
       lastDate: DateTime(now.year + 1),
     );
     if (picked != null) onPicked(formatIsoDate(picked));
-  }
-
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
   Future<void> save()async{
@@ -381,7 +382,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
         ...List.generate(rows.length, (i) {
           return TableRow(
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: border.withOpacity(.6))),
+              border: Border(bottom: BorderSide(color: border.withValues(alpha: .6))),
             ),
             children: [
               Padding(
@@ -513,7 +514,6 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     );
   }
 
-  String _amountInWords(double v) => payableAmountInWords(v);
 }
 
 class _PvRow{
