@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 
 import '../config/ultra_config.dart';
@@ -15,6 +17,58 @@ class UltraRepository {
   String newUuid() => const Uuid().v4();
 
   // ---- HTTP helpers ----
+
+  bool _isApiNotFound(Object e) {
+    final msg = e.toString();
+    return msg.contains('404') || msg.contains('Route not found');
+  }
+
+  Future<dynamic> _safeGet(String path) async {
+    try {
+      return await _api.get(path);
+    } catch (e) {
+      if (_isApiNotFound(e)) return null;
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _getList(String path) async {
+    return _asRowList(await _safeGet(path)).map(_flattenEnvelopeRow).toList();
+  }
+
+  /// Merges VPS envelope rows `{ id, status, data: "{...json...}" }` into flat maps.
+  Map<String, dynamic> _flattenEnvelopeRow(Map<String, dynamic> row) {
+    final out = Map<String, dynamic>.from(row);
+    final data = out.remove('data');
+    Map<String, dynamic>? inner;
+    if (data is String && data.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(data);
+        if (decoded is Map) {
+          inner = Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {}
+    } else if (data is Map) {
+      inner = Map<String, dynamic>.from(data);
+    }
+    if (inner != null) {
+      for (final entry in inner.entries) {
+        out.putIfAbsent(entry.key, () => entry.value);
+      }
+    }
+    return out;
+  }
+
+  Map<String, dynamic> _normalizeSalesInvoiceItem(Map<String, dynamic> it) {
+    final out = Map<String, dynamic>.from(it);
+    out['hsn'] ??= out['hsn_code'];
+    out['taxable'] ??= out['taxable_amount'];
+    out['cgst'] ??= out['cgst_amount'];
+    out['sgst'] ??= out['sgst_amount'];
+    out['igst'] ??= out['igst_amount'];
+    out['total'] ??= out['compound_total'];
+    return out;
+  }
 
   List<Map<String, dynamic>> _asRowList(dynamic decoded) {
     if (decoded == null) return [];
@@ -161,7 +215,22 @@ class UltraRepository {
     try {
       final decoded = await _api.get(path);
       if (decoded == null) return null;
-      return _asRow(decoded);
+      final row = _asRow(decoded);
+      if (row['invoice'] is Map) {
+        final invoice = _normalizeSalesInvoiceRow(
+          _flattenEnvelopeRow(Map<String, dynamic>.from(row['invoice'] as Map)),
+        );
+        final items = _asRowList(row['items']).map(_normalizeSalesInvoiceItem).toList();
+        return {...row, 'invoice': invoice, 'items': items};
+      }
+      final items = row['items'];
+      if (items != null) {
+        return {
+          ...row,
+          'items': _asRowList(items).map(_normalizeSalesInvoiceItem).toList(),
+        };
+      }
+      return _flattenEnvelopeRow(row);
     } catch (_) {
       return null;
     }
@@ -171,7 +240,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> units() async {
     if (UltraConfig.persistLocally) return _db.units();
-    return _asRowList(await _api.get('/api/units'));
+    return await _getList('/api/units');
   }
 
   Future<int> insertUnit(Map<String, dynamic> row) async {
@@ -193,7 +262,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> customers() async {
     if (UltraConfig.persistLocally) return _db.customers();
-    return _asRowList(await _api.get('/api/customers'));
+    return await _getList('/api/customers');
   }
 
   Future<int> insertCustomer(Map<String, dynamic> row) async {
@@ -209,7 +278,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> suppliers() async {
     if (UltraConfig.persistLocally) return _db.suppliers();
-    return _asRowList(await _api.get('/api/suppliers'));
+    return await _getList('/api/suppliers');
   }
 
   Future<int> insertSupplier(Map<String, dynamic> row) async {
@@ -225,7 +294,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> products() async {
     if (UltraConfig.persistLocally) return _db.products();
-    return _asRowList(await _api.get('/api/products')).map(_normalizeProductRow).toList();
+    return (await _getList('/api/products')).map(_normalizeProductRow).toList();
   }
 
   Future<int> insertProduct(Map<String, dynamic> row) async {
@@ -241,7 +310,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> ledgerAccounts() async {
     if (UltraConfig.persistLocally) return _db.ledgerAccounts();
-    return _asRowList(await _api.get('/api/ledger-accounts'));
+    return await _getList('/api/ledger-accounts');
   }
 
   Future<int> insertLedger(Map<String, dynamic> row) async {
@@ -257,7 +326,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> materialTypes() async {
     if (UltraConfig.persistLocally) return _db.materialTypes();
-    return _asRowList(await _api.get('/api/material-types'));
+    return await _getList('/api/material-types');
   }
 
   Future<int> insertMaterialType(Map<String, dynamic> row) async {
@@ -292,7 +361,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> salesInvoicesWithParty() async {
     if (UltraConfig.persistLocally) return _db.salesInvoicesWithParty();
-    final rows = _asRowList(await _api.get('/api/sales-invoices'));
+    final rows = await _getList('/api/sales-invoices');
     return rows.map(_normalizeSalesInvoiceRow).toList();
   }
 
@@ -319,8 +388,8 @@ class UltraRepository {
     final doc = await _getDocument('/api/sales-invoices/$invoiceId');
     if (doc == null) return null;
     final raw = Map<String, dynamic>.from(doc['invoice'] as Map? ?? doc);
-    final items = _asRowList(doc['items'] ?? raw.remove('items'));
-    final invoice = _normalizeSalesInvoiceRow(raw);
+    final items = _asRowList(doc['items'] ?? raw.remove('items')).map(_normalizeSalesInvoiceItem).toList();
+    final invoice = _normalizeSalesInvoiceRow(_flattenEnvelopeRow(raw));
     return {'invoice': invoice, 'items': items};
   }
 
@@ -328,7 +397,7 @@ class UltraRepository {
 
   Future<int> nextPurchaseOrderNo() async {
     if (UltraConfig.persistLocally) return _db.nextPurchaseOrderNo();
-    final list = _asRowList(await _api.get('/api/purchase-orders'));
+    final list = await _getList('/api/purchase-orders');
     var max = 0;
     for (final row in list) {
       final n = (row['po_no'] as num?)?.toInt() ?? 0;
@@ -348,7 +417,7 @@ class UltraRepository {
     if (doc == null) return null;
     final order = Map<String, dynamic>.from(doc['order'] as Map? ?? doc);
     final items = _asRowList(doc['items'] ?? order.remove('items'));
-    return {'order': order, 'items': items};
+    return {'order': _flattenEnvelopeRow(order), 'items': items};
   }
 
   // ---- Delivery challans ----
@@ -366,24 +435,24 @@ class UltraRepository {
     if (doc == null) return null;
     final challan = Map<String, dynamic>.from(doc['challan'] as Map? ?? doc);
     final items = _asRowList(doc['items'] ?? challan.remove('items'));
-    return {'challan': challan, 'items': items};
+    return {'challan': _flattenEnvelopeRow(challan), 'items': items};
   }
 
   Future<int> nextDeliveryChallanSerial(String dcType) async {
     if (UltraConfig.persistLocally) return _db.nextDeliveryChallanSerial(dcType);
-    final list = _asRowList(await _api.get('/api/delivery-challans?dc_type=$dcType'));
+    final list = await _getList('/api/delivery-challans?dc_type=$dcType');
     return list.length + 1;
   }
 
   Future<List<Map<String, dynamic>>> deliveryChallansList({String? dcType}) async {
     if (UltraConfig.persistLocally) return _db.deliveryChallansList(dcType: dcType);
     final path = dcType == null ? '/api/delivery-challans' : '/api/delivery-challans?dc_type=$dcType';
-    return _asRowList(await _api.get(path));
+    return await _getList(path);
   }
 
   Future<List<Map<String, dynamic>>> purchaseOrdersWithParty() async {
     if (UltraConfig.persistLocally) return _db.purchaseOrdersWithParty();
-    return _asRowList(await _api.get('/api/purchase-orders'));
+    return await _getList('/api/purchase-orders');
   }
 
   Future<void> updatePurchaseOrderStatus(int purchaseOrderId, String status) async {
@@ -396,13 +465,13 @@ class UltraRepository {
 
   Future<int> nextQuotationSerial() async {
     if (UltraConfig.persistLocally) return _db.nextQuotationSerial();
-    final list = _asRowList(await _api.get('/api/quotations'));
+    final list = await _getList('/api/quotations');
     return list.length + 1;
   }
 
   Future<List<Map<String, dynamic>>> quotationsWithParty() async {
     if (UltraConfig.persistLocally) return _db.quotationsWithParty();
-    return _asRowList(await _api.get('/api/quotations'));
+    return await _getList('/api/quotations');
   }
 
   Future<void> updateQuotationStatus(int quotationId, String status) async {
@@ -415,13 +484,13 @@ class UltraRepository {
 
   Future<int> nextAdjustmentNoteNo(String noteType) async {
     if (UltraConfig.persistLocally) return _db.nextAdjustmentNoteNo(noteType);
-    final list = _asRowList(await _api.get('/api/adjustment-notes?note_type=$noteType'));
+    final list = await _getList('/api/adjustment-notes?note_type=$noteType');
     return list.length + 1;
   }
 
   Future<List<Map<String, dynamic>>> cashPassbookEntries() async {
     if (UltraConfig.persistLocally) return _db.cashPassbookEntries();
-    return _asRowList(await _api.get('/api/cash-passbook'));
+    return await _getList('/api/cash-passbook');
   }
 
   // ---- Quotations ----
@@ -451,7 +520,7 @@ class UltraRepository {
     final quotation = Map<String, dynamic>.from(doc['quotation'] as Map? ?? doc);
     final items = _asRowList(doc['items'] ?? quotation.remove('items'));
     final terms = _asRowList(doc['terms'] ?? quotation.remove('terms'));
-    return {'quotation': quotation, 'items': items, 'terms': terms};
+    return {'quotation': _flattenEnvelopeRow(quotation), 'items': items, 'terms': terms};
   }
 
   // ---- Purchase vouchers ----
@@ -474,7 +543,7 @@ class UltraRepository {
 
   Future<int> nextPurchaseVoucherNo() async {
     if (UltraConfig.persistLocally) return _db.nextPurchaseVoucherNo();
-    final list = _asRowList(await _api.get('/api/purchase-vouchers'));
+    final list = await _getList('/api/purchase-vouchers');
     var max = 0;
     for (final row in list) {
       final n = (row['voucher_no'] as num?)?.toInt() ?? 0;
@@ -485,7 +554,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> openPurchaseOrders() async {
     if (UltraConfig.persistLocally) return _db.openPurchaseOrders();
-    return _asRowList(await _api.get('/api/purchase-orders?status=open'));
+    return await _getList('/api/purchase-orders?status=open');
   }
 
   Future<List<Map<String, dynamic>>> purchaseOrderItems(int purchaseOrderId) async {
@@ -537,12 +606,12 @@ class UltraRepository {
     if (doc == null) return null;
     final note = Map<String, dynamic>.from(doc['note'] as Map? ?? doc);
     final items = _asRowList(doc['items'] ?? note.remove('items'));
-    return {'note': note, 'items': items};
+    return {'note': _flattenEnvelopeRow(note), 'items': items};
   }
 
   Future<List<Map<String, dynamic>>> adjustmentNotesWithParty() async {
     if (UltraConfig.persistLocally) return _db.adjustmentNotesWithParty();
-    return _asRowList(await _api.get('/api/adjustment-notes'));
+    return await _getList('/api/adjustment-notes');
   }
 
   Future<int> insertReceipt(Map<String, dynamic> row) async {
@@ -557,17 +626,17 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> allReceipts() async {
     if (UltraConfig.persistLocally) return _db.allReceipts();
-    return _asRowList(await _api.get('/api/receipts'));
+    return await _getList('/api/receipts');
   }
 
   Future<List<Map<String, dynamic>>> allPayments() async {
     if (UltraConfig.persistLocally) return _db.allPayments();
-    return _asRowList(await _api.get('/api/payments'));
+    return await _getList('/api/payments');
   }
 
   Future<List<Map<String, dynamic>>> purchaseVouchersWithParty() async {
     if (UltraConfig.persistLocally) return _db.purchaseVouchersWithParty();
-    return _asRowList(await _api.get('/api/purchase-vouchers'));
+    return await _getList('/api/purchase-vouchers');
   }
 
   Future<List<Map<String, dynamic>>> purchaseVoucherItems(int voucherId) async {
@@ -581,8 +650,9 @@ class UltraRepository {
     if (UltraConfig.persistLocally) return _db.purchaseVoucherPrintBundle(voucherId);
     final doc = await _getDocument('/api/purchase-vouchers/$voucherId');
     if (doc == null) return null;
+    final voucher = Map<String, dynamic>.from(doc['voucher'] as Map? ?? doc);
     return {
-      'voucher': Map<String, dynamic>.from(doc as Map),
+      'voucher': _flattenEnvelopeRow(voucher),
       'items': _asRowList(doc['items']),
     };
   }
@@ -590,7 +660,7 @@ class UltraRepository {
   Future<Map<String, dynamic>?> supplierById(int id) async {
     if (UltraConfig.persistLocally) return _db.supplierById(id);
     try {
-      return _asRow(await _api.get('/api/suppliers/$id'));
+      return _flattenEnvelopeRow(_asRow(await _api.get('/api/suppliers/$id')));
     } catch (_) {
       for (final s in await suppliers()) {
         if (s['id'] == id) return s;
@@ -627,7 +697,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> journalSummaryLines() async {
     if (UltraConfig.persistLocally) return _db.journalSummaryLines();
-    return _asRowList(await _api.get('/api/journal-vouchers/summary'));
+    return await _getList('/api/journal-vouchers/summary');
   }
 
   Future<List<Map<String, String>>> masterAccountDirectory() async {

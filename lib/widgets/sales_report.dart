@@ -130,7 +130,7 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
       .map(
         (it) => InvoiceItem(
           description: '${it['description'] ?? ''}',
-          hsnCode: '${it['hsn'] ?? ''}',
+          hsnCode: '${it['hsn'] ?? it['hsn_code'] ?? ''}',
           qty: toDouble(it['quantity']),
           price: toDouble(it['rate']),
         ),

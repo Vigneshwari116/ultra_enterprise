@@ -220,29 +220,38 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
           },
         )
         .toList();
-    final orderId = await repo.createPurchaseOrder({
-      'uuid': uuid,
-      'po_bill_no': billNo,
-      'po_no': int.tryParse(poNo),
-      'po_date': poDate,
-      'delivery_due_date': dueDate,
-      'supplier_ref_no': supplierRef.text,
-      'total_packages': int.tryParse(packages.text) ?? 0,
-      'delivery_mode': deliveryMode.text,
-      'remarks': remarks.text,
-      'supplier_id': supplierId,
-      'state_zone': zone,
-      'due_days': int.tryParse(dueDays.text) ?? 0,
-      'estimated_freight': freightVal,
-      'taxable_total': taxable,
-      'cgst_total': cgst,
-      'sgst_total': sgst,
-      'igst_total': igst,
-      'grand_total': total,
-      'status': 'PENDING',
-      'items': items,
-    });
-    return orderId;
+    try {
+      final orderId = await repo.createPurchaseOrder({
+        'uuid': uuid,
+        'po_bill_no': billNo,
+        'po_no': int.tryParse(poNo),
+        'po_date': poDate,
+        'delivery_due_date': dueDate,
+        'supplier_ref_no': supplierRef.text,
+        'total_packages': int.tryParse(packages.text) ?? 0,
+        'delivery_mode': deliveryMode.text,
+        'remarks': remarks.text,
+        'supplier_id': supplierId,
+        'state_zone': zone,
+        'due_days': int.tryParse(dueDays.text) ?? 0,
+        'estimated_freight': freightVal,
+        'taxable_total': taxable,
+        'cgst_total': cgst,
+        'sgst_total': sgst,
+        'igst_total': igst,
+        'grand_total': total,
+        'status': 'PENDING',
+        'items': items,
+      });
+      return orderId;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server save failed: $e')),
+        );
+      }
+      return null;
+    }
   }
 
   void _resetForm() {
