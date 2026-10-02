@@ -8,9 +8,11 @@ import 'routes/journal.dart';
 import 'routes/ledger.dart';
 import 'routes/masters.dart';
 import 'routes/material_types.dart';
+import 'routes/products.dart';
 import 'routes/purchase_orders.dart';
 import 'routes/purchase_vouchers.dart';
 import 'routes/quotations.dart';
+import 'routes/units.dart';
 
 /// Registers **missing** REST routes for merge into the existing VPS `ultra_server`.
 /// Does NOT register sales-invoice or purchase-voucher POST (already on VPS).
@@ -25,4 +27,6 @@ void registerMergedRoutes(Router router, Connection conn) {
   registerLedgerRoutes(router, conn);
   registerAdjustmentNoteRoutes(router, conn);
   registerMaterialTypeRoutes(router, conn);
+  registerUnitRoutes(router, conn);
+  registerProductRoutes(router, conn);
 }
