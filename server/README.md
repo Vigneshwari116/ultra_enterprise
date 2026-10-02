@@ -1,34 +1,41 @@
-# Ultra API Server (Dart Shelf)
+# Ultra API — merged route package
 
-This package implements the REST routes required by `lib/services/ultra_repository.dart` against the PostgreSQL database **`ultra_enterprise`**.
+Dart Shelf handlers for REST routes that the Flutter app expects but are **not** yet on `https://api.ultra.winagrum.tech`.
 
-The production host `https://api.ultra.winagrum.tech` already runs a Dart Shelf build with a subset of routes. Deploy this package (or merge `lib/routes.dart` into your existing VPS server) and restart the service so missing endpoints return real data instead of `Route not found`.
+## Design
 
-## Configure
+- **`registerMergedRoutes(router, conn)`** in `lib/register_merged_routes.dart` registers **only missing routes**.
+- Does **not** register `POST /api/sales-invoices` or `POST /api/purchase-vouchers` (already implemented on the VPS).
+- Uses PostgreSQL transactions (`conn.runTx`) for multi-table saves.
+- Supplier party names are read from envelope `suppliers.data` JSON (`data::jsonb->>'supplier_name'`).
+
+## VPS merge (when SSH is available)
+
+1. Backup `/root/ultra_server`.
+2. Copy `server/lib/**` into the VPS project `lib/`.
+3. In the existing server entry (`bin/server.dart` or `lib/api.dart`), after `Connection` and `Router` exist:
+
+```dart
+import 'register_merged_routes.dart';
+
+registerMergedRoutes(router, conn);
+```
+
+4. `dart pub get`, `dart analyze`, restart systemd service on port **8081**.
+
+Or run from repo root: `./scripts/vps_deploy_merge.sh` (requires `VPS_SSH_PRIVATE_KEY`).
+
+## Local run (full merged routes only)
 
 ```bash
-export DATABASE_URL='postgresql://user:pass@host:5432/ultra_enterprise'
-export PORT=8080
-cd server
-dart pub get
-dart run bin/server.dart
+export DATABASE_URL='postgresql://.../ultra_enterprise'
+cd server && dart pub get && dart run bin/server.dart
 ```
 
-## Priority route: purchase voucher detail
-
-`GET /api/purchase-vouchers/<id>` must return:
-
-```json
-{
-  "voucher": { "id", "voucher_no", "supplier_name", "taxable_total", ... },
-  "items": [ { "product_id", "quantity", "rate", "taxable", "cgst", ... } ]
-}
-```
-
-Implementation: `lib/routes/purchase_vouchers.dart` (`getPurchaseVoucherById`).
-
-## Verify after deploy
+## Tests
 
 ```bash
-./scripts/live_api_test.sh
+cd server && dart test
 ```
+
+Set `TEST_DATABASE_URL` for PostgreSQL handler integration tests (otherwise skipped).

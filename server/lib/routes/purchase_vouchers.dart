@@ -1,9 +1,17 @@
-import 'dart:convert';
-
 import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
+import 'package:shelf_router/shelf_router.dart';
 
+import '../http.dart';
 import '../json_util.dart';
+
+void registerPurchaseVoucherRoutes(Router router, Connection conn) {
+  router.get('/api/purchase-vouchers/<id>', (Request request, String id) async {
+    final vid = int.tryParse(id);
+    if (vid == null) return jsonError('Invalid purchase voucher id', status: 400);
+    return getPurchaseVoucherById(conn, vid);
+  });
+}
 
 Future<Response> getPurchaseVoucherById(Connection conn, int id) async {
   final headerRows = await conn.execute(
@@ -14,10 +22,7 @@ Future<Response> getPurchaseVoucherById(Connection conn, int id) async {
     parameters: {'id': id},
   );
   if (headerRows.isEmpty) {
-    return Response.notFound(
-      jsonEncode({'error': 'Purchase voucher not found: $id'}),
-      headers: {'content-type': 'application/json'},
-    );
+    return jsonError('Purchase voucher not found: $id', status: 404);
   }
   final headerMap = headerRows.first.toColumnMap();
   var voucher = flattenEnvelopeRow({
@@ -35,10 +40,8 @@ Future<Response> getPurchaseVoucherById(Connection conn, int id) async {
       parameters: {'id': supplierId},
     );
     if (supRows.isNotEmpty) {
-      final sup = flattenEnvelopeRow({
-        'id': supRows.first.toColumnMap()['id'],
-        'data': supRows.first.toColumnMap()['data'],
-      });
+      final supMap = supRows.first.toColumnMap();
+      final sup = flattenEnvelopeRow({'id': supMap['id'], 'data': supMap['data']});
       for (final key in [
         'supplier_name',
         'address',
@@ -77,13 +80,7 @@ Future<Response> getPurchaseVoucherById(Connection conn, int id) async {
     ),
     parameters: {'id': id},
   );
-  final items = itemRows
-      .map((r) => r.toColumnMap())
-      .map((m) => m.map((k, v) => MapEntry(k, v is DateTime ? v.toIso8601String() : v)))
-      .toList();
+  final items = serializeRows(itemRows.map((r) => r.toColumnMap()).toList());
 
-  return Response.ok(
-    jsonEncode({'voucher': voucher, 'items': items}),
-    headers: {'content-type': 'application/json'},
-  );
+  return jsonOk({'voucher': voucher, 'items': items});
 }
