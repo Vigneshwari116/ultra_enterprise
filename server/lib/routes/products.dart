@@ -48,9 +48,10 @@ Future<Response> listProducts(Connection conn) async {
       p.hsn_code,
       p.reorder_level,
       p.is_active,
-      p.current_stock
+      COALESCE(st.quantity, 0) AS current_stock
     FROM products p
     LEFT JOIN units u ON u.id = p.unit_id
+    LEFT JOIN stock st ON st.product_id = p.id
     WHERE p.is_active = true
     ORDER BY p.id
   ''');
@@ -73,30 +74,31 @@ Future<Response> createProduct(Request request, Connection conn) async {
 
   final productCode = _productCodeFromBody(body);
   final params = _productWriteParams(body, productCode: productCode, unitId: unitId);
+  final stockQty = _stockQuantityFromBody(body, defaultZero: true) ?? 0;
 
   try {
-    final result = await conn.execute(
-      Sql.named('''
-        INSERT INTO products (
-          uuid, product_code, product_name, unit_id, material_type_id,
-          hsn_code, sales_rate, purchase_rate, gst_rate,
-          reorder_level, is_active, current_stock, opening_stock, created_at
-        ) VALUES (
-          @uuid, @product_code, @product_name, @unit_id, @material_type_id,
-          @hsn_code, @sales_rate, @purchase_rate, @gst_rate,
-          @reorder_level, true, @current_stock, @opening_stock, NOW()
-        )
-        RETURNING id
-      '''),
-      parameters: {
-        'uuid': _uuid.v4(),
-        ...params,
-        'reorder_level': body['reorder_level'] ?? 0,
-        'current_stock': body['current_stock'] ?? body['opening_stock'] ?? 0,
-        'opening_stock': body['opening_stock'] ?? 0,
-      },
-    );
-    final id = result.first.first;
+    final id = await conn.runTx((tx) async {
+      final result = await tx.execute(
+        Sql.named('''
+          INSERT INTO products (
+            uuid, product_code, product_name, unit_id,
+            hsn_code, reorder_level, is_active, created_at
+          ) VALUES (
+            @uuid, @product_code, @product_name, @unit_id,
+            @hsn_code, @reorder_level, true, NOW()
+          )
+          RETURNING id
+        '''),
+        parameters: {
+          'uuid': _uuid.v4(),
+          ...params,
+          'reorder_level': body['reorder_level'] ?? 0,
+        },
+      );
+      final productId = result.first.first as int;
+      await _upsertStock(tx, productId, stockQty);
+      return productId;
+    });
     return jsonOk({'id': id, 'product': {'id': id}}, status: 201);
   } catch (e) {
     if (isPostgresUniqueViolation(e)) {
@@ -125,38 +127,67 @@ Future<Response> updateProduct(Request request, Connection conn, int id) async {
       ? _productCodeFromBody(body)
       : null;
 
-  final updated = await conn.execute(
-    Sql.named('''
-      UPDATE products SET
-        product_code = COALESCE(@product_code, product_code),
-        product_name = COALESCE(@product_name, product_name),
-        unit_id = COALESCE(@unit_id, unit_id),
-        material_type_id = COALESCE(@material_type_id, material_type_id),
-        hsn_code = COALESCE(@hsn_code, hsn_code),
-        sales_rate = COALESCE(@sales_rate, sales_rate),
-        purchase_rate = COALESCE(@purchase_rate, purchase_rate),
-        gst_rate = COALESCE(@gst_rate, gst_rate),
-        reorder_level = COALESCE(@reorder_level, reorder_level)
-      WHERE id = @id AND is_active = true
-      RETURNING id
-    '''),
-    parameters: {
-      'id': id,
-      'product_code': productCode,
-      'product_name': body['product_name'],
-      'unit_id': _asInt(body['unit_id']),
-      'material_type_id': _asInt(body['material_type_id']),
-      'hsn_code': _hsnFromBody(body),
-      'sales_rate': _num(body['sales_rate'] ?? body['rate']),
-      'purchase_rate': _num(body['purchase_rate']),
-      'gst_rate': _num(body['gst_rate'] ?? body['gst_percent']),
-      'reorder_level': _num(body['reorder_level']),
-    },
-  );
-  if (updated.isEmpty) {
+  final hasStockUpdate =
+      body.containsKey('current_stock') || body.containsKey('opening_stock');
+
+  final updated = await conn.runTx((tx) async {
+    final rows = await tx.execute(
+      Sql.named('''
+        UPDATE products SET
+          product_code = COALESCE(@product_code, product_code),
+          product_name = COALESCE(@product_name, product_name),
+          unit_id = COALESCE(@unit_id, unit_id),
+          hsn_code = COALESCE(@hsn_code, hsn_code),
+          reorder_level = COALESCE(@reorder_level, reorder_level),
+          updated_at = NOW()
+        WHERE id = @id AND is_active = true
+        RETURNING id
+      '''),
+      parameters: {
+        'id': id,
+        'product_code': productCode,
+        'product_name': body['product_name'],
+        'unit_id': _asInt(body['unit_id']),
+        'hsn_code': _hsnFromBody(body),
+        'reorder_level': _num(body['reorder_level']),
+      },
+    );
+    if (rows.isEmpty) return false;
+
+    if (hasStockUpdate) {
+      final qty = _stockQuantityFromBody(body, defaultZero: false);
+      if (qty != null) {
+        await _upsertStock(tx, id, qty);
+      }
+    }
+    return true;
+  });
+
+  if (!updated) {
     return jsonError('Product not found or inactive: $id', status: 404);
   }
   return jsonOk({'id': id, 'product': {'id': id}});
+}
+
+Future<void> _upsertStock(Session session, int productId, num quantity) async {
+  await session.execute(
+    Sql.named('''
+      INSERT INTO stock (product_id, quantity)
+      VALUES (@product_id, @quantity)
+      ON CONFLICT (product_id)
+      DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()
+    '''),
+    parameters: {'product_id': productId, 'quantity': quantity},
+  );
+}
+
+/// Stock quantity from API body (`current_stock` or `opening_stock`).
+/// When [defaultZero] is true, missing keys yield 0 (create path).
+num? _stockQuantityFromBody(Map<String, dynamic> body, {required bool defaultZero}) {
+  if (body.containsKey('current_stock') || body.containsKey('opening_stock')) {
+    return _num(body['current_stock'] ?? body['opening_stock']) ?? 0;
+  }
+  return defaultZero ? 0 : null;
 }
 
 Map<String, dynamic> _productWriteParams(
@@ -168,11 +199,7 @@ Map<String, dynamic> _productWriteParams(
     'product_code': productCode,
     'product_name': body['product_name'],
     'unit_id': unitId,
-    'material_type_id': _asInt(body['material_type_id']),
     'hsn_code': _hsnFromBody(body),
-    'sales_rate': _num(body['sales_rate'] ?? body['rate']) ?? 0,
-    'purchase_rate': _num(body['purchase_rate']) ?? 0,
-    'gst_rate': _num(body['gst_rate'] ?? body['gst_percent']),
   };
 }
 
