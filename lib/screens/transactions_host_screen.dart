@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
+import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../widgets/invoice.dart';
 
 final transactionsHostKey = GlobalKey<TransactionsHostScreenState>();
 
@@ -175,8 +177,7 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(
-        children: [
+      child: enterpriseScrollColumn(children: [
           Container(
             width: double.infinity,
             color: _accent,
@@ -222,28 +223,40 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
                 LayoutBuilder(
                   builder: (context, c) {
                     final stacked = c.maxWidth < formTwoColumnMinWidth;
-                    final s1 = _sec('SECTION 1: DISPATCH / SOURCE METADATA', [
-                      _pair(_ro('NOTE NUMERIC NO *', noteNo), _dateFld('NOTE ISSUE DATE', issueDate, (v) => issueDate = v)),
-                      _pair(_fld('ORIGINAL INVOICE REF NO', origInvRef), _dateFld('ORIGINAL INVOICE DATE', origInvDate, (v) => origInvDate = v)),
-                      DropdownButtonFormField<String>(
+                    final s1 = _section('SECTION 1: DISPATCH / SOURCE METADATA', [
+                      _pair(
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: enterpriseInsetFieldShell(
+                            label: 'NOTE NUMERIC NO *',
+                            filled: true,
+                            child: Text(noteNo, style: enterpriseInsetValueStyle),
+                          ),
+                        ),
+                        _dateInset('NOTE ISSUE DATE', issueDate, (v) => issueDate = v),
+                      ),
+                      _pair(
+                        enterpriseInsetTextField(label: 'ORIGINAL INVOICE REF NO', controller: origInvRef, autofocus: true),
+                        _dateInset('ORIGINAL INVOICE DATE', origInvDate, (v) => origInvDate = v),
+                      ),
+                      enterpriseInsetDropdown<String>(
+                        label: 'REASON FOR TRANSACTION REVERSAL',
                         value: reason,
-                        decoration: _dec('REASON FOR TRANSACTION REVERSAL'),
-                        items: _reasons.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+                        items: _reasons.map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 11)))).toList(),
                         onChanged: (v) => setState(() => reason = v ?? reason),
                       ),
-                      const SizedBox(height: 10),
-                      _fld('E-WAY BILL NO', eway),
-                      _fld('LOGISTICS DISPATCH VEHICLE DETAILS / MODE', logistics),
+                      const SizedBox(height: 4),
+                      enterpriseInsetTextField(label: 'E-WAY BILL NO', controller: eway),
+                      enterpriseInsetTextField(label: 'LOGISTICS DISPATCH VEHICLE DETAILS / MODE', controller: logistics),
                     ]);
-                    final s2 = _sec('SECTION 2: ALLOCATED PARTY DIRECTORY', [
-                      DropdownButtonFormField<int>(
+                    final s2 = _section('SECTION 2: ALLOCATED PARTY DIRECTORY', [
+                      enterpriseInsetDropdown<int>(
+                        label: isDebit ? 'SELECT SUPPLIER ACCOUNT DIRECTORY *' : 'SELECT CUSTOMER ACCOUNT DIRECTORY *',
                         value: partyId,
-                        isExpanded: true,
-                        decoration: _dec(isDebit ? 'SELECT SUPPLIER ACCOUNT DIRECTORY *' : 'SELECT CUSTOMER ACCOUNT DIRECTORY *'),
                         items: (isDebit ? suppliers : customers)
                             .map((p) => DropdownMenuItem<int>(
                                   value: p['id'] as int,
-                                  child: Text('${isDebit ? p['supplier_name'] : p['customer_name']}'),
+                                  child: Text('${isDebit ? p['supplier_name'] : p['customer_name']}', style: const TextStyle(fontSize: 11)),
                                 ))
                             .toList(),
                         onChanged: (v) {
@@ -255,10 +268,13 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
                           });
                         },
                       ),
-                      const SizedBox(height: 10),
-                      _fld('REGISTERED OFFICE BILLING ADDRESS', address),
-                      _pair(_fld('CITY LOCATION', city), _fld('PINCODE', pin)),
-                      _fld('PARTY IDENTIFICATION (GSTIN) NUMBER', gstin),
+                      const SizedBox(height: 4),
+                      enterpriseInsetTextField(label: 'REGISTERED OFFICE BILLING ADDRESS', controller: address, maxLines: 2),
+                      _pair(
+                        enterpriseInsetTextField(label: 'CITY LOCATION', controller: city),
+                        enterpriseInsetTextField(label: 'PINCODE', controller: pin),
+                      ),
+                      enterpriseInsetTextField(label: 'PARTY IDENTIFICATION (GSTIN) NUMBER', controller: gstin),
                     ]);
                     if (stacked) return Column(children: [s1, const SizedBox(height: 14), s2]);
                     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: s1), const SizedBox(width: 14), Expanded(child: s2)]);
@@ -271,7 +287,11 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: navy)),
                 ),
                 const SizedBox(height: 8),
-                _matrix(),
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4), color: Colors.white),
+                  child: enterpriseMatrixScroller(minWidth: 720, table: _adjustmentMatrix()),
+                ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: () => setState(() => rows.add(_AdjRow())),
@@ -279,23 +299,15 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
                   label: const Text('+ ADD REVERSAL MATERIAL ITEM ROW', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
                 ),
                 const SizedBox(height: 14),
-                TextField(
+                enterpriseInsetTextField(
+                  label: 'NARRATION / ACCOUNT COMMENTS',
                   controller: narration,
                   maxLines: 2,
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
-                  decoration: InputDecoration(
-                    hintText: 'NARRATION / ACCOUNT COMMENTS',
-                    hintStyle: const TextStyle(color: Colors.white54),
-                    filled: true,
-                    fillColor: const Color(0xFF19232C),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide.none),
-                  ),
                 ),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text('WORDS: ${grandTotal == 0 ? 'ZERO RUPEES ONLY' : '₹${grandTotal.toStringAsFixed(2)} ONLY'}',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
+                enterpriseValueWordsFooter(
+                  valueInWords: formatUltraAmountInWords(grandTotal),
+                  wordsLabel: 'REVERSAL VALUE IN WORDS',
                 ),
                 const SizedBox(height: 14),
                 Center(
@@ -328,52 +340,59 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
     );
   }
 
-  Widget _matrix() {
-    return Container(
-      decoration: BoxDecoration(border: Border.all(color: border), color: Colors.white),
-      child: Table(
-        columnWidths: const {
-          0: FixedColumnWidth(22),
-          1: FlexColumnWidth(2.2),
-          2: FixedColumnWidth(40),
-          3: FixedColumnWidth(42),
-          4: FixedColumnWidth(36),
-          5: FixedColumnWidth(40),
-          6: FixedColumnWidth(32),
-          7: FixedColumnWidth(32),
-          8: FixedColumnWidth(32),
-          9: FixedColumnWidth(48),
-          10: FixedColumnWidth(26),
-        },
-        children: [
-          TableRow(
-            decoration: const BoxDecoration(color: navy2),
-            children: ['SL', 'MATERIAL MATRIX PARTICULARS', 'UOM', 'HSN', 'QTY', 'RATE/VAL', 'CGST%', 'SGST%', 'IGST%', 'EXTENDED VAL', '']
-                .map((h) => Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: Text(h, style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w800)),
-                    ))
-                .toList(),
-          ),
-          ...List.generate(rows.length, (i) {
-            final r = rows[i];
-            return TableRow(
-              children: [
-                Text('${i + 1}', style: const TextStyle(fontSize: 9)),
-                DropdownButton<int>(
+  Table _adjustmentMatrix() {
+    return Table(
+      columnWidths: adjustmentNoteMatrixColumns,
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        TableRow(
+          decoration: const BoxDecoration(color: navy2),
+          children: [
+            enterpriseMatrixHeadCell('SL'),
+            enterpriseMatrixHeadCell('MATERIAL MATRIX PARTICULARS'),
+            enterpriseMatrixHeadCell('UOM'),
+            enterpriseMatrixHeadCell('HSN'),
+            enterpriseMatrixHeadCell('QTY'),
+            enterpriseMatrixHeadCell('RATE/VAL'),
+            enterpriseMatrixHeadCell('CGST%'),
+            enterpriseMatrixHeadCell('SGST%'),
+            enterpriseMatrixHeadCell('IGST%'),
+            enterpriseMatrixHeadCell('COMPOUND TOTAL'),
+            const SizedBox.shrink(),
+          ],
+        ),
+        ...List.generate(rows.length, (i) {
+          final r = rows[i];
+          return TableRow(
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: border.withOpacity(.6)))),
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
+                child: Text('${i + 1}', style: enterpriseMatrixCellStyle),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                child: DropdownButton<int>(
                   isExpanded: true,
                   isDense: true,
-                  hint: const Text('Item Description', style: TextStyle(fontSize: 9)),
+                  underline: const SizedBox(),
+                  hint: const Text('Item Description', style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
                   value: r.productId,
-                  items: products.map((p) => DropdownMenuItem(value: p['id'] as int, child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9)))).toList(),
+                  items: products
+                      .map((p) => DropdownMenuItem(value: p['id'] as int, child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9))))
+                      .toList(),
                   onChanged: (v) {
                     final p = products.firstWhere((x) => x['id'] == v);
                     setState(() => r.setProduct(p));
                   },
                 ),
-                DropdownButton<int>(
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                child: DropdownButton<int>(
                   isExpanded: true,
                   isDense: true,
+                  underline: const SizedBox(),
                   value: r.unitId,
                   hint: const Text('UOM', style: TextStyle(fontSize: 9)),
                   items: units.map((u) => DropdownMenuItem(value: u['id'] as int, child: Text('${u['code']}', style: const TextStyle(fontSize: 9)))).toList(),
@@ -385,34 +404,97 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
                     });
                   },
                 ),
-                Text(r.hsn, style: const TextStyle(fontSize: 9)),
-                _num((v) => r.qty = v),
-                _num((v) => r.rate = v),
-                _num((v) => r.cgstPct = v, init: r.cgstPct),
-                _num((v) => r.sgstPct = v, init: r.sgstPct),
-                _num((v) => r.igstPct = v, init: r.igstPct),
-                Text(r.total.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
-                IconButton(
-                  onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
-                  icon: const Icon(Icons.delete_outline, color: red, size: 17),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: Text(r.hsn, style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('adj-q-$i'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) => setState(() => r.qty = double.tryParse(v) ?? 0),
                 ),
-              ],
-            );
-          }),
-        ],
-      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('adj-r-$i'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) => setState(() => r.rate = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('adj-cg-$i-${r.cgstPct}'),
+                  keyboardType: TextInputType.number,
+                  controller: TextEditingController(text: r.cgstPct == 0 ? '' : '${r.cgstPct}'),
+                  onChanged: (v) => setState(() => r.cgstPct = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('adj-sg-$i-${r.sgstPct}'),
+                  keyboardType: TextInputType.number,
+                  controller: TextEditingController(text: r.sgstPct == 0 ? '' : '${r.sgstPct}'),
+                  onChanged: (v) => setState(() => r.sgstPct = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  key: ValueKey('adj-ig-$i-${r.igstPct}'),
+                  keyboardType: TextInputType.number,
+                  controller: TextEditingController(text: r.igstPct == 0 ? '' : '${r.igstPct}'),
+                  onChanged: (v) => setState(() => r.igstPct = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: Text(r.total.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 9.5, color: navy)),
+              ),
+              IconButton(
+                onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
+                icon: const Icon(Icons.delete_outline, color: red, size: 15),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              ),
+            ],
+          );
+        }),
+      ],
     );
   }
 
-  Widget _num(ValueChanged<double> on, {double init = 0}) => Padding(
-        padding: const EdgeInsets.all(2),
-        child: TextField(
-          keyboardType: TextInputType.number,
-          style: const TextStyle(fontSize: 9),
-          controller: TextEditingController(text: init == 0 ? '' : '$init'),
-          decoration: const InputDecoration(isDense: true),
-          onChanged: (v) => setState(() => on(double.tryParse(v) ?? 0)),
-        ),
+  Widget _dateInset(String label, String iso, ValueChanged<String> on) {
+    return enterpriseInsetDateField(
+      label: label,
+      isoDate: iso,
+      onTap: () async {
+        final picked = await pickCompactDate(context, initialDate: DateTime.tryParse(iso) ?? DateTime.now());
+        if (picked != null) setState(() => on(formatIsoDate(picked)));
+      },
+    );
+  }
+
+  Widget _section(String title, List<Widget> children) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
+          const SizedBox(height: 4),
+          Container(height: 1, color: border),
+          const SizedBox(height: 12),
+          ...children,
+        ],
       );
 
   Widget _stat(String l, String v) => Column(
@@ -423,26 +505,7 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
         ],
       );
 
-  Widget _sec(String t, List<Widget> c) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: navy)), const Divider(), ...c]);
   Widget _pair(Widget a, Widget b) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]));
-  InputDecoration _dec(String l) => InputDecoration(labelText: l, floatingLabelBehavior: FloatingLabelBehavior.always, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)));
-  Widget _fld(String l, TextEditingController c) => Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(controller: c, decoration: _dec(l), style: const TextStyle(fontSize: 11.5)));
-  Widget _ro(String l, String v) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(readOnly: true, controller: TextEditingController(text: v), decoration: _dec(l).copyWith(filled: true, fillColor: const Color(0xFFF1F3F7))),
-      );
-  Widget _dateFld(String l, String iso, ValueChanged<String> on) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(
-          readOnly: true,
-          controller: TextEditingController(text: DateFormat('dd-MM-yyyy').format(DateTime.tryParse(iso) ?? DateTime.now())),
-          decoration: _dec(l).copyWith(prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16)),
-          onTap: () async {
-            final picked = await pickCompactDate(context, initialDate: DateTime.tryParse(iso) ?? DateTime.now());
-            if (picked != null) setState(() => on(formatIsoDate(picked)));
-          },
-        ),
-      );
 }
 
 class _AdjRow {
@@ -584,7 +647,7 @@ class _CashBookPanelState extends State<_CashBookPanel> {
   Widget build(BuildContext context) {
     final accent = isReceipt ? green : red;
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -594,72 +657,67 @@ class _CashBookPanelState extends State<_CashBookPanel> {
           const SizedBox(height: 14),
           Row(
             children: [
-              _modeBtn('RECEIPT', true, green),
-              const SizedBox(width: 8),
-              _modeBtn('PAYMENT', false, red),
+              SizedBox(
+                width: 280,
+                child: Row(
+                  children: [
+                    Expanded(child: _modeBtn('RECEIPT', true, green)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _modeBtn('PAYMENT', false, red)),
+                  ],
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           Expanded(
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  flex: 4,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
+                  flex: 5,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: Container(
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border), borderRadius: BorderRadius.circular(6)),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(isReceipt ? 'NEW RECEIPT RECORD' : 'NEW PAYMENT RECORD',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy)),
-                            const Icon(Icons.close, size: 18, color: Color(0xFF748094)),
-                          ],
-                        ),
+                        Text(isReceipt ? 'NEW RECEIPT RECORD' : 'NEW PAYMENT RECORD',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy)),
                         const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            const Icon(Icons.lock_outline, size: 14, color: Color(0xFF748094)),
-                            const SizedBox(width: 6),
-                            Text('VOUCHER REGISTRATION DATE: $voucherDate', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        DropdownButtonFormField<String>(
-                          value: partyKey,
-                          isExpanded: true,
-                          decoration: InputDecoration(
-                            labelText: isReceipt ? 'Search Customer...' : 'TARGET ALLOCATED LEDGER NAME *',
-                            floatingLabelBehavior: FloatingLabelBehavior.always,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+                        enterpriseInsetFieldShell(
+                          label: 'VOUCHER REGISTRATION DATE',
+                          filled: true,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.lock_outline, size: 14, color: Color(0xFF748094)),
+                              const SizedBox(width: 8),
+                              Text(voucherDate, style: enterpriseInsetValueStyle),
+                            ],
                           ),
-                          hint: const Text('Search Customer/Supplier...'),
+                        ),
+                        const SizedBox(height: 12),
+                        enterpriseInsetDropdown<String>(
+                          label: isReceipt ? 'SEARCH CUSTOMER DIRECTORY *' : 'TARGET ALLOCATED LEDGER NAME *',
+                          value: partyKey,
+                          hint: const Text('Search Customer/Supplier...', style: TextStyle(fontSize: 11, color: Color(0xFF9AA5B4))),
                           items: _partyItems,
                           onChanged: (v) => setState(() => partyKey = v),
                         ),
-                        const SizedBox(height: 12),
-                        TextField(
+                        const SizedBox(height: 4),
+                        enterpriseInsetTextField(
+                          label: 'TRANSACTION VOUCHER AMOUNT *',
                           controller: amount,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: 'TRANSACTION VOUCHER AMOUNT *',
-                            floatingLabelBehavior: FloatingLabelBehavior.always,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
-                          ),
+                          autofocus: true,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy),
                         ),
-                        const SizedBox(height: 12),
-                        TextField(
+                        const SizedBox(height: 4),
+                        enterpriseInsetTextField(
+                          label: 'VOUCHER REMARKS / NARRATION',
                           controller: remarks,
-                          maxLines: 3,
-                          decoration: InputDecoration(
-                            labelText: 'VOUCHER REMARKS / NARRATION',
-                            floatingLabelBehavior: FloatingLabelBehavior.always,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
-                          ),
+                          maxLines: 2,
                         ),
                         const Spacer(),
                         SizedBox(
@@ -673,6 +731,7 @@ class _CashBookPanelState extends State<_CashBookPanel> {
                       ],
                     ),
                   ),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -684,8 +743,10 @@ class _CashBookPanelState extends State<_CashBookPanel> {
                         children: [
                           Icon(Icons.history, size: 16, color: Color(0xFF748094)),
                           SizedBox(width: 6),
-                          Text('CASH PASSBOOK (CR/DR) ACCOUNT TRANSACTION DIRECTORY LOGS',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF748094))),
+                          Expanded(
+                            child: Text('CASH PASSBOOK (CR/DR) ACCOUNT TRANSACTION DIRECTORY LOGS',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF748094))),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -708,17 +769,16 @@ class _CashBookPanelState extends State<_CashBookPanel> {
 
   Widget _modeBtn(String label, bool receipt, Color color) {
     final active = isReceipt == receipt;
-    return Expanded(
-      child: OutlinedButton(
-        onPressed: () => setState(() => isReceipt = receipt),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: active ? color : Colors.white,
-          foregroundColor: active ? Colors.white : navy,
-          side: BorderSide(color: active ? color : border),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-        child: Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+    return OutlinedButton(
+      onPressed: () => setState(() => isReceipt = receipt),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: active ? color : Colors.white,
+        foregroundColor: active ? Colors.white : navy,
+        side: BorderSide(color: active ? color : border),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        minimumSize: const Size(0, 36),
       ),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
     );
   }
 
@@ -826,20 +886,22 @@ class _JournalEntryPanelState extends State<_JournalEntryPanel> {
               style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4)),
-                child: Text('VOUCHER DATE: $voucherDate', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+              Expanded(
+                flex: 2,
+                child: enterpriseInsetFieldShell(
+                  label: 'VOUCHER DATE',
+                  filled: true,
+                  child: Text(voucherDate, style: enterpriseInsetValueStyle),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: TextField(
+                flex: 5,
+                child: enterpriseInsetTextField(
+                  label: 'VOUCHER NARRATION EXPLANATION DESCRIPTION',
                   controller: narration,
-                  decoration: InputDecoration(
-                    hintText: 'VOUCHER NARRATION EXPLANATION DESCRIPTION',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
-                  ),
                 ),
               ),
             ],
@@ -890,14 +952,10 @@ class _JournalEntryPanelState extends State<_JournalEntryPanel> {
               _sideTag('DR', true),
               const SizedBox(width: 8),
               Expanded(
-                child: DropdownButtonFormField<String>(
+                child: enterpriseInsetDropdown<String>(
+                  label: 'DEBIT (TO) / RECEIVER ACCOUNT PARAMETERS',
                   value: line.drKey,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Debit (To) / Receiver Account Parameters',
-                    border: OutlineInputBorder(),
-                  ),
-                  hint: const Text('Filter master accounts hierarchy...'),
+                  hint: const Text('Filter master accounts hierarchy...', style: TextStyle(fontSize: 11, color: Color(0xFF9AA5B4))),
                   items: accounts
                       .map((a) => DropdownMenuItem(value: a['key'], child: Text(a['label']!, style: const TextStyle(fontSize: 11))))
                       .toList(),
@@ -915,15 +973,10 @@ class _JournalEntryPanelState extends State<_JournalEntryPanel> {
               _sideTag('CR', false),
               const SizedBox(width: 8),
               Expanded(
-                child: DropdownButtonFormField<String>(
+                child: enterpriseInsetDropdown<String>(
+                  label: 'CREDIT (BY) / GIVER ACCOUNT PARAMETERS',
                   value: line.crKey,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: 'Credit (By) / Giver Account Parameters',
-                    filled: true,
-                    fillColor: const Color(0xFFFFF9E6),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
-                  ),
+                  borderColor: const Color(0xFFE6C200),
                   items: accounts
                       .map((a) => DropdownMenuItem(value: a['key'], child: Text(a['label']!, style: const TextStyle(fontSize: 11))))
                       .toList(),
@@ -935,14 +988,17 @@ class _JournalEntryPanelState extends State<_JournalEntryPanel> {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Text('TRANSACTION VALUE AMOUNT:', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 120,
-                child: TextField(
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
-                  onChanged: (v) => setState(() => line.amount = double.tryParse(v) ?? 0),
+              Expanded(
+                flex: 3,
+                child: enterpriseInsetFieldShell(
+                  label: 'TRANSACTION VALUE AMOUNT',
+                  borderColor: const Color(0xFFE6C200),
+                  child: TextField(
+                    keyboardType: TextInputType.number,
+                    style: enterpriseInsetValueStyle,
+                    decoration: enterpriseInsetInputDecoration(),
+                    onChanged: (v) => setState(() => line.amount = double.tryParse(v) ?? 0),
+                  ),
                 ),
               ),
               const Spacer(),

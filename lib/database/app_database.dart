@@ -2,6 +2,8 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
+import '../config/ultra_config.dart';
+
 class AppDatabase {
   AppDatabase._();
   static final AppDatabase instance = AppDatabase._();
@@ -9,6 +11,7 @@ class AppDatabase {
   Database? _db;
 
   Future<void> init() async {
+    if (!UltraConfig.persistLocally) return;
     if (_db != null) return;
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
@@ -669,7 +672,15 @@ class AppDatabase {
     );
   }
 
-  Database get db => _db!;
+  Database get db {
+    if (!UltraConfig.persistLocally) {
+      throw StateError('Local SQLite is disabled; UltraConfig.persistLocally is false.');
+    }
+    if (_db == null) {
+      throw StateError('AppDatabase.init() was not called.');
+    }
+    return _db!;
+  }
 
   Future<List<Map<String, dynamic>>> units() =>
       db.query('units', orderBy: 'id DESC');
@@ -921,6 +932,32 @@ class AppDatabase {
 
   Future<List<Map<String, dynamic>>> purchaseVoucherItems(int voucherId) =>
       db.query('purchase_voucher_items', where: 'voucher_id = ?', whereArgs: [voucherId]);
+
+  Future<Map<String, dynamic>?> purchaseVoucherPrintBundle(int voucherId) async {
+    final rows = await db.rawQuery('''
+        SELECT pv.*,
+          COALESCE(s.supplier_name, '-') AS supplier_name,
+          COALESCE(s.address, '') AS address,
+          COALESCE(s.city, '') AS city,
+          COALESCE(s.postal_pincode, '') AS postal_pincode,
+          COALESCE(s.gstin, '') AS gstin,
+          COALESCE(s.primary_mobile, '') AS primary_mobile,
+          COALESCE(s.bank_name, '') AS bank_name,
+          COALESCE(s.bank_account_no, '') AS bank_account_no,
+          COALESCE(s.ifsc_code, '') AS ifsc_code,
+          COALESCE(s.branch_address, '') AS branch_address,
+          po.po_no AS linked_po_no,
+          po.po_date AS linked_po_date
+        FROM purchase_vouchers pv
+        LEFT JOIN suppliers s ON s.id = pv.supplier_id
+        LEFT JOIN purchase_orders po ON po.id = pv.purchase_order_id
+        WHERE pv.id = ?
+        LIMIT 1
+      ''', [voucherId]);
+    if (rows.isEmpty) return null;
+    final items = await purchaseVoucherItems(voucherId);
+    return {'voucher': rows.first, 'items': items};
+  }
 
   Future<Map<String, dynamic>?> supplierById(int id) async {
     final rows = await db.query('suppliers', where: 'id = ?', whereArgs: [id], limit: 1);

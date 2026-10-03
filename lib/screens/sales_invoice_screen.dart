@@ -3,9 +3,11 @@ import 'package:intl/intl.dart';
 import '../config/ultra_config.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
+import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
 import '../widgets/sales_report.dart';
+import '../widgets/transaction_line_math.dart';
 
 /// Used by [AppShell] to refresh UOM/product lists after Unit Master saves.
 final salesInvoiceCatalogKey = GlobalKey<SalesInvoiceCatalogHostState>();
@@ -62,11 +64,37 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
 
   void fillCustomer(Map<String,dynamic> c){customerAddress.text=c['address']??'';city.text=c['city']??'';pin.text=c['postal_pincode']??'';gstin.text=c['gstin']??'';bank.text=c['bank_name']??'';account.text=c['bank_account_no']??'';shipping.text=c['shipping_address']??'';}
 
-  double get taxable=>rows.fold(0,(s,r)=>s+r.taxable);
-  double get cgst=>rows.fold(0,(s,r)=>s+r.cgst);
-  double get sgst=>rows.fold(0,(s,r)=>s+r.sgst);
-  double get igst=>rows.fold(0,(s,r)=>s+r.igst);
-  double get total=>taxable+cgst+sgst+igst;
+  TransactionLineTotals _lineTotals(_InvoiceRow r) => TransactionLineTotals.compute(
+        qty: r.qty,
+        rate: r.rate,
+        cgstPct: r.cgstPct,
+        sgstPct: r.sgstPct,
+        igstPct: r.igstPct,
+        stateZone: zone,
+      );
+
+  void _applyZoneToRows() {
+    final inter = isInterStateZone(zone);
+    for (final r in rows) {
+      applyZoneGstFromPercents(
+        interState: inter,
+        cgstPct: r.cgstPct,
+        sgstPct: r.sgstPct,
+        igstPct: r.igstPct,
+        apply: (c, s, i) {
+          r.cgstPct = c;
+          r.sgstPct = s;
+          r.igstPct = i;
+        },
+      );
+    }
+  }
+
+  double get taxable => rows.fold(0, (s, r) => s + _lineTotals(r).taxable);
+  double get cgst => rows.fold(0, (s, r) => s + _lineTotals(r).cgst);
+  double get sgst => rows.fold(0, (s, r) => s + _lineTotals(r).sgst);
+  double get igst => rows.fold(0, (s, r) => s + _lineTotals(r).igst);
+  double get total => taxable + cgst + sgst + igst;
 
   @override void dispose(){for(final c in [po,challan,packages,vehicle,due,eway,customerAddress,city,pin,gstin,bank,account,shipping,fwdCharge])c.dispose();super.dispose();}
 
@@ -109,7 +137,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     final uuid = repo.newUuid();
     final items = rows
         .map(
-          (r) => {
+          (r) {
+            final t = _lineTotals(r);
+            return {
             'product_id': r.productId,
             'description': r.description,
             'uom': r.uom,
@@ -119,11 +149,12 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
             'cgst_percent': r.cgstPct,
             'sgst_percent': r.sgstPct,
             'igst_percent': r.igstPct,
-            'taxable': r.taxable,
-            'cgst': r.cgst,
-            'sgst': r.sgst,
-            'igst': r.igst,
-            'total': r.total,
+            'taxable': t.taxable,
+            'cgst': t.cgst,
+            'sgst': t.sgst,
+            'igst': t.igst,
+            'total': t.total,
+          };
           },
         )
         .toList();
@@ -212,7 +243,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   @override Widget build(BuildContext context){
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      child: enterpriseScrollColumn(children:[
         Container(
           width: double.infinity,
           color: const Color(0xFF19232C),
@@ -260,23 +291,29 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                     children: [
                       _pair(
                         _outline('SALES VOUCHER NO (AUTO)', controller: TextEditingController(text: voucherNo), readOnly: true, filled: true),
-                        _outline('TRANSACTION DATE', controller: TextEditingController(text: _display(date)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
-                            onTap: () => _pickDate(date, (v) => setState(() => date = v))),
+                        enterpriseInsetDateField(
+                          label: 'TRANSACTION DATE',
+                          isoDate: date,
+                          onTap: () => _pickDate(date, (v) => setState(() => date = v)),
+                        ),
                       ),
                       _pair(
-                        _outline('PO NO', controller: po),
-                        _outline('PO DATE', controller: TextEditingController(text: _display(poDate)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
-                            onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v))),
+                        _outline('PO NO', controller: po, autofocus: true),
+                        enterpriseInsetDateField(
+                          label: 'PO DATE',
+                          isoDate: poDate,
+                          onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v)),
+                        ),
                       ),
                       _zoneField(),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 8),
                       _pair(
                         _outline('CHALLAN / DC NO', controller: challan),
-                        _outline('CHALLAN / DC DATE', controller: TextEditingController(text: _display(challanDate)), readOnly: true,
-                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
-                            onTap: () => _pickDate(challanDate, (v) => setState(() => challanDate = v))),
+                        enterpriseInsetDateField(
+                          label: 'CHALLAN / DC DATE',
+                          isoDate: challanDate,
+                          onTap: () => _pickDate(challanDate, (v) => setState(() => challanDate = v)),
+                        ),
                       ),
                       _pair(
                         _outline('TOTAL NO OF PACKAGES', controller: packages),
@@ -291,12 +328,19 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                 final section2 = _plainSection(
                     title: 'SECTION 2: ACCOUNT / PARTY CONFIGURATION',
                     children: [
-                      DropdownButtonFormField<int>(
+                      enterpriseInsetDropdown<int>(
+                        label: 'SELECT CUSTOMER (COMMERCIAL INVOICING) *',
                         value: customerId,
-                        isExpanded: true,
-                        decoration: _decoration('SELECT CUSTOMER (COMMERCIAL INVOICING) *'),
-                        items: customers.map((c) => DropdownMenuItem<int>(value: c['id'], child: Text(c['customer_name']))).toList(),
-                        onChanged: (v) { final c = customers.firstWhere((x) => x['id'] == v); setState(() => customerId = v); fillCustomer(c); },
+                        items: customers
+                            .map((c) => DropdownMenuItem<int>(value: c['id'] as int, child: Text('${c['customer_name']}')))
+                            .toList(),
+                        onChanged: (v) {
+                          final c = customers.firstWhere((x) => x['id'] == v);
+                          setState(() {
+                            customerId = v;
+                            fillCustomer(c);
+                          });
+                        },
                       ),
                       const SizedBox(height: 14),
                       _outline('ADDRESS', controller: customerAddress, readOnly: true, filled: true),
@@ -335,7 +379,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                 );
               },
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 14),
             const Text('SECTION 3: QUANTITY MATRIX PRODUCT ENTRY',
                 style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
             const SizedBox(height: 4),
@@ -348,7 +392,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                 borderRadius: BorderRadius.circular(4),
               ),
               width: double.infinity,
-              child: _productMatrixTable(),
+              child: enterpriseMatrixScroller(table: _productMatrixTable()),
             ),
             const SizedBox(height:12),
             Center(
@@ -365,41 +409,10 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
               ),
             ),
             const SizedBox(height:18),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              decoration: BoxDecoration(color: const Color(0xFF19232C), borderRadius: BorderRadius.circular(4)),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text('VALUE IN WORDS: ${_amountInWords(netPayable)}',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: .3)),
-                  ),
-                  SizedBox(
-                    width: 110,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('FWD CHARGE', style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 4),
-                        TextField(
-                          controller: fwdCharge,
-                          keyboardType: TextInputType.number,
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            filled: true,
-                            fillColor: Colors.white.withOpacity(.08),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: BorderSide.none),
-                            hintText: '0',
-                            hintStyle: const TextStyle(color: Colors.white54),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            enterpriseValueWordsFooter(
+              valueInWords: payableAmountInWords(netPayable),
+              chargeController: fwdCharge,
+              onChargeChanged: (_) => setState(() {}),
             ),
             const SizedBox(height:18),
             Center(
@@ -422,49 +435,33 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     );
   }
 
-  InputDecoration _decoration(String label, {bool filled = false}) => InputDecoration(
-    labelText: label,
-    floatingLabelBehavior: FloatingLabelBehavior.always,
-    isDense: true,
-    filled: filled,
-    fillColor: filled ? const Color(0xFFF1F3F7) : Colors.white,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: border)),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: teal, width: 1.4)),
-    labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094), letterSpacing: .2),
-  );
-
-  Widget _outline(String label, {TextEditingController? controller, bool readOnly = false, bool filled = false, Widget? prefixIcon, VoidCallback? onTap}) {
-    return TextField(
+  Widget _outline(String label, {TextEditingController? controller, bool readOnly = false, bool filled = false, Widget? prefixIcon, VoidCallback? onTap, bool autofocus = false}) {
+    return enterpriseInsetTextField(
+      label: label,
       controller: controller,
       readOnly: readOnly,
+      filled: filled,
+      prefixIcon: prefixIcon,
       onTap: onTap,
-      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: navy),
-      decoration: _decoration(label, filled: filled).copyWith(prefixIcon: prefixIcon),
+      autofocus: autofocus,
     );
   }
 
   Widget _zoneField() {
     final mandatory = zone.isEmpty;
-    return DropdownButtonFormField<String>(
+    return enterpriseInsetDropdown<String>(
+      label: 'SELECT STATE ZONE APPLICABILITY *',
       value: zone.isEmpty ? null : zone,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: 'SELECT STATE ZONE APPLICABILITY *',
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: mandatory ? red : border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: mandatory ? red : border)),
-        labelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: mandatory ? red : const Color(0xFF748094), letterSpacing: .2),
-      ),
+      borderColor: mandatory ? red : null,
       hint: const Text('Choose Option (Mandatory Entry Row)', style: TextStyle(color: red, fontSize: 12.5, fontWeight: FontWeight.w600)),
       items: const [
         DropdownMenuItem(value: 'Intra State', child: Text('Intra State')),
         DropdownMenuItem(value: 'Inter State', child: Text('Inter State')),
       ],
-      onChanged: (v) => setState(() => zone = v ?? ''),
+      onChanged: (v) => setState(() {
+        zone = v ?? '';
+        _applyZoneToRows();
+      }),
     );
   }
 
@@ -477,7 +474,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     ],
   );
   Widget _pair(Widget a, Widget b) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.only(bottom: 6),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Expanded(child: a), const SizedBox(width: 14), Expanded(child: b),
     ]),
@@ -488,11 +485,11 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
       const SizedBox(height: 4),
       Container(height: 1, color: border),
-      const SizedBox(height: 12),
+      const SizedBox(height: 8),
       ...children,
     ],
   );
-  String _amountInWords(double v) => v == 0 ? 'ZERO RUPEES ONLY' : '₹${v.toStringAsFixed(2)} ONLY';
+  String _amountInWords(double v) => payableAmountInWords(v);
 
   static const _matrixHeadStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 7.5, height: 1.15);
   static const _matrixCellStyle = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
@@ -510,21 +507,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     );
   }
 
-  Widget _productMatrixTable() {
+  Table _productMatrixTable() {
     return Table(
-      columnWidths: const {
-        0: FixedColumnWidth(20),
-        1: FlexColumnWidth(2.4),
-        2: FixedColumnWidth(40),
-        3: FixedColumnWidth(44),
-        4: FixedColumnWidth(38),
-        5: FixedColumnWidth(42),
-        6: FixedColumnWidth(36),
-        7: FixedColumnWidth(36),
-        8: FixedColumnWidth(36),
-        9: FixedColumnWidth(52),
-        10: FixedColumnWidth(26),
-      },
+      columnWidths: enterpriseProductMatrixColumns,
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(
@@ -559,16 +544,21 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                   isExpanded: true,
                   isDense: true,
                   hint: const Text('Item Description', style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
-                  value: rows[i].productId,
+                  value: catalogIdInList(rows[i].productId, products),
                   items: products
-                      .map((p) => DropdownMenuItem<int>(
-                            value: p['id'] as int,
-                            child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
-                          ))
+                      .map((p) {
+                        final id = coerceCatalogId(p['id']);
+                        if (id == null) return null;
+                        return DropdownMenuItem<int>(
+                          value: id,
+                          child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
+                        );
+                      })
+                      .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final p = products.firstWhere((x) => x['id'] == v);
-                    setState(() => rows[i].setProduct(p));
+                    final p = products.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    setState(() => rows[i].setProduct(p, stateZone: zone));
                   },
                 ),
               ),
@@ -578,16 +568,21 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                   isExpanded: true,
                   isDense: true,
                   underline: const SizedBox(),
-                  value: rows[i].unitId,
+                  value: catalogIdInList(rows[i].unitId, units),
                   hint: const Text('UOM', style: TextStyle(fontSize: 9)),
                   items: units
-                      .map((u) => DropdownMenuItem<int>(
-                            value: u['id'] as int,
-                            child: Text('${u['code']}', style: const TextStyle(fontSize: 9)),
-                          ))
+                      .map((u) {
+                        final id = coerceCatalogId(u['id']);
+                        if (id == null) return null;
+                        return DropdownMenuItem<int>(
+                          value: id,
+                          child: Text('${u['code']}', style: const TextStyle(fontSize: 9)),
+                        );
+                      })
+                      .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final u = units.firstWhere((x) => x['id'] == v);
+                    final u = units.firstWhere((x) => coerceCatalogId(x['id']) == v);
                     setState(() {
                       rows[i].unitId = v;
                       rows[i].uom = '${u['code']}';
@@ -600,59 +595,54 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                 child: Text(rows[i].hsn, style: _matrixCellStyle, overflow: TextOverflow.ellipsis),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('q$i'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   key: ValueKey('r$i'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   controller: TextEditingController(text: '${rows[i].cgstPct}'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   controller: TextEditingController(text: '${rows[i].sgstPct}'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
                   controller: TextEditingController(text: '${rows[i].igstPct}'),
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
                 child: Text(
-                  rows[i].total.toStringAsFixed(2),
+                  _lineTotals(rows[i]).total.toStringAsFixed(2),
                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 9.5, color: navy),
                 ),
               ),
@@ -671,12 +661,48 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   }
 }
 
-class _InvoiceRow{
-  int? productId; int? unitId; String description='Item Description',uom='PCS',hsn='123456'; double qty=0,rate=0,cgstPct=9,sgstPct=9,igstPct=18;
-  void setProduct(Map<String,dynamic> p){productId=p['id'];description=p['product_name']??'';unitId=p['unit_id'] as int?;uom=p['uom_code']??'PCS';hsn=p['hsn']??'';rate=(p['rate']??0).toDouble();}
-  double get taxable=>qty*rate;
-  double get cgst=>taxable*cgstPct/100;
-  double get sgst=>taxable*sgstPct/100;
-  double get igst=>taxable*igstPct/100;
-  double get total=>taxable+cgst+sgst+igst;
+class _InvoiceRow {
+  int? productId;
+  int? unitId;
+  String description = '';
+  String uom = 'PCS';
+  String hsn = '';
+  double qty = 0;
+  double rate = 0;
+  double cgstPct = 9;
+  double sgstPct = 9;
+  double igstPct = 0;
+
+  void setProduct(Map<String, dynamic> p, {required String stateZone}) {
+    productId = coerceCatalogId(p['id']);
+    description = '${p['product_name'] ?? ''}';
+    unitId = catalogUnitId(p);
+    uom = catalogUomCode(p);
+    hsn = catalogProductHsn(p);
+    rate = catalogSalesRate(p);
+    final productGst = catalogTotalGstPercent(p);
+    if (productGst != null && productGst > 0) {
+      applyZoneGstSplit(
+        interState: isInterStateZone(stateZone),
+        totalGstPercent: productGst,
+        apply: (c, s, i) {
+          cgstPct = c;
+          sgstPct = s;
+          igstPct = i;
+        },
+      );
+    } else if (stateZone.trim().isNotEmpty) {
+      applyZoneGstFromPercents(
+        interState: isInterStateZone(stateZone),
+        cgstPct: cgstPct,
+        sgstPct: sgstPct,
+        igstPct: igstPct,
+        apply: (c, s, i) {
+          cgstPct = c;
+          sgstPct = s;
+          igstPct = i;
+        },
+      );
+    }
+  }
 }

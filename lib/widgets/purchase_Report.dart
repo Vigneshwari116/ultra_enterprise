@@ -3,6 +3,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'purchase_voucher_document.dart';
+
 String _money(num v) => '₹${v.toStringAsFixed(2)}';
 String _fmtDate(String? iso) {
   final d = DateTime.tryParse(iso ?? '');
@@ -177,51 +179,22 @@ Future<void> printVendorLedgerStatement({
   await Printing.layoutPdf(onLayout: (_) => doc.save());
 }
 
-/// Reprints a single purchase voucher (goods-received note) as a simple
-/// summary PDF — used by the "REPRINT" button on the Ledger View tab.
+/// Reprints a single purchase voucher using the portal-style ULTRA bill layout.
 Future<void> printPurchaseVoucherReprint(
-    Map<String, dynamic> voucher,
-    List<Map<String, dynamic>> items,
-    ) async {
-  final doc = pw.Document();
-  doc.addPage(
-    pw.Page(
-      pageFormat: PdfPageFormat.a4,
-      build: (context) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Text('PURCHASE VOUCHER', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-        pw.Text('Voucher No: PV-${voucher['voucher_no']}    Date: ${_fmtDate(voucher['voucher_date'] as String?)}'),
-        pw.Text('Supplier: ${voucher['party_name']}'),
-        pw.Text('Supplier Invoice No: ${voucher['supplier_invoice_no'] ?? '-'}'),
-        pw.Divider(),
-        pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.grey500, width: 0.5),
-          columnWidths: const {
-            0: pw.FlexColumnWidth(4),
-            1: pw.FlexColumnWidth(1),
-            2: pw.FlexColumnWidth(2),
-            3: pw.FlexColumnWidth(2),
-          },
-          children: [
-            pw.TableRow(children: [_h('DESCRIPTION'), _h('QTY'), _h('RATE'), _h('TOTAL')]),
-            for (final it in items)
-              pw.TableRow(children: [
-                _c('${it['description']}'),
-                _c('${it['quantity']}'),
-                _c(_money((it['rate'] ?? 0) as num)),
-                _c(_money((it['total'] ?? 0) as num)),
-              ]),
-          ],
-        ),
-        pw.SizedBox(height: 10),
-        pw.Align(
-          alignment: pw.Alignment.centerRight,
-          child: pw.Text('Grand Total: ${_money((voucher['grand_total'] ?? 0) as num)}',
-              style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-        ),
-      ]),
-    ),
-  );
-  await Printing.layoutPdf(onLayout: (_) => doc.save());
+  Map<String, dynamic> voucher,
+  List<Map<String, dynamic>> items,
+) async {
+  final id = voucher['id'];
+  if (id is int) {
+    await reprintPurchaseVoucher(id);
+    return;
+  }
+  if (id != null) {
+    final parsed = int.tryParse('$id');
+    if (parsed != null) {
+      await reprintPurchaseVoucher(parsed);
+    }
+  }
 }
 
 pw.Widget _h(String text) => pw.Padding(
