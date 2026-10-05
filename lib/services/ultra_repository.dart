@@ -194,6 +194,8 @@ class UltraRepository {
     out['product_code'] ??= out['barcode'];
     out['product_name'] ??= out['name'];
     out['sales_rate'] ??= out['rate'];
+    out['rate'] ??= out['sales_rate'];
+    out['hsn'] ??= out['hsn_code'];
     return out;
   }
 
