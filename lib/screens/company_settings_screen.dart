@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/company_settings_defaults.dart';
 import '../models/company_settings.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/enterprise_form_fields.dart';
@@ -19,6 +20,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
 
   final companyName = TextEditingController();
   final tagline = TextEditingController();
+  final headerLines = TextEditingController();
   final officeAddress = TextEditingController();
   final worksAddress = TextEditingController();
   final teleFax = TextEditingController();
@@ -41,6 +43,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
     final s = await repo.companySettings();
     companyName.text = s.companyName;
     tagline.text = s.tagline;
+    headerLines.text = s.effectiveHeaderLines.join('\n');
     officeAddress.text = s.officeAddress;
     worksAddress.text = s.worksAddress;
     teleFax.text = s.teleFax;
@@ -60,6 +63,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
     for (final c in [
       companyName,
       tagline,
+      headerLines,
       officeAddress,
       worksAddress,
       teleFax,
@@ -84,9 +88,15 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
+    final lines = headerLines.text
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
     await repo.saveCompanySettings(CompanySettings(
       companyName: companyName.text.trim(),
       tagline: tagline.text.trim(),
+      headerLines: lines.isEmpty ? CompanySettingsDefaults.headerLines : lines,
       officeAddress: officeAddress.text.trim(),
       worksAddress: worksAddress.text.trim(),
       teleFax: teleFax.text.trim(),
@@ -97,7 +107,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
       bankAccountNo: bankAccount.text.trim(),
       ifscCode: ifsc.text.trim(),
       branch: branch.text.trim(),
-      terms: termLines.isEmpty ? defaultCompanyTerms : termLines,
+      terms: termLines.isEmpty ? CompanySettingsDefaults.terms : termLines,
     ));
     if (mounted) {
       setState(() => saving = false);
@@ -140,8 +150,9 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
           const SizedBox(height: 16),
           _field('COMPANY NAME', companyName),
           _field('TAGLINE / SUBTITLE', tagline),
-          _field('OFFICE ADDRESS', officeAddress, lines: 3),
-          _field('WORKS ADDRESS', worksAddress, lines: 3),
+          _field('HEADER ADDRESS LINES (ONE PER LINE)', headerLines, lines: 6),
+          _field('OFFICE ADDRESS (LEGACY)', officeAddress, lines: 2),
+          _field('WORKS ADDRESS (LEGACY)', worksAddress, lines: 2),
           _field('TELE FAX', teleFax),
           _field('MOBILE', mobile),
           _field('COMPANY GSTIN', gstin),

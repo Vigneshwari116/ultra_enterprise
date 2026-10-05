@@ -612,11 +612,11 @@ class UltraRepository {
           final merged = Map<String, dynamic>.from(row);
           merged.addAll(Map<String, dynamic>.from(remote));
           await _db.saveCompanySettingsRow(merged);
-          return CompanySettings.fromMap(merged);
+          return CompanySettings.fromMap(merged).withDefaults();
         }
       } catch (_) {}
     }
-    return CompanySettings.fromMap(row);
+    return CompanySettings.fromMap(row).withDefaults();
   }
 
   Future<void> saveCompanySettings(CompanySettings settings) async {
