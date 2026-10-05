@@ -34,14 +34,16 @@ class InvoicePdfPreviewScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: PdfPreview(
-        maxPageWidth: 700,
+      body: LayoutBuilder(
+        builder: (context, constraints) => PdfPreview(
+        maxPageWidth: constraints.maxWidth > 0 ? constraints.maxWidth : 700,
         canChangeOrientation: false,
         canChangePageFormat: false,
         allowPrinting: true,
         allowSharing: true,
         pdfFileName: filename,
         build: (_) async => bytes,
+      ),
       ),
     );
   }
