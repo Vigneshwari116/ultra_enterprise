@@ -4,6 +4,7 @@ import 'package:ultra_enterprise/screens/purchase_reports_Screen.dart';
 import '../widgets/enterprise_widgets.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import 'company_settings_screen.dart';
 import 'master_screens.dart';
 import 'delivery_challan_screen.dart';
 import 'quotation_screen.dart';
@@ -77,6 +78,7 @@ class _AppShellState extends State<AppShell> {
     const PurchaseReportsScreen(),
     TransactionsHostScreen(key: transactionsHostKey),
     JobWorkHostScreen(key: jobWorkHostKey),
+    const CompanySettingsScreen(),
   ];
 
   static const _groups = [
@@ -85,6 +87,7 @@ class _AppShellState extends State<AppShell> {
       _NavLeaf('Supplier Master', 2),
       _NavLeaf('Unit Master', 3),
       _NavLeaf('Ledger Master', 4),
+      _NavLeaf('Company Settings', 14),
     ]),
     _NavGroup('Delivery Challan', Icons.local_shipping_outlined, [
       _NavLeaf('Delivery Challan', 5),

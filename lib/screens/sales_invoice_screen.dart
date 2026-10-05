@@ -6,6 +6,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
+import '../widgets/invoice_pdf_preview.dart';
 import '../widgets/sales_report.dart';
 import '../widgets/transaction_line_math.dart';
 
@@ -229,7 +230,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     if (invoiceId == null) return;
     final data = await invoiceDataFromId(invoiceId);
     if (data != null) {
-      await printUltraInvoice(data);
+      await printUltraInvoice(context, data);
     }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

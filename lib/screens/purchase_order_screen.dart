@@ -263,7 +263,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Future<void> saveAndPrint() async {
     final orderId = await _persistOrder();
     if (orderId == null) return;
-    await reprintPurchaseOrder(orderId);
+    await reprintPurchaseOrder(context, orderId);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PURCHASE ORDER SAVED — PRINT DIALOG OPENED')));
     }
@@ -424,7 +424,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                     ),
                     const SizedBox(width: 8),
                     OutlinedButton.icon(
-                      onPressed: () => reprintPurchaseOrder(id),
+                      onPressed: () => reprintPurchaseOrder(context, id),
                       icon: const Icon(Icons.print_outlined, size: 16),
                       label: const Text('REPRINT PO', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
                     ),

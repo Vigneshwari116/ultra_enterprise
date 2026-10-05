@@ -245,7 +245,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
       'created_at': DateTime.now().toIso8601String(),
       'items': items,
     });
-    await reprintDeliveryChallan(id);
+    await reprintDeliveryChallan(context, id);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('DELIVERY CHALLAN SAVED — PRINT OPENED')));
     }
@@ -389,7 +389,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
             ],
           ),
           const SizedBox(width: 10),
-          OutlinedButton(onPressed: () => reprintDeliveryChallan(id), child: const Icon(Icons.print_outlined, size: 18)),
+          OutlinedButton(onPressed: () => reprintDeliveryChallan(context, id), child: const Icon(Icons.print_outlined, size: 18)),
         ],
       ),
     );

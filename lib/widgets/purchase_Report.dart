@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -181,18 +182,19 @@ Future<void> printVendorLedgerStatement({
 
 /// Reprints a single purchase voucher using the portal-style ULTRA bill layout.
 Future<void> printPurchaseVoucherReprint(
+  BuildContext context,
   Map<String, dynamic> voucher,
   List<Map<String, dynamic>> items,
 ) async {
   final id = voucher['id'];
   if (id is int) {
-    await reprintPurchaseVoucher(id);
+    await reprintPurchaseVoucher(context, id);
     return;
   }
   if (id != null) {
     final parsed = int.tryParse('$id');
     if (parsed != null) {
-      await reprintPurchaseVoucher(parsed);
+      await reprintPurchaseVoucher(context, parsed);
     }
   }
 }

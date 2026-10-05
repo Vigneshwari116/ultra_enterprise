@@ -13,7 +13,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 14,
+      version: 15,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -259,6 +259,26 @@ class AppDatabase {
           )
         ''');
 
+        await db.execute('''
+          CREATE TABLE company_settings(
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            company_name TEXT,
+            tagline TEXT,
+            office_address TEXT,
+            works_address TEXT,
+            tele_fax TEXT,
+            mobile TEXT,
+            gstin TEXT,
+            service_tax_no TEXT,
+            bank_name TEXT,
+            bank_account_no TEXT,
+            ifsc_code TEXT,
+            branch TEXT,
+            terms_json TEXT
+          )
+        ''');
+        await db.insert('company_settings', {'id': 1});
+
         await db.insert('units', {'code': 'PCS', 'name': 'Pieces'});
         await db.insert('units', {'code': 'BOX', 'name': 'Box'});
         await db.insert('customers', {
@@ -452,6 +472,30 @@ class AppDatabase {
           try {
             await db.execute('ALTER TABLE adjustment_notes ADD COLUMN note_bill_no TEXT');
           } catch (_) {}
+        }
+        if (oldVersion < 15) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS company_settings(
+              id INTEGER PRIMARY KEY CHECK (id = 1),
+              company_name TEXT,
+              tagline TEXT,
+              office_address TEXT,
+              works_address TEXT,
+              tele_fax TEXT,
+              mobile TEXT,
+              gstin TEXT,
+              service_tax_no TEXT,
+              bank_name TEXT,
+              bank_account_no TEXT,
+              ifsc_code TEXT,
+              branch TEXT,
+              terms_json TEXT
+            )
+          ''');
+          final existing = await db.query('company_settings', limit: 1);
+          if (existing.isEmpty) {
+            await db.insert('company_settings', {'id': 1});
+          }
         }
         if (oldVersion < 13) {
           await db.execute('''
@@ -778,7 +822,11 @@ class AppDatabase {
         COALESCE(c.bank_account_no, '') AS bank_account_no,
         COALESCE(c.ifsc_code, '') AS ifsc_code,
         COALESCE(c.branch_address, '') AS branch_address,
-        COALESCE(c.shipping_address, '') AS shipping_address
+        COALESCE(c.shipping_address, '') AS shipping_address,
+        COALESCE(c.shipping_consignee_name, '') AS shipping_consignee_name,
+        COALESCE(c.shipping_city, '') AS shipping_city,
+        COALESCE(c.shipping_pincode, '') AS shipping_pincode,
+        COALESCE(c.shipping_contact_mobile, '') AS shipping_contact_mobile
       FROM sales_invoices si
       LEFT JOIN customers c ON c.id = si.customer_id
       WHERE si.id = ?
@@ -1155,6 +1203,21 @@ class AppDatabase {
       LEFT JOIN suppliers s ON s.id = p.supplier_id
       ORDER BY entry_date DESC, entry_id DESC
     ''');
+  }
+
+  Future<Map<String, dynamic>> companySettingsRow() async {
+    final rows = await db.query('company_settings', where: 'id = ?', whereArgs: [1], limit: 1);
+    if (rows.isEmpty) {
+      await db.insert('company_settings', {'id': 1});
+      return {'id': 1};
+    }
+    return rows.first;
+  }
+
+  Future<void> saveCompanySettingsRow(Map<String, dynamic> row) async {
+    final data = Map<String, dynamic>.from(row);
+    data['id'] = 1;
+    await db.insert('company_settings', data, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<Map<String, dynamic>?> quotationPrintBundle(int quotationId) async {

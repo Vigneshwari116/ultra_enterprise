@@ -1,32 +1,34 @@
 import 'package:intl/intl.dart';
 
+/// Invoice PDF date format (MM/DD/YYYY).
 String ultraFmtDate(String? iso) {
   if (iso == null || iso.isEmpty) return '';
   final d = DateTime.tryParse(iso);
-  return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
+  if (d == null) {
+    final parts = iso.split('-');
+    if (parts.length == 3) {
+      final y = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      final day = int.tryParse(parts[2]);
+      if (y != null && m != null && day != null) {
+        return DateFormat('MM/dd/yyyy').format(DateTime(y, m, day));
+      }
+    }
+    return iso;
+  }
+  return DateFormat('MM/dd/yyyy').format(d);
 }
 
-const ultraDefaultBankName = 'STATE BANK OF INDIA';
-const ultraDefaultBankAccount = '54009859972';
-const ultraDefaultBankIfsc = 'SBIN0040552';
-const ultraDefaultBankAddress = 'SINGASANDRA';
-
-String ultraBankName(Map<String, dynamic>? row, String key) {
-  final v = '${row?[key] ?? ''}'.trim();
-  return v.isEmpty ? ultraDefaultBankName : v;
+String ultraFmtDateFromDisplay(String? text) {
+  final t = '${text ?? ''}'.trim();
+  if (t.isEmpty) return '';
+  final d = DateTime.tryParse(t);
+  if (d != null) return DateFormat('MM/dd/yyyy').format(d);
+  final ddmmyyyy = RegExp(r'^(\d{2})-(\d{2})-(\d{4})$').firstMatch(t);
+  if (ddmmyyyy != null) {
+    return '${ddmmyyyy.group(2)}/${ddmmyyyy.group(1)}/${ddmmyyyy.group(3)}';
+  }
+  return t;
 }
 
-String ultraBankAccount(Map<String, dynamic>? row, String key) {
-  final v = '${row?[key] ?? ''}'.trim();
-  return v.isEmpty ? ultraDefaultBankAccount : v;
-}
-
-String ultraBankIfsc(Map<String, dynamic>? row, String key) {
-  final v = '${row?[key] ?? ''}'.trim();
-  return v.isEmpty ? ultraDefaultBankIfsc : v;
-}
-
-String ultraBankAddress(Map<String, dynamic>? row, String key) {
-  final v = '${row?[key] ?? ''}'.trim();
-  return v.isEmpty ? ultraDefaultBankAddress : v;
-}
+String ultraBankField(Map<String, dynamic>? row, String key) => '${row?[key] ?? ''}'.trim();

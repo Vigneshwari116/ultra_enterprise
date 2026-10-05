@@ -1,16 +1,20 @@
+import 'package:flutter/material.dart';
+
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
+import 'invoice_pdf_preview.dart';
 import 'ultra_print_helpers.dart';
 
-Future<void> reprintQuotation(int quotationId) async {
+Future<void> reprintQuotation(BuildContext context, int quotationId) async {
   final data = await quotationInvoiceData(quotationId);
   if (data == null) return;
-  await printUltraInvoice(data);
+  await printUltraInvoice(context, data);
 }
 
 Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
   final bundle = await UltraRepository.instance.quotationPrintBundle(quotationId);
   if (bundle == null) return null;
+  final company = await UltraRepository.instance.companySettings();
   final q = bundle['quotation'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
   final termRows = bundle['terms'] as List<Map<String, dynamic>>;
@@ -73,10 +77,11 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
     pAndF: freight,
     grandTotalOverride: grand,
     amountInWords: formatUltraAmountInWords(grand),
-    bankName: ultraDefaultBankName,
-    accountNo: ultraDefaultBankAccount,
-    ifscCode: ultraDefaultBankIfsc,
-    bankAddress: ultraDefaultBankAddress,
+    bankName: company.bankName,
+    accountNo: company.bankAccountNo,
+    ifscCode: company.ifscCode,
+    bankAddress: company.branch,
+    company: company,
     preambleLines: preamble,
     customTerms: customTerms.isEmpty ? null : customTerms,
     leftSignatureLabel: 'Prepared By',

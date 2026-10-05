@@ -1,5 +1,8 @@
+import 'package:flutter/material.dart';
+
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
+import 'invoice_pdf_preview.dart';
 import 'ultra_print_helpers.dart';
 
 String _voucherBillNo(Map<String, dynamic> voucher) {
@@ -16,6 +19,7 @@ String _voucherBillNo(Map<String, dynamic> voucher) {
 Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
   final bundle = await UltraRepository.instance.purchaseVoucherPrintBundle(voucherId);
   if (bundle == null) return null;
+  final company = await UltraRepository.instance.companySettings();
   final v = bundle['voucher'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
 
@@ -69,15 +73,16 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
     igstAmountOverride: igstAmt,
     grandTotalOverride: grand,
     amountInWords: formatUltraAmountInWords(grand),
-    bankName: ultraBankName(v, 'bank_name'),
-    accountNo: ultraBankAccount(v, 'bank_account_no'),
-    ifscCode: ultraBankIfsc(v, 'ifsc_code'),
-    bankAddress: ultraBankAddress(v, 'branch_address'),
+    bankName: company.bankName,
+    accountNo: company.bankAccountNo,
+    ifscCode: company.ifscCode,
+    bankAddress: company.branch,
+    company: company,
   );
 }
 
-Future<void> reprintPurchaseVoucher(int voucherId) async {
+Future<void> reprintPurchaseVoucher(BuildContext context, int voucherId) async {
   final data = await purchaseVoucherInvoiceData(voucherId);
   if (data == null) return;
-  await printUltraInvoice(data);
+  await printUltraInvoice(context, data);
 }

@@ -1,5 +1,8 @@
+import 'package:flutter/material.dart';
+
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
+import 'invoice_pdf_preview.dart';
 import 'ultra_print_helpers.dart';
 
 String _billNoForOrder(Map<String, dynamic> po) {
@@ -16,6 +19,7 @@ String _billNoForOrder(Map<String, dynamic> po) {
 Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
   final bundle = await UltraRepository.instance.purchaseOrderPrintBundle(purchaseOrderId);
   if (bundle == null) return null;
+  final company = await UltraRepository.instance.companySettings();
   final po = bundle['order'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
   final items = rawItems
@@ -69,18 +73,19 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
     igstAmountOverride: igstAmt,
     grandTotalOverride: grand,
     amountInWords: formatUltraAmountInWords(grand),
-    bankName: ultraBankName(po, 'bank_name'),
-    accountNo: ultraBankAccount(po, 'bank_account_no'),
-    ifscCode: ultraBankIfsc(po, 'ifsc_code'),
-    bankAddress: ultraBankAddress(po, 'branch_address'),
+    bankName: company.bankName,
+    accountNo: company.bankAccountNo,
+    ifscCode: company.ifscCode,
+    bankAddress: company.branch,
+    company: company,
     documentTitle: 'PURCHASE ORDER',
     partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
     copyLabels: const ['ORIGINAL FOR SUPPLIER'],
   );
 }
 
-Future<void> reprintPurchaseOrder(int purchaseOrderId) async {
+Future<void> reprintPurchaseOrder(BuildContext context, int purchaseOrderId) async {
   final data = await purchaseOrderDataFromId(purchaseOrderId);
   if (data == null) return;
-  await printUltraInvoice(data);
+  await printUltraInvoice(context, data);
 }
