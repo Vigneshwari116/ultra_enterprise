@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/enterprise_widgets.dart';
+import 'product_catalog_refresh.dart';
+import 'sales_invoice_screen.dart';
 
 int? _coerceMasterId(dynamic value) {
   if (value == null) return null;
@@ -343,7 +345,7 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
     finishSize.text = '${p['finishing_size'] ?? ''}';
     purchaseRate.text = '${p['purchase_rate'] ?? p['rate'] ?? 0}';
     salesRate.text = '${p['sales_rate'] ?? p['rate'] ?? 0}';
-    hsn.text = '${p['hsn'] ?? ''}';
+    hsn.text = '${p['hsn'] ?? p['hsn_code'] ?? ''}';
     imageBase64 = p['image_base64'] as String?;
     final ld = p['log_date'] as String?;
     if (ld != null && ld.isNotEmpty) {
@@ -435,6 +437,8 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
       return;
     }
     await load();
+    salesInvoiceCatalogKey.currentState?.refreshCatalog();
+    await refreshMountedProductCatalogs();
     final keepId = isNew ? editingId : savedId;
     if (keepId != null) {
       final match = products.where((p) => _coerceMasterId(p['id']) == keepId).toList();

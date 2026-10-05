@@ -5,6 +5,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
+import 'product_catalog_refresh.dart';
 
 final transactionsHostKey = GlobalKey<TransactionsHostScreenState>();
 
@@ -77,10 +78,26 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
 
   static const _reasons = ['DAMAGED GOODS', 'PRICE DIFFERENCE', 'SHORT SUPPLY', 'EXCESS SUPPLY', 'OTHER'];
 
+  late final Future<void> Function() _productCatalogRefreshHandler;
+
   @override
   void initState() {
     super.initState();
+    _productCatalogRefreshHandler = refreshProductCatalog;
+    registerProductCatalogRefresh(_productCatalogRefreshHandler);
     load();
+  }
+
+  @override
+  void dispose() {
+    unregisterProductCatalogRefresh(_productCatalogRefreshHandler);
+    super.dispose();
+  }
+
+  Future<void> refreshProductCatalog() async {
+    products = await repo.products();
+    units = await repo.units();
+    if (mounted) setState(() {});
   }
 
   Future<void> load() async {

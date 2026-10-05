@@ -5,12 +5,14 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/delivery_challan_document.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
+import 'product_catalog_refresh.dart';
 
 final deliveryChallanScreenKey = GlobalKey<DeliveryChallanScreenState>();
 
 abstract class DeliveryChallanScreenState extends State<DeliveryChallanScreen> {
   void openHistory();
   void openEntry();
+  Future<void> refreshProductCatalog();
 }
 
 enum DcKind { inward, outward, proforma }
@@ -83,10 +85,21 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
   List<Map<String, dynamic>> historyRows = [];
   final rows = [_DcRow()];
 
+  late final Future<void> Function() _productCatalogRefreshHandler;
+
   @override
   void initState() {
     super.initState();
+    _productCatalogRefreshHandler = refreshProductCatalog;
+    registerProductCatalogRefresh(_productCatalogRefreshHandler);
     load();
+  }
+
+  @override
+  Future<void> refreshProductCatalog() async {
+    products = await repo.products();
+    units = await repo.units();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -175,6 +188,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
 
   @override
   void dispose() {
+    unregisterProductCatalogRefresh(_productCatalogRefreshHandler);
     for (final c in [poRef, packages, vehicle, creditDays, validityDays, eway, fwd, billingAddress, city, pin, gstin, accountRef, deliverySite, historySearch]) {
       c.dispose();
     }

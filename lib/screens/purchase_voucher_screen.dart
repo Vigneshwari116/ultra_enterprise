@@ -5,6 +5,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/transaction_line_math.dart';
+import 'product_catalog_refresh.dart';
 
 class PurchaseVoucherScreen extends StatefulWidget {
   const PurchaseVoucherScreen({super.key});
@@ -23,7 +24,20 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
   int? supplierId; int? againstPoId;
   final rows=[_PvRow()];
 
-  @override void initState(){super.initState();load();}
+  late final Future<void> Function() _productCatalogRefreshHandler;
+
+  @override void initState(){
+    super.initState();
+    _productCatalogRefreshHandler = refreshProductCatalog;
+    registerProductCatalogRefresh(_productCatalogRefreshHandler);
+    load();
+  }
+
+  Future<void> refreshProductCatalog() async {
+    products = await repo.products();
+    units = await repo.units();
+    if (mounted) setState(() {});
+  }
 
   Future<void> load()async{
     suppliers=await repo.suppliers();
@@ -74,7 +88,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     if(mounted)setState((){});
   }
 
-  @override void dispose(){for(final c in [supplierInvoiceNo,remarks,supplierAddress,city,pin,gstin,bank,account])c.dispose();super.dispose();}
+  @override void dispose(){
+    unregisterProductCatalogRefresh(_productCatalogRefreshHandler);
+    for(final c in [supplierInvoiceNo,remarks,supplierAddress,city,pin,gstin,bank,account])c.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickDate(String currentIso, ValueChanged<String> onPicked) async {
     final now = DateTime.now();

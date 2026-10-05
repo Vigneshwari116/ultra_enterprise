@@ -6,6 +6,7 @@ import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_order_document.dart';
 import '../widgets/transaction_line_math.dart';
+import 'product_catalog_refresh.dart';
 
 class PurchaseOrderScreen extends StatefulWidget {
   const PurchaseOrderScreen({super.key});
@@ -43,10 +44,20 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   int? supplierId;
   final rows = [_PoRow()];
 
+  late final Future<void> Function() _productCatalogRefreshHandler;
+
   @override
   void initState() {
     super.initState();
+    _productCatalogRefreshHandler = refreshProductCatalog;
+    registerProductCatalogRefresh(_productCatalogRefreshHandler);
     load();
+  }
+
+  Future<void> refreshProductCatalog() async {
+    products = await repo.products();
+    units = await repo.units();
+    if (mounted) setState(() {});
   }
 
   Future<void> load() async {
@@ -114,6 +125,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 
   @override
   void dispose() {
+    unregisterProductCatalogRefresh(_productCatalogRefreshHandler);
     for (final c in [
       supplierRef,
       packages,
