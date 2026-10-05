@@ -482,7 +482,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
           ),
           const SizedBox(width: 12),
           OutlinedButton.icon(
-            onPressed: () => reprintAdjustmentNote(id),
+            onPressed: () => reprintAdjustmentNote(context, id),
             icon: const Icon(Icons.print, size: 12),
             label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
             style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8)),
@@ -607,7 +607,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
         Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [const Text('CREDIT VAL (REC)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))), const Text('₹0', style: TextStyle(fontSize: 12, color: Color(0xFFB93636), fontWeight: FontWeight.w800))])),
         const SizedBox(width: 12),
         OutlinedButton.icon(
-          onPressed: () => reprintSalesInvoice(r['id'] as int),
+          onPressed: () => reprintSalesInvoice(context, r['id'] as int),
           icon: const Icon(Icons.print, size: 12),
           label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
           style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8)),

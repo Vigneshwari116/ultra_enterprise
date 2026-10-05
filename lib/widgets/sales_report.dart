@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -5,14 +6,13 @@ import 'package:printing/printing.dart';
 
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
+import 'invoice_bank_fields.dart';
+import 'invoice_pdf_preview.dart';
 import 'ultra_print_helpers.dart';
 
-String _money(num v) => v.toStringAsFixed(2);
+String _money(num v) => NumberFormat('#,##0.00', 'en_IN').format(v);
 
-String _fmtDate(String? iso) {
-  final d = DateTime.tryParse(iso ?? '');
-  return d == null ? (iso ?? '-') : DateFormat('dd-MM-yyyy').format(d);
-}
+String _fmtDate(String? iso) => ultraFmtDate(iso);
 
 pw.Widget _h(String t) => pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 3),
@@ -24,7 +24,6 @@ pw.Widget _c(String t, {bool bold = false}) => pw.Padding(
       child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
     );
 
-/// Sales audit register PDF — columns: bill no, date, then party and tax totals.
 Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
   final sorted = List<Map<String, dynamic>>.from(invoices);
   sorted.sort((a, b) {
@@ -82,9 +81,9 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
               ]),
               for (final r in sorted)
                 pw.TableRow(children: [
-                  _c('${r['invoice_no'] ?? '-'}'),
+                  _c('${r['invoice_no'] ?? ''}'),
                   _c(_fmtDate(r['transaction_date'] as String?)),
-                  _c('${r['customer_name'] ?? '-'}'),
+                  _c('${r['customer_name'] ?? ''}'),
                   _c(_money((r['taxable_total'] ?? 0) as num)),
                   _c(_money((r['cgst_total'] ?? 0) as num)),
                   _c(_money((r['sgst_total'] ?? 0) as num)),
@@ -112,11 +111,26 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
   await Printing.layoutPdf(onLayout: (_) => doc.save());
 }
 
+String _shippingBlockFromInvoice(Map<String, dynamic> inv) {
+  final lines = <String>[];
+  final name = '${inv['shipping_consignee_name'] ?? ''}'.trim();
+  final addr = '${inv['shipping_address'] ?? ''}'.trim();
+  final city = '${inv['shipping_city'] ?? ''}'.trim();
+  final pin = '${inv['shipping_pincode'] ?? ''}'.trim();
+  if (name.isNotEmpty) lines.add(name);
+  if (addr.isNotEmpty) lines.add(addr);
+  final cityPin = [city, pin].where((e) => e.isNotEmpty).join(' ');
+  if (cityPin.isNotEmpty) lines.add(cityPin);
+  return lines.join('\n');
+}
+
 Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
   final bundle = await UltraRepository.instance.salesInvoicePrintBundle(invoiceId);
   if (bundle == null) return null;
   final inv = bundle['invoice'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
+  final company = await UltraRepository.instance.companySettings();
+  final bank = resolveInvoiceBank(documentRow: inv, company: company);
   final items = rawItems
       .map(
         (it) => InvoiceItem(
@@ -127,14 +141,19 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
         ),
       )
       .toList();
-  final zone = '${inv['state_zone'] ?? ''}'.toLowerCase();
-  final isInter = zone.contains('inter');
+
   final taxable = (inv['taxable_total'] as num?)?.toDouble() ?? items.fold<double>(0, (s, i) => s + i.amount);
-  final cgstAmt = (inv['cgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : taxable * 0.09);
-  final sgstAmt = (inv['sgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : taxable * 0.09);
-  final igstAmt = (inv['igst_total'] as num?)?.toDouble() ?? (isInter ? taxable * 0.18 : 0.0);
-  final grand = (inv['grand_total'] as num?)?.toDouble() ?? taxable + cgstAmt + sgstAmt + igstAmt;
-  final freight = grand - taxable - cgstAmt - sgstAmt - igstAmt;
+  final cgstAmt = (inv['cgst_total'] as num?)?.toDouble() ?? 0;
+  final sgstAmt = (inv['sgst_total'] as num?)?.toDouble() ?? 0;
+  final igstAmt = (inv['igst_total'] as num?)?.toDouble() ?? 0;
+  final fwd = (inv['forwarding_charge'] as num?)?.toDouble() ?? 0;
+  final roundOff = (inv['round_off'] as num?)?.toDouble() ?? 0;
+  final grand = (inv['grand_total'] as num?)?.toDouble() ?? taxable + cgstAmt + sgstAmt + igstAmt + fwd + roundOff;
+
+  final cgstPct = taxable > 0 ? (cgstAmt / taxable * 100) : 0.0;
+  final sgstPct = taxable > 0 ? (sgstAmt / taxable * 100) : 0.0;
+  final igstPct = taxable > 0 ? (igstAmt / taxable * 100) : 0.0;
+
   return InvoiceData(
     kind: UltraBillKind.taxInvoice,
     invoiceNo: '${inv['invoice_no'] ?? ''}',
@@ -146,28 +165,33 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
     dispatch: '${inv['vehicle_dispatch_mode'] ?? ''}',
     ewbNo: '${inv['eway_bill_no'] ?? ''}',
     consigneeName: '${inv['customer_name'] ?? ''}',
-    consigneeAddress: '${inv['customer_address'] ?? ''}',
+    consigneeAddress: '${inv['customer_address'] ?? ''}'.trim(),
+    consigneeCity: '${inv['customer_city'] ?? ''}'.trim(),
+    consigneePincode: '${inv['customer_pincode'] ?? ''}'.trim(),
     gstin: '${inv['customer_gstin'] ?? ''}',
     mobile: '${inv['customer_mobile'] ?? ''}',
+    shippingBlock: _shippingBlockFromInvoice(inv),
     items: items,
-    cgstPercent: isInter ? 0 : 9,
-    sgstPercent: isInter ? 0 : 9,
-    igstPercent: isInter ? 18 : 0,
-    pAndF: freight > 0 ? freight : 0,
+    cgstPercent: cgstPct,
+    sgstPercent: sgstPct,
+    igstPercent: igstPct,
+    pAndF: fwd,
+    roundOff: roundOff,
     cgstAmountOverride: cgstAmt,
     sgstAmountOverride: sgstAmt,
     igstAmountOverride: igstAmt,
     grandTotalOverride: grand,
     amountInWords: formatUltraAmountInWords(grand),
-    bankName: ultraBankName(inv, 'bank_name'),
-    accountNo: ultraBankAccount(inv, 'bank_account_no'),
-    ifscCode: ultraBankIfsc(inv, 'ifsc_code'),
-    bankAddress: ultraBankAddress(inv, 'branch_address'),
+    bankName: bank.bankName,
+    accountNo: bank.accountNo,
+    ifscCode: bank.ifscCode,
+    bankAddress: bank.branch,
+    company: company,
   );
 }
 
-Future<void> reprintSalesInvoice(int invoiceId) async {
+Future<void> reprintSalesInvoice(BuildContext context, int invoiceId) async {
   final data = await invoiceDataFromId(invoiceId);
   if (data == null) return;
-  await printUltraInvoice(data);
+  await printUltraInvoice(context, data);
 }

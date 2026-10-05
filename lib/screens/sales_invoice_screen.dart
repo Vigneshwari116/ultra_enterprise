@@ -6,6 +6,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
+import '../widgets/invoice_pdf_preview.dart';
 import '../widgets/sales_report.dart';
 import '../widgets/transaction_line_math.dart';
 
@@ -159,6 +160,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
         )
         .toList();
     try {
+    final cust = customers.firstWhere((c) => c['id'] == customerId);
     final invoiceId = await repo.createSalesInvoice({
       'uuid': uuid,
       'invoice_no': int.tryParse(voucherNo),
@@ -178,6 +180,12 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       'sgst_total': sgst,
       'igst_total': igst,
       'grand_total': netPayable,
+      'forwarding_charge': fwd,
+      'round_off': 0,
+      'print_bank_name': bank.text.trim(),
+      'print_bank_account_no': account.text.trim(),
+      'print_ifsc_code': '${cust['ifsc_code'] ?? ''}',
+      'print_branch': '${cust['branch_address'] ?? ''}',
       'status': 'POSTED',
       'items': items,
     });
@@ -229,7 +237,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     if (invoiceId == null) return;
     final data = await invoiceDataFromId(invoiceId);
     if (data != null) {
-      await printUltraInvoice(data);
+      await printUltraInvoice(context, data);
     }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -305,7 +305,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
               OutlinedButton.icon(
                 onPressed: () async {
                   final items = await repo.purchaseVoucherItems(v['id'] as int);
-                  await printPurchaseVoucherReprint(v, items);
+                  await printPurchaseVoucherReprint(context, v, items);
                 },
                 icon: const Icon(Icons.print_outlined, size: 14),
                 label: const Text('REPRINT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),

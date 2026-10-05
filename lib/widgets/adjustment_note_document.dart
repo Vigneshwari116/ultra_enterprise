@@ -1,5 +1,8 @@
+import 'package:flutter/material.dart';
+
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
+import 'invoice_pdf_preview.dart';
 import 'ultra_print_helpers.dart';
 
 String _billNo(Map<String, dynamic> note) {
@@ -12,15 +15,16 @@ String _billNo(Map<String, dynamic> note) {
   return '$prefix-$year-${note['note_no']}';
 }
 
-Future<void> reprintAdjustmentNote(int noteId) async {
+Future<void> reprintAdjustmentNote(BuildContext context, int noteId) async {
   final data = await adjustmentNoteInvoiceData(noteId);
   if (data == null) return;
-  await printUltraInvoice(data);
+  await printUltraInvoice(context, data);
 }
 
 Future<InvoiceData?> adjustmentNoteInvoiceData(int noteId) async {
   final bundle = await UltraRepository.instance.adjustmentNotePrintBundle(noteId);
   if (bundle == null) return null;
+  final company = await UltraRepository.instance.companySettings();
   final note = bundle['note'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
   final isCredit = '${note['note_type']}' == 'CREDIT';
@@ -30,7 +34,6 @@ Future<InvoiceData?> adjustmentNoteInvoiceData(int noteId) async {
         (it) {
           final qty = (it['quantity'] as num?)?.toDouble() ?? 0;
           final rate = (it['rate'] as num?)?.toDouble() ?? 0;
-          final ext = (it['extended_value'] as num?)?.toDouble();
           return InvoiceItem(
             description: '${it['description'] ?? ''}',
             hsnCode: '${it['hsn'] ?? ''}',
@@ -75,10 +78,11 @@ Future<InvoiceData?> adjustmentNoteInvoiceData(int noteId) async {
     sgstAmountOverride: halfTax,
     grandTotalOverride: grand,
     amountInWords: formatUltraAmountInWords(grand),
-    bankName: ultraDefaultBankName,
-    accountNo: ultraDefaultBankAccount,
-    ifscCode: ultraDefaultBankIfsc,
-    bankAddress: ultraDefaultBankAddress,
+    bankName: company.bankName,
+    accountNo: company.bankAccountNo,
+    ifscCode: company.ifscCode,
+    bankAddress: company.branch,
+    company: company,
     totalGrandLabel: 'Total Value',
   );
 }

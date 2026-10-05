@@ -163,7 +163,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
       'items': items,
       'terms': termRows,
     });
-    await reprintQuotation(id);
+    await reprintQuotation(context, id);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('QUOTATION SAVED — PRINT OPENED')));
     await load();
     setState(() {
@@ -312,7 +312,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
                       setState(() {});
                     },
                   ),
-                  OutlinedButton.icon(onPressed: () => reprintQuotation(id), icon: const Icon(Icons.print_outlined, size: 16), label: const Text('REPRINT QT')),
+                  OutlinedButton.icon(onPressed: () => reprintQuotation(context, id), icon: const Icon(Icons.print_outlined, size: 16), label: const Text('REPRINT QT')),
                 ],
               ),
             ),

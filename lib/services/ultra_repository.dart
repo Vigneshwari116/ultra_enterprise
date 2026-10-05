@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 
 import '../config/ultra_config.dart';
 import '../database/app_database.dart';
+import '../models/company_settings.dart';
 import 'api_service.dart';
 
 /// Single entry point for app data: server-first when [UltraConfig.persistLocally] is false.
@@ -598,6 +599,34 @@ class UltraRepository {
       options.add({'key': 'SUPPLIER:${s['id']}', 'label': '${s['supplier_name']}'});
     }
     return options;
+  }
+
+  // ---- Company settings (always stored locally for print/PDF) ----
+
+  Future<CompanySettings> companySettings() async {
+    final row = await _db.companySettingsRow();
+    if (!UltraConfig.persistLocally) {
+      try {
+        final remote = await _api.get('/api/company-settings');
+        if (remote is Map) {
+          final merged = Map<String, dynamic>.from(row);
+          merged.addAll(Map<String, dynamic>.from(remote));
+          await _db.saveCompanySettingsRow(merged);
+          return CompanySettings.fromMap(merged).withDefaults();
+        }
+      } catch (_) {}
+    }
+    return CompanySettings.fromMap(row).withDefaults();
+  }
+
+  Future<void> saveCompanySettings(CompanySettings settings) async {
+    final map = settings.toMap();
+    await _db.saveCompanySettingsRow(map);
+    if (!UltraConfig.persistLocally) {
+      try {
+        await _api.put('/api/company-settings', map);
+      } catch (_) {}
+    }
   }
 
   // ---- Local insert helper ----
