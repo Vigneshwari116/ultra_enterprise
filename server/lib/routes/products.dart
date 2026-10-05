@@ -46,6 +46,10 @@ Future<Response> listProducts(Connection conn) async {
       p.unit_id,
       COALESCE(u.code, '') AS uom_code,
       p.hsn_code,
+      p.material_type_id,
+      p.sales_rate,
+      p.purchase_rate,
+      p.gst_rate,
       p.reorder_level,
       p.is_active,
       COALESCE(st.quantity, 0) AS current_stock
@@ -72,6 +76,9 @@ Future<Response> createProduct(Request request, Connection conn) async {
   );
   if (unitOk.isEmpty) return jsonError('unit_id not found: $unitId', status: 400);
 
+  final materialTypeError = await _validateMaterialTypeId(conn, body);
+  if (materialTypeError != null) return jsonError(materialTypeError);
+
   final productCode = _productCodeFromBody(body);
   final params = _productWriteParams(body, productCode: productCode, unitId: unitId);
   final stockQty = _stockQuantityFromBody(body, defaultZero: true) ?? 0;
@@ -82,10 +89,12 @@ Future<Response> createProduct(Request request, Connection conn) async {
         Sql.named('''
           INSERT INTO products (
             uuid, product_code, product_name, unit_id,
-            hsn_code, reorder_level, is_active, created_at
+            hsn_code, material_type_id, sales_rate, purchase_rate, gst_rate,
+            reorder_level, is_active, created_at
           ) VALUES (
             @uuid, @product_code, @product_name, @unit_id,
-            @hsn_code, @reorder_level, true, NOW()
+            @hsn_code, @material_type_id, @sales_rate, @purchase_rate, @gst_rate,
+            @reorder_level, true, NOW()
           )
           RETURNING id
         '''),
@@ -123,6 +132,11 @@ Future<Response> updateProduct(Request request, Connection conn, int id) async {
     if (unitOk.isEmpty) return jsonError('unit_id not found: $unitId', status: 400);
   }
 
+  if (body.containsKey('material_type_id')) {
+    final materialTypeError = await _validateMaterialTypeId(conn, body);
+    if (materialTypeError != null) return jsonError(materialTypeError);
+  }
+
   final productCode = body.containsKey('barcode') || body.containsKey('product_code')
       ? _productCodeFromBody(body)
       : null;
@@ -138,6 +152,10 @@ Future<Response> updateProduct(Request request, Connection conn, int id) async {
           product_name = COALESCE(@product_name, product_name),
           unit_id = COALESCE(@unit_id, unit_id),
           hsn_code = COALESCE(@hsn_code, hsn_code),
+          material_type_id = COALESCE(@material_type_id, material_type_id),
+          sales_rate = COALESCE(@sales_rate, sales_rate),
+          purchase_rate = COALESCE(@purchase_rate, purchase_rate),
+          gst_rate = COALESCE(@gst_rate, gst_rate),
           reorder_level = COALESCE(@reorder_level, reorder_level),
           updated_at = NOW()
         WHERE id = @id AND is_active = true
@@ -149,6 +167,15 @@ Future<Response> updateProduct(Request request, Connection conn, int id) async {
         'product_name': body['product_name'],
         'unit_id': _asInt(body['unit_id']),
         'hsn_code': _hsnFromBody(body),
+        'material_type_id': body.containsKey('material_type_id')
+            ? _asInt(body['material_type_id'])
+            : null,
+        'sales_rate': body.containsKey('sales_rate') || body.containsKey('rate')
+            ? _num(body['sales_rate'] ?? body['rate'])
+            : null,
+        'purchase_rate':
+            body.containsKey('purchase_rate') ? _num(body['purchase_rate']) : null,
+        'gst_rate': body.containsKey('gst_rate') ? _num(body['gst_rate']) : null,
         'reorder_level': _num(body['reorder_level']),
       },
     );
@@ -200,7 +227,25 @@ Map<String, dynamic> _productWriteParams(
     'product_name': body['product_name'],
     'unit_id': unitId,
     'hsn_code': _hsnFromBody(body),
+    'material_type_id': _asInt(body['material_type_id']),
+    'sales_rate': _num(body['sales_rate'] ?? body['rate']) ?? 0,
+    'purchase_rate': _num(body['purchase_rate']) ?? 0,
+    'gst_rate': _num(body['gst_rate']),
   };
+}
+
+Future<String?> _validateMaterialTypeId(Connection conn, Map<String, dynamic> body) async {
+  if (!body.containsKey('material_type_id') || body['material_type_id'] == null) {
+    return null;
+  }
+  final materialTypeId = _asInt(body['material_type_id']);
+  if (materialTypeId == null) return 'material_type_id must be a number';
+  final rows = await conn.execute(
+    Sql.named('SELECT id FROM material_types WHERE id = @id'),
+    parameters: {'id': materialTypeId},
+  );
+  if (rows.isEmpty) return 'material_type_id not found: $materialTypeId';
+  return null;
 }
 
 String? _productCodeFromBody(Map<String, dynamic> body) {
