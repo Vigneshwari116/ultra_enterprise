@@ -264,26 +264,6 @@ class AppDatabase {
 
         await db.insert('units', {'code': 'PCS', 'name': 'Pieces'});
         await db.insert('units', {'code': 'BOX', 'name': 'Box'});
-        await db.insert('customers', {
-          'customer_code': 'CUST001',
-          'customer_name': 'Test Customer',
-          'address': 'Test Address',
-          'city': 'Chennai',
-          'postal_pincode': '600001',
-          'gstin': 'TESTGSTIN',
-          'bank_name': 'Test Bank',
-          'bank_account_no': '0000000000',
-          'shipping_address': 'Test Address'
-        });
-        await db.insert('products', {
-          'product_code': 'PROD001',
-          'product_name': 'Test Product',
-          'unit_id': 1,
-          'hsn': '123456',
-          'rate': 100,
-          'opening_stock': 100,
-          'current_stock': 100
-        });
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {

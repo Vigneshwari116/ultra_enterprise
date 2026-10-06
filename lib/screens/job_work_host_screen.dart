@@ -527,11 +527,14 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
           ),
         ),
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: LayoutBuilder(
+            builder: (context, formConstraints) {
+              final formWidth = formConstraints.maxWidth;
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                 Row(
                   children: [
                     Text(editingId == null ? 'NEW PRODUCT DATA MASTER' : 'MODIFY MASTER REGISTRY',
@@ -559,61 +562,57 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                 _sectionTitle('1. SYSTEM IDENTIFICATION PARAMETERS'),
                 Align(alignment: Alignment.centerRight, child: Text('Log Compilation System Date: $logDate', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF748094)))),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: code, decoration: _fieldDec('Material Code Key (e.g. MAT001) *'))),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: name, decoration: _fieldDec('Product Name *'))),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    TextField(controller: code, decoration: _fieldDec('Material Code Key (e.g. MAT001) *')),
+                    TextField(controller: name, decoration: _fieldDec('Product Name *')),
                   ],
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: _idPresentInRows(unitId, units),
-                        decoration: _fieldDec('UOM Parameter Spec *'),
-                        items: _masterDropdownItems(units, 'code'),
-                        onChanged: units.isEmpty ? null : (v) => setState(() => unitId = v),
-                      ),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    DropdownButtonFormField<int>(
+                      value: _idPresentInRows(unitId, units),
+                      isExpanded: true,
+                      decoration: _fieldDec('UOM Parameter Spec *'),
+                      items: _masterDropdownItems(units, 'code'),
+                      onChanged: units.isEmpty ? null : (v) => setState(() => unitId = v),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: unitsBound, keyboardType: TextInputType.number, decoration: _fieldDec('Units Conversion Bound Total *'))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: _idPresentInRows(materialTypeId, materialTypes),
-                        decoration: _fieldDec('Material Master Type *'),
-                        items: _masterDropdownItems(materialTypes, 'type_code'),
-                        onChanged: materialTypes.isEmpty ? null : (v) => setState(() => materialTypeId = v),
-                      ),
+                    TextField(controller: unitsBound, keyboardType: TextInputType.number, decoration: _fieldDec('Units Conversion Bound Total *')),
+                    DropdownButtonFormField<int>(
+                      value: _idPresentInRows(materialTypeId, materialTypes),
+                      isExpanded: true,
+                      decoration: _fieldDec('Material Master Type *'),
+                      items: _masterDropdownItems(materialTypes, 'type_code'),
+                      onChanged: materialTypes.isEmpty ? null : (v) => setState(() => materialTypeId = v),
                     ),
                   ],
+                  minFieldWidth: 180,
                 ),
                 const SizedBox(height: 10),
                 TextField(controller: hsn, decoration: _fieldDec('HSN (for invoicing)')),
                 const SizedBox(height: 16),
                 _sectionTitle('2. PHYSICAL GEOMETRY DIMENSIONAL MATRIX'),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: rawSize, decoration: _fieldDec('Raw Material Size (e.g. 100MM)'))),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: finishSize, decoration: _fieldDec('Finishing Size (e.g. 98MM)'))),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    TextField(controller: rawSize, decoration: _fieldDec('Raw Material Size (e.g. 100MM)')),
+                    TextField(controller: finishSize, decoration: _fieldDec('Finishing Size (e.g. 98MM)')),
                   ],
                 ),
                 const SizedBox(height: 16),
                 _sectionTitle('3. COMMERCIAL VALUATION METRICS'),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: purchaseRate, keyboardType: TextInputType.number, decoration: _fieldDec('Purchase Rate (₹) *'))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: salesRate,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: green, fontWeight: FontWeight.w800),
-                        decoration: _fieldDec('Sales Rate (₹) *'),
-                      ),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    TextField(controller: purchaseRate, keyboardType: TextInputType.number, decoration: _fieldDec('Purchase Rate (₹) *')),
+                    TextField(
+                      controller: salesRate,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: green, fontWeight: FontWeight.w800),
+                      decoration: _fieldDec('Sales Rate (₹) *'),
                     ),
                   ],
                 ),
@@ -648,8 +647,10 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                     alignment: Alignment.centerRight,
                     child: TextButton(onPressed: () => setState(() => imageBase64 = null), child: const Text('Remove image', style: TextStyle(fontSize: 10))),
                   ),
-              ],
-            ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -679,6 +680,36 @@ Widget _sectionTitle(String t) => Container(
       color: const Color(0xFFE8ECF0),
       child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: navy)),
     );
+
+/// Stacks master form fields when the nav drawer and product pool leave too little width.
+Widget _masterFormRow(
+  double maxWidth,
+  List<Widget> fields, {
+  double minFieldWidth = 220,
+  double gap = 12,
+}) {
+  final minRowWidth = fields.length * minFieldWidth + (fields.length - 1) * gap;
+  if (maxWidth >= minRowWidth) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < fields.length; i++) ...[
+          if (i > 0) SizedBox(width: gap),
+          Expanded(child: fields[i]),
+        ],
+      ],
+    );
+  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < fields.length; i++) ...[
+        if (i > 0) SizedBox(height: gap),
+        fields[i],
+      ],
+    ],
+  );
+}
 
 InputDecoration _fieldDec(String label) => InputDecoration(
       labelText: label,

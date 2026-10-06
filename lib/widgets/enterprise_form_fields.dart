@@ -16,15 +16,25 @@ const enterpriseInsetValueStyle = TextStyle(
   color: navy,
 );
 
-InputDecoration enterpriseInsetInputDecoration({Widget? suffixIcon, Widget? prefixIcon}) {
+InputDecoration enterpriseInsetInputDecoration({
+  Widget? suffixIcon,
+  Widget? prefixIcon,
+  bool multiline = false,
+  bool onDarkPanel = false,
+}) {
   return InputDecoration(
     isDense: true,
+    filled: false,
+    fillColor: Colors.transparent,
     border: InputBorder.none,
     enabledBorder: InputBorder.none,
     focusedBorder: InputBorder.none,
     contentPadding: EdgeInsets.zero,
+    constraints: multiline ? null : const BoxConstraints(minHeight: 0),
+    isCollapsed: !multiline,
     suffixIcon: suffixIcon,
     prefixIcon: prefixIcon,
+    hoverColor: onDarkPanel ? Colors.transparent : null,
   );
 }
 
@@ -83,18 +93,25 @@ Widget enterpriseInsetTextField({
     filled: filled,
     child: Builder(
       builder: (ctx) {
+        final multiline = maxLines > 1;
         return TextField(
           controller: controller,
           maxLines: maxLines,
+          minLines: multiline ? 1 : 1,
           readOnly: readOnly,
           autofocus: autofocus,
           onTap: onTap,
           keyboardType: keyboardType,
           onChanged: onChanged,
           style: style ?? enterpriseInsetValueStyle,
+          textAlignVertical: multiline ? TextAlignVertical.top : TextAlignVertical.center,
           textInputAction: advanceFocusOnSubmit ? TextInputAction.next : TextInputAction.done,
           onSubmitted: advanceFocusOnSubmit ? (_) => enterpriseAdvanceFocus(ctx) : null,
-          decoration: enterpriseInsetInputDecoration(suffixIcon: suffixIcon, prefixIcon: prefixIcon),
+          decoration: enterpriseInsetInputDecoration(
+            suffixIcon: suffixIcon,
+            prefixIcon: prefixIcon,
+            multiline: multiline,
+          ),
           scrollPadding: EdgeInsets.zero,
         );
       },
@@ -245,17 +262,14 @@ Widget enterpriseValueWordsFooter({
                 style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 4),
-              SizedBox(
-                height: 26,
-                child: TextField(
-                  controller: chargeController,
-                  keyboardType: TextInputType.number,
-                  onChanged: onChargeChanged,
-                  textAlign: TextAlign.right,
-                  textInputAction: TextInputAction.done,
-                  style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.1),
-                  decoration: enterpriseInsetInputDecoration(),
-                ),
+              TextField(
+                controller: chargeController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: onChargeChanged,
+                textAlign: TextAlign.right,
+                textInputAction: TextInputAction.done,
+                style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.1),
+                decoration: enterpriseInsetInputDecoration(onDarkPanel: true),
               ),
             ],
           ),
