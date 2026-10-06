@@ -160,6 +160,12 @@ const List<String> ultraInvoiceCopyLabels = [
   'DUPLICATE FOR TRANSPORTER',
 ];
 
+/// Purchase order prints as original + duplicate reprint (accounting layout).
+const List<String> ultraPurchaseOrderCopyLabels = [
+  'ORIGINAL PURCHASE ORDER',
+  'DUPLICATE PURCHASE ORDER REPRINT',
+];
+
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
 final PdfColor _grey = PdfColor.fromInt(0xFF748094);
 
@@ -279,27 +285,24 @@ pw.Widget _invoicePage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
   final border = pw.BoxDecoration(border: pw.Border.all(color: _black, width: 1));
   final minRows = _minRowsForKind(d);
   final fillerRows = (minRows - d.items.length).clamp(0, 24);
-  final pageBody = pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-    children: [
-      _topBar(d.documentTitle, copyLabel),
-      if (d.kind == UltraBillKind.taxInvoice) ...[
-        _taxCompanyHeaderWithMeta(d, logo),
-        _taxConsigneeAndShipping(d),
-      ] else ...[
-        _companyHeader(logo),
-        _consigneeAndMeta(d),
-      ],
-      pw.Expanded(child: _itemsTable(d, fillerRows: fillerRows)),
-      d.kind == UltraBillKind.taxInvoice ? _taxTotalsAndBank(d) : _totalsAndBank(d),
-      _termsAndSignature(d),
-    ],
-  );
   return pw.Container(
     decoration: border,
-    child: pw.SizedBox(
-      height: PdfPageFormat.a4.height - 36,
-      child: pageBody,
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        _topBar(d.documentTitle, copyLabel),
+        if (d.kind == UltraBillKind.taxInvoice) ...[
+          _taxCompanyHeaderWithMeta(d, logo),
+          _taxConsigneeAndShipping(d),
+        ] else ...[
+          _companyHeader(logo),
+          _consigneeAndMeta(d),
+        ],
+        _itemsTable(d, fillerRows: fillerRows),
+        d.kind == UltraBillKind.taxInvoice ? _taxTotalsAndBank(d) : _totalsAndBank(d),
+        _termsAndSignature(d),
+      ],
     ),
   );
 }
@@ -702,9 +705,9 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
             decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(color: _black, width: 1))),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Padding(padding: const pw.EdgeInsets.all(6), child: partyBlock),
-                pw.Spacer(),
                 pw.Container(
                   decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: _black, width: 1))),
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),

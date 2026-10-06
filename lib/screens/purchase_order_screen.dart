@@ -294,9 +294,19 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Future<void> saveAndPrint() async {
     final orderId = await _persistOrder();
     if (orderId == null) return;
-    await reprintPurchaseOrder(orderId);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PURCHASE ORDER SAVED — PRINT DIALOG OPENED')));
+    try {
+      await reprintPurchaseOrder(orderId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PURCHASE ORDER SAVED — PRINT DIALOG OPENED')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PURCHASE ORDER SAVED, BUT PDF PRINTING FAILED: $e')),
+        );
+      }
     }
     await load();
     _resetForm();
@@ -684,18 +694,17 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                             const Text('ESTIMATED FREIGHT',
                                 style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
                             const SizedBox(height: 4),
-                            SizedBox(
-                              height: 26,
-                              child: TextField(
-                                controller: freight,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                onChanged: (_) => setState(() {}),
-                                textAlign: TextAlign.right,
-                                textInputAction: TextInputAction.done,
-                                style: const TextStyle(
-                                    color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.1),
-                                decoration: enterpriseInsetInputDecoration(onDarkPanel: true),
-                              ),
+                            TextField(
+                              controller: freight,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              onChanged: (_) => setState(() {}),
+                              textAlign: TextAlign.right,
+                              textInputAction: TextInputAction.done,
+                              minLines: 1,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                  color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.2),
+                              decoration: enterpriseInsetInputDecoration(onDarkPanel: true, multiline: true),
                             ),
                           ],
                         ),

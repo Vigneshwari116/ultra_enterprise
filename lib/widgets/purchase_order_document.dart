@@ -1,5 +1,6 @@
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
+import 'transaction_line_math.dart';
 import 'ultra_print_helpers.dart';
 
 String _billNoForOrder(Map<String, dynamic> po) {
@@ -22,22 +23,23 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
       .map(
         (it) => InvoiceItem(
           description: '${it['description'] ?? ''}',
-          hsnCode: '${it['hsn'] ?? ''}',
-          qty: (it['quantity'] as num?)?.toDouble() ?? 0,
-          price: (it['rate'] as num?)?.toDouble() ?? 0,
+          hsnCode: '${it['hsn'] ?? it['hsn_code'] ?? ''}',
+          qty: coerceCatalogDouble(it['quantity']),
+          price: coerceCatalogDouble(it['rate']),
         ),
       )
       .toList();
 
   final zone = '${po['state_zone'] ?? ''}'.toLowerCase();
   final isInter = zone.contains('inter');
+  final supplierName = '${po['supplier_name'] ?? po['party_name'] ?? ''}'.trim();
   final address = [
     po['address'] ?? '',
     po['city'] ?? '',
     po['postal_pincode'] ?? '',
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
-  final freight = (po['estimated_freight'] as num?)?.toDouble() ?? 0;
+  final freight = coerceCatalogDouble(po['estimated_freight']);
   final subtotal = (po['taxable_total'] as num?)?.toDouble() ?? items.fold<double>(0, (s, i) => s + i.amount);
   final cgstAmt = (po['cgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : subtotal * 0.09);
   final sgstAmt = (po['sgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : subtotal * 0.09);
@@ -54,8 +56,8 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
     dcNo: '${po['total_packages'] ?? ''}',
     dcDate: '',
     dispatch: '${po['delivery_mode'] ?? ''}',
-    ewbNo: '',
-    consigneeName: '${po['supplier_name'] ?? ''}',
+    ewbNo: '${po['remarks'] ?? ''}',
+    consigneeName: supplierName,
     consigneeAddress: address,
     gstin: '${po['gstin'] ?? ''}',
     mobile: '${po['primary_mobile'] ?? ''}',
@@ -75,7 +77,8 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
     bankAddress: ultraBankAddress(po, 'branch_address'),
     documentTitle: 'PURCHASE ORDER',
     partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
-    copyLabels: const ['DUPLICATE PURCHASE ORDER REPRINT'],
+    copyLabels: ultraPurchaseOrderCopyLabels,
+    forwardingLabel: 'Estimated Freight',
     totalGrandLabel: 'Total Value',
     roundOff: (po['round_off'] as num?)?.toDouble() ?? 0,
   );

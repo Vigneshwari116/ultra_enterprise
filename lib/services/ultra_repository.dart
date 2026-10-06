@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../config/ultra_config.dart';
 import '../database/app_database.dart';
+import '../widgets/transaction_line_math.dart';
 import 'api_service.dart';
 
 /// Single entry point for app data: server-first when [UltraConfig.persistLocally] is false.
@@ -87,6 +88,35 @@ class UltraRepository {
     final out = _flattenEnvelopeRow(row);
     out['party_name'] ??= out['supplier_name'];
     out['voucher_date'] ??= out['transaction_date'];
+    return out;
+  }
+
+  Future<Map<String, dynamic>> _enrichPurchaseOrderWithSupplier(
+    Map<String, dynamic> order,
+  ) async {
+    final out = Map<String, dynamic>.from(order);
+    final sid = out['supplier_id'];
+    final supplierId = sid is int ? sid : (sid is num ? sid.toInt() : coerceCatalogId(sid));
+    if (supplierId == null) return out;
+    final hasName = '${out['supplier_name'] ?? out['party_name'] ?? ''}'.trim().isNotEmpty;
+    if (hasName && '${out['address'] ?? ''}'.trim().isNotEmpty) return out;
+    final supplier = await supplierById(supplierId);
+    if (supplier == null) return out;
+    for (final key in [
+      'supplier_name',
+      'address',
+      'city',
+      'postal_pincode',
+      'gstin',
+      'primary_mobile',
+      'bank_name',
+      'bank_account_no',
+      'ifsc_code',
+      'branch_address',
+    ]) {
+      out.putIfAbsent(key, () => supplier[key]);
+    }
+    out['party_name'] ??= supplier['supplier_name'];
     return out;
   }
 
@@ -193,9 +223,12 @@ class UltraRepository {
     final out = Map<String, dynamic>.from(row);
     out['product_code'] ??= out['barcode'];
     out['product_name'] ??= out['name'];
-    out['sales_rate'] ??= out['rate'];
-    out['rate'] ??= out['sales_rate'];
     out['hsn'] ??= out['hsn_code'];
+    out['purchase_rate'] ??= out['cost_price'];
+    // Do not mirror purchase_rate into sales_rate (or vice versa).
+    if (out['sales_rate'] == null && out['rate'] != null && out['purchase_rate'] == null) {
+      out['sales_rate'] = out['rate'];
+    }
     return out;
   }
 
@@ -283,6 +316,12 @@ class UltraRepository {
         final items =
             _asRowList(row['items']).map(_normalizePurchaseVoucherItem).toList();
         return {'voucher': voucher, 'items': items};
+      }
+      if (row['order'] is Map) {
+        var order = _flattenEnvelopeRow(Map<String, dynamic>.from(row['order'] as Map));
+        order = await _enrichPurchaseOrderWithSupplier(order);
+        final items = _asRowList(row['items']);
+        return {'order': order, 'items': items};
       }
       final items = row['items'];
       if (items != null) {
@@ -483,9 +522,10 @@ class UltraRepository {
     if (UltraConfig.persistLocally) return _db.purchaseOrderPrintBundle(id);
     final doc = await _getDocument('/api/purchase-orders/$id');
     if (doc == null) return null;
-    final order = Map<String, dynamic>.from(doc['order'] as Map? ?? doc);
+    var order = Map<String, dynamic>.from(doc['order'] as Map? ?? doc);
     final items = _asRowList(doc['items'] ?? order.remove('items'));
-    return {'order': _flattenEnvelopeRow(order), 'items': items};
+    order = await _enrichPurchaseOrderWithSupplier(_flattenEnvelopeRow(order));
+    return {'order': order, 'items': items};
   }
 
   // ---- Delivery challans ----

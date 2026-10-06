@@ -774,11 +774,11 @@ class _PvRow {
       ..description = '${it['description'] ?? ''}'
       ..uom = '${it['uom'] ?? 'PCS'}'
       ..hsn = '${it['hsn'] ?? ''}'
-      ..qty = (it['quantity'] as num?)?.toDouble() ?? 0
-      ..rate = (it['rate'] as num?)?.toDouble() ?? 0
-      ..cgstPct = (it['cgst_percent'] as num?)?.toDouble() ?? 9
-      ..sgstPct = (it['sgst_percent'] as num?)?.toDouble() ?? 9
-      ..igstPct = (it['igst_percent'] as num?)?.toDouble() ?? 0
+      ..qty = coerceCatalogDouble(it['quantity'])
+      ..rate = coerceCatalogDouble(it['rate'])
+      ..cgstPct = coerceCatalogDouble(it['cgst_percent'], fallback: 9)
+      ..sgstPct = coerceCatalogDouble(it['sgst_percent'], fallback: 9)
+      ..igstPct = coerceCatalogDouble(it['igst_percent'])
       ..preserveAgreedRate = true;
     row._syncControllersFromModel();
     return row;

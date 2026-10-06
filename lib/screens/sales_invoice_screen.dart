@@ -237,14 +237,22 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   Future<void> saveAndPrint() async {
     final invoiceId = await _persistInvoice();
     if (invoiceId == null) return;
-    final data = await invoiceDataFromId(invoiceId);
-    if (data != null) {
-      await printUltraInvoice(data);
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SALES VOUCHER SAVED — PRINT DIALOG OPENED')),
-      );
+    try {
+      final data = await invoiceDataFromId(invoiceId);
+      if (data != null) {
+        await printUltraInvoice(data);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('SALES VOUCHER SAVED — PRINT DIALOG OPENED')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('SALES INVOICE SAVED, BUT PDF PRINTING FAILED: $e')),
+        );
+      }
     }
     await load();
     _resetForm();
