@@ -9,7 +9,8 @@ Future<void> reprintQuotation(int quotationId) async {
 }
 
 Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
-  final bundle = await UltraRepository.instance.quotationPrintBundle(quotationId);
+  final bundle =
+      await UltraRepository.instance.quotationPrintBundle(quotationId);
   if (bundle == null) return null;
   final q = bundle['quotation'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
@@ -58,7 +59,7 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
     kind: UltraBillKind.quotation,
     documentTitle: 'QUOTATION',
     partySectionTitle: 'CUSTOMER / PARTY DETAILS',
-    copyLabels: const ['DUPLICATE QUOTATION REPRINT'],
+    copyLabels: ultraOriginalDuplicateLabels('QUOTATION'),
     invoiceNo: '${q['serial_no'] ?? q['ref_no'] ?? ''}',
     date: ultraFmtDateIso(q['quotation_date'] as String?),
     custPo: '${q['ref_no'] ?? ''}',
