@@ -9,7 +9,8 @@ Future<void> reprintDeliveryChallan(int challanId) async {
 }
 
 Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
-  final bundle = await UltraRepository.instance.deliveryChallanPrintBundle(challanId);
+  final bundle =
+      await UltraRepository.instance.deliveryChallanPrintBundle(challanId);
   if (bundle == null) return null;
   final dc = bundle['challan'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
@@ -41,7 +42,8 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
     dc['pincode'] ?? '',
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
-  final subtotal = (dc['base_value'] as num?)?.toDouble() ?? items.fold<double>(0, (s, i) => s + i.amount);
+  final subtotal = (dc['base_value'] as num?)?.toDouble() ??
+      items.fold<double>(0, (s, i) => s + i.amount);
   final fwd = (dc['fwd_charge'] as num?)?.toDouble() ?? 0;
   final grand = (dc['grand_total'] as num?)?.toDouble() ?? subtotal + fwd;
 
@@ -49,7 +51,7 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
     kind: UltraBillKind.deliveryChallan,
     documentTitle: title,
     partySectionTitle: 'NAME & ADDRESS OF RECEIVER',
-    copyLabels: [copyLabel],
+    copyLabels: ['ORIGINAL $title', copyLabel],
     invoiceNo: '${dc['doc_id'] ?? dc['serial_no'] ?? ''}',
     date: ultraFmtDate(dc['document_date'] as String?),
     custPo: '${dc['po_ref_no'] ?? ''}',

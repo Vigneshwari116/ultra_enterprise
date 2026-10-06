@@ -6,7 +6,8 @@ String _voucherBillNo(Map<String, dynamic> voucher) {
   final no = voucher['voucher_no'];
   if (no != null && '$no'.trim().isNotEmpty) return 'PV-$no';
   final uuid = '${voucher['uuid'] ?? ''}';
-  final year = DateTime.tryParse('${voucher['voucher_date']}')?.year ?? DateTime.now().year;
+  final year = DateTime.tryParse('${voucher['voucher_date']}')?.year ??
+      DateTime.now().year;
   if (uuid.length >= 6) {
     return 'PV-$year-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
   }
@@ -14,7 +15,8 @@ String _voucherBillNo(Map<String, dynamic> voucher) {
 }
 
 Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
-  final bundle = await UltraRepository.instance.purchaseVoucherPrintBundle(voucherId);
+  final bundle =
+      await UltraRepository.instance.purchaseVoucherPrintBundle(voucherId);
   if (bundle == null) return null;
   final v = bundle['voucher'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
@@ -36,18 +38,23 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
     v['postal_pincode'] ?? '',
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
-  final taxable = (v['taxable_total'] as num?)?.toDouble() ?? items.fold<double>(0, (s, i) => s + i.amount);
+  final taxable = (v['taxable_total'] as num?)?.toDouble() ??
+      items.fold<double>(0, (s, i) => s + i.amount);
   final cgstAmt = (v['cgst_total'] as num?)?.toDouble() ?? 0;
   final sgstAmt = (v['sgst_total'] as num?)?.toDouble() ?? 0;
   final igstAmt = (v['igst_total'] as num?)?.toDouble() ?? 0;
-  final grand = (v['grand_total'] as num?)?.toDouble() ?? taxable + cgstAmt + sgstAmt + igstAmt;
+  final grand = (v['grand_total'] as num?)?.toDouble() ??
+      taxable + cgstAmt + sgstAmt + igstAmt;
   final hasIgst = igstAmt > 0;
 
   return InvoiceData(
     kind: UltraBillKind.purchaseVoucher,
     documentTitle: 'PURCHASE VOUCHER',
     partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
-    copyLabels: const ['DUPLICATE PURCHASE VOUCHER COPY'],
+    copyLabels: ultraOriginalDuplicateLabels(
+      'PURCHASE VOUCHER',
+      duplicateLabel: 'DUPLICATE PURCHASE VOUCHER COPY',
+    ),
     invoiceNo: _voucherBillNo(v),
     date: ultraFmtDate(v['voucher_date'] as String?),
     custPo: '${v['supplier_invoice_no'] ?? ''}',
