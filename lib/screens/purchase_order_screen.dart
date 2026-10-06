@@ -670,12 +670,13 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                               height: 26,
                               child: TextField(
                                 controller: freight,
-                                keyboardType: TextInputType.number,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 onChanged: (_) => setState(() {}),
+                                textAlign: TextAlign.right,
                                 textInputAction: TextInputAction.done,
                                 style: const TextStyle(
                                     color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.1),
-                                decoration: enterpriseInsetInputDecoration(),
+                                decoration: enterpriseInsetInputDecoration(onDarkPanel: true),
                               ),
                             ),
                           ],
