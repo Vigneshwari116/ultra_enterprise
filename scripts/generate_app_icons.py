@@ -8,14 +8,19 @@ from pathlib import Path
 from PIL import Image, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "assets/images/ultra_logo.png"
+# Prefer full-resolution brand artwork (e.g. 2000px wide); fall back to legacy tiny PNG.
+SRC = ROOT / "assets/images/ultra_launcher_source.png"
+if not SRC.exists():
+    SRC = ROOT / "assets/images/ultra_logo.png"
 MASTER_PATH = ROOT / "assets/images/ultra_app_icon_master.png"
 MASTER_SIZE = 1024
 
 
 def _crisp_resize(src: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Upscale line-art logos in 2x steps (nearest) then smooth once — sharper than single LANCZOS blow-up."""
+    """Downscale from HD masters with LANCZOS; only step-upscale tiny legacy sources."""
     cur = src.convert("RGBA")
+    if cur.width >= target_w and cur.height >= target_h:
+        return cur.resize((target_w, target_h), Image.Resampling.LANCZOS)
     while cur.width < target_w and cur.height < target_h:
         nw = min(cur.width * 2, target_w)
         nh = min(cur.height * 2, target_h)
@@ -47,13 +52,14 @@ def _build_master(src: Image.Image) -> Image.Image:
         target_h = int(MASTER_SIZE * fill)
         target_w = max(1, int(target_h * src.width / src.height))
 
-    upscaled = _crisp_resize(src, target_w, target_h)
-    upscaled = upscaled.filter(ImageFilter.UnsharpMask(radius=1.6, percent=180, threshold=2))
+    scaled = _crisp_resize(src, target_w, target_h)
+    if max(src.width, src.height) < 400:
+        scaled = scaled.filter(ImageFilter.UnsharpMask(radius=1.6, percent=180, threshold=2))
 
     legacy = Image.new("RGBA", (MASTER_SIZE, MASTER_SIZE), (255, 255, 255, 255))
     x = (MASTER_SIZE - target_w) // 2
     y = (MASTER_SIZE - target_h) // 2
-    legacy.alpha_composite(upscaled, (x, y))
+    legacy.alpha_composite(scaled, (x, y))
     return legacy
 
 
@@ -66,13 +72,14 @@ def _build_master_foreground(src: Image.Image) -> Image.Image:
         target_h = int(MASTER_SIZE * fill)
         target_w = max(1, int(target_h * cutout.width / cutout.height))
 
-    upscaled = _crisp_resize(cutout, target_w, target_h)
-    upscaled = upscaled.filter(ImageFilter.UnsharpMask(radius=1.6, percent=180, threshold=2))
+    scaled = _crisp_resize(cutout, target_w, target_h)
+    if max(cutout.width, cutout.height) < 400:
+        scaled = scaled.filter(ImageFilter.UnsharpMask(radius=1.6, percent=180, threshold=2))
 
     fg = Image.new("RGBA", (MASTER_SIZE, MASTER_SIZE), (0, 0, 0, 0))
     x = (MASTER_SIZE - target_w) // 2
     y = (MASTER_SIZE - target_h) // 2
-    fg.alpha_composite(upscaled, (x, y))
+    fg.alpha_composite(scaled, (x, y))
     return fg
 
 
