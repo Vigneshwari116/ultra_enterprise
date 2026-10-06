@@ -107,10 +107,13 @@ double catalogSalesRate(Map<String, dynamic> product) {
   if (product['sales_rate'] != null) {
     return coerceCatalogDouble(product['sales_rate']);
   }
-  // Legacy rows may only expose `rate` as the selling price — never use purchase_rate here.
+
+  // Legacy rows may only expose `rate` as the selling price —
+  // never use purchase_rate here.
   if (product['purchase_rate'] == null && product['rate'] != null) {
     return coerceCatalogDouble(product['rate']);
   }
+
   return 0;
 }
 
@@ -118,13 +121,17 @@ double catalogPurchaseRate(Map<String, dynamic> product) {
   if (product['purchase_rate'] != null) {
     return coerceCatalogDouble(product['purchase_rate']);
   }
+
   if (product['cost_price'] != null) {
     return coerceCatalogDouble(product['cost_price']);
   }
-  // Legacy rows may only expose `rate` as cost — never use sales_rate here.
+
+  // Legacy rows may only expose `rate` as cost —
+  // never use sales_rate here.
   if (product['sales_rate'] == null && product['rate'] != null) {
     return coerceCatalogDouble(product['rate']);
   }
+
   return 0;
 }
 

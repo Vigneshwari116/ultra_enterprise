@@ -106,7 +106,7 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
               for (final r in sorted)
                 pw.TableRow(children: [
                   _c('${r['invoice_no'] ?? '-'}'),
-                  _c(_fmtDate(r['transaction_date'] as String?)),
+                  _c(_fmtDate(r['transaction_date']?.toString())),
                   _c('${r['customer_name'] ?? '-'}'),
                   _c(_money(toDouble(r['taxable_total']))),
                   _c(_money(toDouble(r['cgst_total']))),
