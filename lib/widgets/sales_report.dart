@@ -23,6 +23,20 @@ String _fmtDate(String? iso) {
   return d == null ? (iso ?? '-') : DateFormat('dd-MM-yyyy').format(d);
 }
 
+String _fmtInvoicePrintDate(String? iso) {
+  final d = DateTime.tryParse(iso ?? '');
+  return d == null ? (iso ?? '') : DateFormat('MM/dd/yyyy').format(d);
+}
+
+String _partyAddress(Map<String, dynamic> inv) {
+  final parts = <String>[
+    '${inv['customer_address'] ?? ''}'.trim(),
+    '${inv['customer_city'] ?? ''}'.trim(),
+    '${inv['customer_pincode'] ?? ''}'.trim(),
+  ].where((p) => p.isNotEmpty);
+  return parts.join(', ');
+}
+
 pw.Widget _h(String t) => pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 3),
       child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
@@ -144,18 +158,21 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
   final igstAmt = toDouble(inv['igst_total'], fallback: isInter ? taxable * 0.18 : 0.0);
   final grand = toDouble(inv['grand_total'], fallback: taxable + cgstAmt + sgstAmt + igstAmt);
   final freight = grand - taxable - cgstAmt - sgstAmt - igstAmt;
+  final roundOff = toDouble(inv['round_off'], fallback: 0);
   return InvoiceData(
     kind: UltraBillKind.taxInvoice,
     invoiceNo: '${inv['invoice_no'] ?? ''}',
-    date: _fmtDate(inv['transaction_date'] as String?),
+    date: _fmtInvoicePrintDate(inv['transaction_date'] as String?),
     custPo: '${inv['po_no'] ?? ''}',
-    poDate: _fmtDate(inv['po_date'] as String?),
+    poDate: _fmtInvoicePrintDate(inv['po_date'] as String?),
     dcNo: '${inv['challan_no'] ?? ''}',
-    dcDate: _fmtDate(inv['challan_date'] as String?),
+    dcDate: _fmtInvoicePrintDate(inv['challan_date'] as String?),
     dispatch: '${inv['vehicle_dispatch_mode'] ?? ''}',
     ewbNo: '${inv['eway_bill_no'] ?? ''}',
     consigneeName: '${inv['customer_name'] ?? ''}',
-    consigneeAddress: '${inv['customer_address'] ?? ''}',
+    consigneeAddress: _partyAddress(inv),
+    shippingName: '${inv['shipping_name'] ?? ''}',
+    shippingAddress: '${inv['shipping_address'] ?? ''}'.trim(),
     gstin: '${inv['customer_gstin'] ?? ''}',
     mobile: '${inv['customer_mobile'] ?? ''}',
     items: items,
@@ -163,6 +180,7 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
     sgstPercent: isInter ? 0 : 9,
     igstPercent: isInter ? 18 : 0,
     pAndF: freight > 0 ? freight : 0,
+    roundOff: roundOff,
     cgstAmountOverride: cgstAmt,
     sgstAmountOverride: sgstAmt,
     igstAmountOverride: igstAmt,
