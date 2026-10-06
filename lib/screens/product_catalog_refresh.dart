@@ -1,4 +1,5 @@
-/// Refreshes in-memory product/UOM lists on transaction screens still mounted in [AppShell].
+/// Refreshes in-memory catalog/party lists on transaction screens still mounted in [AppShell].
+/// Handlers should reload remote API data (products, units, customers, suppliers, etc.).
 final _productCatalogRefreshHandlers = <Future<void> Function()>{};
 
 void registerProductCatalogRefresh(Future<void> Function() handler) {

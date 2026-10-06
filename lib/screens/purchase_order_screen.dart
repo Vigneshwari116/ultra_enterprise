@@ -55,9 +55,18 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   }
 
   Future<void> refreshProductCatalog() async {
+    suppliers = await repo.suppliers();
     products = await repo.products();
     units = await repo.units();
+    _reconcileSupplierSelection();
     if (mounted) setState(() {});
+  }
+
+  void _reconcileSupplierSelection() {
+    if (supplierId == null) return;
+    if (!suppliers.any((s) => coerceCatalogId(s['id']) == supplierId)) {
+      supplierId = null;
+    }
   }
 
   Future<void> load() async {
@@ -66,8 +75,9 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     units = await repo.units();
     poNo = '${await repo.nextPurchaseOrderNo()}';
     directoryRows = await repo.purchaseOrdersWithParty();
+    _reconcileSupplierSelection();
     if (suppliers.isNotEmpty && supplierId == null) {
-      supplierId = suppliers.first['id'] as int;
+      supplierId = coerceCatalogId(suppliers.first['id']);
       fillSupplier(suppliers.first);
     }
     if (mounted) setState(() {});
@@ -562,10 +572,18 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                           label: 'TARGET REGISTERED SUPPLIER PROFILES *',
                           value: supplierId,
                           items: suppliers
-                              .map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text('${s['supplier_name']}')))
+                              .map((s) {
+                                final id = coerceCatalogId(s['id']);
+                                if (id == null) return null;
+                                return DropdownMenuItem<int>(
+                                  value: id,
+                                  child: Text('${s['supplier_name'] ?? s['name'] ?? ''}'),
+                                );
+                              })
+                              .whereType<DropdownMenuItem<int>>()
                               .toList(),
                           onChanged: (v) {
-                            final s = suppliers.firstWhere((x) => x['id'] == v);
+                            final s = suppliers.firstWhere((x) => coerceCatalogId(x['id']) == v);
                             setState(() {
                               supplierId = v;
                               fillSupplier(s);

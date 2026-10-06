@@ -34,18 +34,29 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
   }
 
   Future<void> refreshProductCatalog() async {
+    suppliers = await repo.suppliers();
     products = await repo.products();
     units = await repo.units();
+    openOrders = await repo.openPurchaseOrders();
+    _reconcileSupplierSelection();
     if (mounted) setState(() {});
   }
 
-  Future<void> load()async{
-    suppliers=await repo.suppliers();
-    products=await repo.products();
-    units=await repo.units();
-    openOrders=await repo.openPurchaseOrders();
-    voucherNo='${await repo.nextPurchaseVoucherNo()}';
-    if(mounted)setState((){});
+  void _reconcileSupplierSelection() {
+    if (supplierId == null) return;
+    if (!suppliers.any((s) => coerceCatalogId(s['id']) == supplierId)) {
+      supplierId = null;
+    }
+  }
+
+  Future<void> load() async {
+    suppliers = await repo.suppliers();
+    products = await repo.products();
+    units = await repo.units();
+    openOrders = await repo.openPurchaseOrders();
+    voucherNo = '${await repo.nextPurchaseVoucherNo()}';
+    _reconcileSupplierSelection();
+    if (mounted) setState(() {});
   }
 
   void fillSupplier(Map<String,dynamic> s){supplierAddress.text=s['address']??'';city.text=s['city']??'';pin.text=s['postal_pincode']??'';gstin.text=s['gstin']??'';bank.text=s['bank_name']??'';account.text=s['bank_account_no']??'';}
@@ -67,9 +78,9 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
   Future<void> loadAgainstPo(int? poId)async{
     againstPoId=poId;
     if(poId==null)return;
-    final po=openOrders.firstWhere((x)=>x['id']==poId);
-    supplierId=po['supplier_id'] as int?;
-    final s=suppliers.where((x)=>x['id']==supplierId);
+    final po = openOrders.firstWhere((x) => coerceCatalogId(x['id']) == poId);
+    supplierId = coerceCatalogId(po['supplier_id']);
+    final s = suppliers.where((x) => coerceCatalogId(x['id']) == supplierId);
     if(s.isNotEmpty)fillSupplier(s.first);
     final items=await repo.purchaseOrderItems(poId);
     if(items.isNotEmpty){
@@ -245,7 +256,13 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                         hint: const Text('— No linked PO —', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
                         items: [
                           const DropdownMenuItem<int?>(value: null, child: Text('— No linked PO —')),
-                          ...openOrders.map((o) => DropdownMenuItem<int?>(value: o['id'] as int, child: Text('PO-${o['po_no']}  •  ${o['party_name']}'))),
+                          ...openOrders.map((o) {
+                            final id = coerceCatalogId(o['id']);
+                            return DropdownMenuItem<int?>(
+                              value: id,
+                              child: Text('PO-${o['po_no']}  •  ${o['party_name']}'),
+                            );
+                          }),
                         ],
                         onChanged: (v) => loadAgainstPo(v),
                       ),
@@ -267,10 +284,18 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                           label: 'SELECT SUPPLIER',
                           value: supplierId,
                           items: suppliers
-                              .map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text('${s['supplier_name']}')))
+                              .map((s) {
+                                final id = coerceCatalogId(s['id']);
+                                if (id == null) return null;
+                                return DropdownMenuItem<int>(
+                                  value: id,
+                                  child: Text('${s['supplier_name'] ?? s['name'] ?? ''}'),
+                                );
+                              })
+                              .whereType<DropdownMenuItem<int>>()
                               .toList(),
                           onChanged: (v) {
-                            final s = suppliers.firstWhere((x) => x['id'] == v);
+                            final s = suppliers.firstWhere((x) => coerceCatalogId(x['id']) == v);
                             setState(() {
                               supplierId = v;
                               fillSupplier(s);

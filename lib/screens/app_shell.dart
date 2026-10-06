@@ -13,6 +13,7 @@ import 'purchase_voucher_screen.dart';
 import 'reports_screen.dart';
 import 'transactions_host_screen.dart';
 import 'job_work_host_screen.dart';
+import 'product_catalog_refresh.dart';
 
 class _NavLeaf {
   final String label;
@@ -185,6 +186,9 @@ class _AppShellState extends State<AppShell> {
     }
     if (pageIndex == 7) {
       salesInvoiceCatalogKey.currentState?.refreshCatalog();
+    }
+    if (pageIndex == 9 || pageIndex == 10) {
+      refreshMountedProductCatalogs();
     }
   }
 
