@@ -1425,21 +1425,26 @@ pw.Widget _sideBySideTotalsAndBank(
   InvoiceData d, {
   required List<pw.TableRow> totalRows,
 }) {
-  return pw.Container(
-    decoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
-    child: pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      children: [
-        pw.Expanded(
-          flex: 3,
-          child: pw.Container(
-            decoration: const pw.BoxDecoration(
-                border:
-                    pw.Border(right: pw.BorderSide(color: _black, width: 1))),
+  return pw.Table(
+    border: const pw.TableBorder(
+      left: pw.BorderSide(color: _black, width: 1),
+      right: pw.BorderSide(color: _black, width: 1),
+      bottom: pw.BorderSide(color: _black, width: 1),
+      verticalInside: pw.BorderSide(color: _black, width: 1),
+    ),
+    columnWidths: const {
+      0: pw.FlexColumnWidth(3),
+      1: pw.FlexColumnWidth(2),
+    },
+    defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
+    children: [
+      pw.TableRow(
+        children: [
+          pw.Padding(
             padding: const pw.EdgeInsets.all(6),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
+              mainAxisSize: pw.MainAxisSize.min,
               children: [
                 pw.Text('VALUE IN WORDS:',
                     style: _ts(size: 8, weight: pw.FontWeight.bold)),
@@ -1455,10 +1460,7 @@ pw.Widget _sideBySideTotalsAndBank(
               ],
             ),
           ),
-        ),
-        pw.Expanded(
-          flex: 2,
-          child: pw.Table(
+          pw.Table(
             border: pw.TableBorder.all(color: _black, width: 1),
             columnWidths: const {
               0: pw.FlexColumnWidth(2),
@@ -1466,9 +1468,9 @@ pw.Widget _sideBySideTotalsAndBank(
             },
             children: totalRows,
           ),
-        ),
-      ],
-    ),
+        ],
+      ),
+    ],
   );
 }
 

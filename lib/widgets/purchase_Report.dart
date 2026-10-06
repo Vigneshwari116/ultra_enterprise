@@ -47,9 +47,10 @@ String _fmtDate(String? iso) {
 // COMMON PDF HELPERS
 // ============================================================
 
-pw.Widget _h(String text) {
+pw.Widget _h(String text, {bool right = false}) {
   return pw.Container(
     padding: const pw.EdgeInsets.all(4),
+    alignment: right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
     child: pw.Text(
       text,
       style: pw.TextStyle(
@@ -66,6 +67,23 @@ pw.Widget _c(
 }) {
   return pw.Container(
     padding: const pw.EdgeInsets.all(4),
+    child: pw.Text(
+      text,
+      style: pw.TextStyle(
+        fontSize: 7,
+        fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+      ),
+    ),
+  );
+}
+
+pw.Widget _cr(
+  String text, {
+  bool bold = false,
+}) {
+  return pw.Container(
+    padding: const pw.EdgeInsets.all(4),
+    alignment: pw.Alignment.centerRight,
     child: pw.Text(
       text,
       style: pw.TextStyle(
@@ -353,8 +371,8 @@ Future<void> printPurchaseAuditReport(
           widgets.add(
             pw.Table(
               border: pw.TableBorder.all(
-                color: PdfColors.grey400,
-                width: 0.5,
+                color: PdfColors.grey500,
+                width: 0.6,
               ),
               columnWidths: const {
                 0: pw.FlexColumnWidth(1.6),
@@ -372,51 +390,27 @@ Future<void> printPurchaseAuditReport(
                     _h('TYPE'),
                     _h('INV / BILL NO'),
                     _h('PARTY NAME'),
-                    _h('TAXABLE'),
-                    _h('CGST'),
-                    _h('SGST'),
-                    _h('IGST'),
-                    _h('TOTAL'),
+                    _h('TAXABLE', right: true),
+                    _h('CGST', right: true),
+                    _h('SGST', right: true),
+                    _h('IGST', right: true),
+                    _h('TOTAL', right: true),
                   ],
                 ),
                 for (final record in rows) _auditPdfRow(record),
+                pw.TableRow(
+                  children: [
+                    _c('TOTAL', bold: true),
+                    _c(''),
+                    _c(''),
+                    _cr(_money(dateTaxable), bold: true),
+                    _cr(_money(dateCgst), bold: true),
+                    _cr(_money(dateSgst), bold: true),
+                    _cr(_money(dateIgst), bold: true),
+                    _cr(_money(dateTotal), bold: true),
+                  ],
+                ),
               ],
-            ),
-          );
-
-          // ------------------------------------------------
-          // DATE TOTAL
-          // ------------------------------------------------
-
-          widgets.add(
-            pw.Container(
-              padding: const pw.EdgeInsets.symmetric(
-                vertical: 4,
-                horizontal: 4,
-              ),
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.end,
-                children: [
-                  pw.Text(
-                    'DATE TOTAL: ',
-                    style: pw.TextStyle(
-                      fontSize: 7.5,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                  pw.Text(
-                    'Taxable ${_money(dateTaxable)}   '
-                    'CGST ${_money(dateCgst)}   '
-                    'SGST ${_money(dateSgst)}   '
-                    'IGST ${_money(dateIgst)}   '
-                    'Total ${_money(dateTotal)}',
-                    style: const pw.TextStyle(
-                      fontSize: 7.5,
-                      color: PdfColors.grey700,
-                    ),
-                  ),
-                ],
-              ),
             ),
           );
         }
@@ -507,11 +501,11 @@ Future<void> printPurchaseAuditReport(
             children: [
               pw.TableRow(
                 children: [
-                  _h('TAXABLE'),
-                  _h('CGST'),
-                  _h('SGST'),
-                  _h('IGST'),
-                  _h('TOTAL'),
+                  _h('TAXABLE', right: true),
+                  _h('CGST', right: true),
+                  _h('SGST', right: true),
+                  _h('IGST', right: true),
+                  _h('TOTAL', right: true),
                 ],
               ),
               pw.TableRow(
@@ -595,11 +589,11 @@ pw.TableRow _auditPdfRow(
       ),
       _c(displayNo),
       _c(party),
-      _c(_money(taxable)),
-      _c(_money(cgst)),
-      _c(_money(sgst)),
-      _c(_money(igst)),
-      _c(
+      _cr(_money(taxable)),
+      _cr(_money(cgst)),
+      _cr(_money(sgst)),
+      _cr(_money(igst)),
+      _cr(
         _money(total),
         bold: true,
       ),

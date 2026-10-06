@@ -37,14 +37,28 @@ String _partyAddress(Map<String, dynamic> inv) {
   return parts.join(', ');
 }
 
-pw.Widget _h(String t) => pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+pw.Widget _h(String t, {bool right = false}) => pw.Container(
+      padding: const pw.EdgeInsets.all(4),
+      alignment: right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
       child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
     );
 
-pw.Widget _c(String t, {bool bold = false}) => pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+pw.Widget _c(String t, {bool bold = false, bool right = false}) => pw.Container(
+      padding: const pw.EdgeInsets.all(4),
+      alignment: right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
       child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+    );
+
+pw.Widget _summaryValue(num value, {bool bold = false}) => pw.Container(
+      padding: const pw.EdgeInsets.all(5),
+      alignment: pw.Alignment.centerRight,
+      child: pw.Text(
+        _money(value),
+        style: pw.TextStyle(
+          fontSize: 8,
+          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
+      ),
     );
 
 /// Sales audit register PDF — columns: bill no, date, then party and tax totals.
@@ -82,6 +96,7 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
               style: const pw.TextStyle(fontSize: 8)),
           pw.Divider(),
           pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey500, width: 0.6),
             columnWidths: const {
               0: pw.FlexColumnWidth(1.2),
               1: pw.FlexColumnWidth(1.4),
@@ -97,36 +112,54 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
                 _h('BILL NO'),
                 _h('DATE'),
                 _h('PARTY NAME'),
-                _h('TAXABLE'),
-                _h('CGST'),
-                _h('SGST'),
-                _h('IGST'),
-                _h('TOTAL'),
+                _h('TAXABLE', right: true),
+                _h('CGST', right: true),
+                _h('SGST', right: true),
+                _h('IGST', right: true),
+                _h('TOTAL', right: true),
               ]),
               for (final r in sorted)
                 pw.TableRow(children: [
                   _c('${r['invoice_no'] ?? '-'}'),
                   _c(_fmtDate(r['transaction_date']?.toString())),
                   _c('${r['customer_name'] ?? '-'}'),
-                  _c(_money(toDouble(r['taxable_total']))),
-                  _c(_money(toDouble(r['cgst_total']))),
-                  _c(_money(toDouble(r['sgst_total']))),
-                  _c(_money(toDouble(r['igst_total']))),
-                  _c(_money(toDouble(r['grand_total'])), bold: true),
+                  _c(_money(toDouble(r['taxable_total'])), right: true),
+                  _c(_money(toDouble(r['cgst_total'])), right: true),
+                  _c(_money(toDouble(r['sgst_total'])), right: true),
+                  _c(_money(toDouble(r['igst_total'])), right: true),
+                  _c(_money(toDouble(r['grand_total'])), bold: true, right: true),
                 ]),
             ],
           ),
           pw.SizedBox(height: 10),
-          pw.Container(
-            padding: const pw.EdgeInsets.all(6),
-            decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey500)),
-            child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Text('GRAND TOTALS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-              pw.Text(
-                '${_money(gTaxable)}   ${_money(gCgst)}   ${_money(gSgst)}   ${_money(gIgst)}   ${_money(gTotal)}',
-                style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
-              ),
-            ]),
+          pw.Text('AUDIT SUMMARY',
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 5),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey500, width: 0.6),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1),
+              1: pw.FlexColumnWidth(1),
+              2: pw.FlexColumnWidth(1),
+              3: pw.FlexColumnWidth(1),
+              4: pw.FlexColumnWidth(1),
+            },
+            children: [
+              pw.TableRow(children: [
+                _h('TAXABLE', right: true),
+                _h('CGST', right: true),
+                _h('SGST', right: true),
+                _h('IGST', right: true),
+                _h('TOTAL', right: true),
+              ]),
+              pw.TableRow(children: [
+                _summaryValue(gTaxable),
+                _summaryValue(gCgst),
+                _summaryValue(gSgst),
+                _summaryValue(gIgst),
+                _summaryValue(gTotal, bold: true),
+              ]),
+            ],
           ),
         ];
       },
