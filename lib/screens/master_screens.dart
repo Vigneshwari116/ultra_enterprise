@@ -4,6 +4,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/csv_import.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/master_form_helpers.dart';
+import 'product_catalog_refresh.dart';
 import 'sales_invoice_screen.dart';
 
 class MasterPage extends StatefulWidget {
@@ -101,7 +102,27 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       'description': descCtrl.text.trim(),
     };
     if (selectedId == null) {
-      await UltraRepository.instance.insertUnit(row);
+      try {
+        await UltraRepository.instance.insertUnit(row);
+      } catch (e) {
+        final msg = e.toString().toLowerCase();
+        final duplicate = msg.contains('unique') ||
+            msg.contains('duplicate') ||
+            msg.contains('already exists') ||
+            msg.contains('409') ||
+            msg.contains('constraint');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+              duplicate
+                  ? 'Unit code already registered (for example PCS). Use a different UOM token.'
+                  : 'Could not save unit: $e',
+            ),
+          ));
+        }
+        setState(() => error = duplicate ? 'Duplicate UOM code — choose another token.' : 'Save failed.');
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit saved.')));
         salesInvoiceCatalogKey.currentState?.refreshCatalog();
@@ -110,7 +131,27 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
       descCtrl.clear();
       setState(() => error = null);
     } else {
-      await UltraRepository.instance.updateUnit(selectedId!, row);
+      try {
+        await UltraRepository.instance.updateUnit(selectedId!, row);
+      } catch (e) {
+        final msg = e.toString().toLowerCase();
+        final duplicate = msg.contains('unique') ||
+            msg.contains('duplicate') ||
+            msg.contains('already exists') ||
+            msg.contains('409') ||
+            msg.contains('constraint');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+              duplicate
+                  ? 'Unit code already registered (for example PCS). Use a different UOM token.'
+                  : 'Could not update unit: $e',
+            ),
+          ));
+        }
+        setState(() => error = duplicate ? 'Duplicate UOM code — choose another token.' : 'Update failed.');
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit updated.')));
         salesInvoiceCatalogKey.currentState?.refreshCatalog();
@@ -807,6 +848,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
       await UltraRepository.instance.updateCustomer(existingId, _formToRow());
       _notify('Customer updated.');
     }
+    salesInvoiceCatalogKey.currentState?.refreshCatalog();
     await load();
     if (existingId != null) {
       final row = data.where((c) => c['id'] == existingId).toList();
@@ -852,6 +894,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
         imported++;
       }
       await load();
+      salesInvoiceCatalogKey.currentState?.refreshCatalog();
       _notify('$imported customer record(s) imported.');
     } catch (e) {
       _notify('Import failed: $e');
@@ -1254,6 +1297,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
       await UltraRepository.instance.updateSupplier(existingId, _formToRow());
       _notify('Supplier updated.');
     }
+    await refreshMountedProductCatalogs();
     await load();
     if (existingId != null) {
       final row = data.where((s) => s['id'] == existingId).toList();
@@ -1301,6 +1345,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
         imported++;
       }
       await load();
+      await refreshMountedProductCatalogs();
       _notify('$imported supplier record(s) imported.');
     } catch (e) {
       _notify('Import failed: $e');

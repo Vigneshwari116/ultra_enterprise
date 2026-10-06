@@ -4,6 +4,65 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/enterprise_widgets.dart';
+import 'product_catalog_refresh.dart';
+import 'sales_invoice_screen.dart';
+
+int? _coerceMasterId(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim());
+  return null;
+}
+
+List<Map<String, dynamic>> _uniqueMasterRowsById(List<Map<String, dynamic>> rows) {
+  final seen = <int>{};
+  final unique = <Map<String, dynamic>>[];
+  for (final row in rows) {
+    final id = _coerceMasterId(row['id']);
+    if (id == null || seen.contains(id)) continue;
+    seen.add(id);
+    unique.add(row);
+  }
+  return unique;
+}
+
+int? _idPresentInRows(int? id, List<Map<String, dynamic>> rows) {
+  if (id == null) return null;
+  for (final row in rows) {
+    if (_coerceMasterId(row['id']) == id) return id;
+  }
+  return null;
+}
+
+int? _firstRowId(List<Map<String, dynamic>> rows) {
+  if (rows.isEmpty) return null;
+  return _coerceMasterId(rows.first['id']);
+}
+
+int? _productUnitId(Map<String, dynamic> product) {
+  return _coerceMasterId(product['unit_id']) ??
+      _coerceMasterId(product['unitId']) ??
+      (product['unit'] is Map ? _coerceMasterId((product['unit'] as Map)['id']) : null);
+}
+
+int? _productMaterialTypeId(Map<String, dynamic> product) {
+  return _coerceMasterId(product['material_type_id']) ??
+      _coerceMasterId(product['materialTypeId']) ??
+      (product['material_type'] is Map ? _coerceMasterId((product['material_type'] as Map)['id']) : null);
+}
+
+List<DropdownMenuItem<int>> _masterDropdownItems(List<Map<String, dynamic>> rows, String labelKey) {
+  final seen = <int>{};
+  final items = <DropdownMenuItem<int>>[];
+  for (final row in rows) {
+    final id = _coerceMasterId(row['id']);
+    if (id == null || seen.contains(id)) continue;
+    seen.add(id);
+    items.add(DropdownMenuItem(value: id, child: Text('${row[labelKey] ?? ''}')));
+  }
+  return items;
+}
 
 final jobWorkHostKey = GlobalKey<JobWorkHostScreenState>();
 
@@ -262,10 +321,10 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
 
   Future<void> load() async {
     products = await repo.products();
-    units = await repo.units();
-    materialTypes = await repo.materialTypes();
-    if (unitId == null && units.isNotEmpty) unitId = units.first['id'] as int;
-    if (materialTypeId == null && materialTypes.isNotEmpty) materialTypeId = materialTypes.first['id'] as int;
+    units = _uniqueMasterRowsById(await repo.units());
+    materialTypes = _uniqueMasterRowsById(await repo.materialTypes());
+    unitId = _idPresentInRows(unitId, units) ?? _firstRowId(units);
+    materialTypeId = _idPresentInRows(materialTypeId, materialTypes) ?? _firstRowId(materialTypes);
     if (mounted) setState(() {});
   }
 
@@ -276,17 +335,17 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
   }
 
   void _select(Map<String, dynamic> p) {
-    editingId = p['id'] as int;
+    editingId = _coerceMasterId(p['id']);
     code.text = '${p['product_code'] ?? ''}';
     name.text = '${p['product_name'] ?? ''}';
-    unitId = p['unit_id'] as int?;
-    materialTypeId = p['material_type_id'] as int?;
+    unitId = _idPresentInRows(_productUnitId(p), units) ?? _firstRowId(units);
+    materialTypeId = _idPresentInRows(_productMaterialTypeId(p), materialTypes) ?? _firstRowId(materialTypes);
     unitsBound.text = '${p['units_bound'] ?? 1}';
     rawSize.text = '${p['raw_material_size'] ?? ''}';
     finishSize.text = '${p['finishing_size'] ?? ''}';
     purchaseRate.text = '${p['purchase_rate'] ?? p['rate'] ?? 0}';
     salesRate.text = '${p['sales_rate'] ?? p['rate'] ?? 0}';
-    hsn.text = '${p['hsn'] ?? ''}';
+    hsn.text = '${p['hsn'] ?? p['hsn_code'] ?? ''}';
     imageBase64 = p['image_base64'] as String?;
     final ld = p['log_date'] as String?;
     if (ld != null && ld.isNotEmpty) {
@@ -310,6 +369,8 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
     hsn.clear();
     imageBase64 = null;
     logDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
+    unitId = _firstRowId(units);
+    materialTypeId = _firstRowId(materialTypes);
     setState(() {});
   }
 
@@ -322,7 +383,22 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
   }
 
   Future<void> _save() async {
-    if (code.text.trim().isEmpty || name.text.trim().isEmpty) return;
+    if (code.text.trim().isEmpty || name.text.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Material code and product name are required.')),
+        );
+      }
+      return;
+    }
+    if (unitId == null || materialTypeId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Select UOM and Material Type before saving.')),
+        );
+      }
+      return;
+    }
     final purchase = double.tryParse(purchaseRate.text) ?? 0;
     final sales = double.tryParse(salesRate.text) ?? 0;
     final row = {
@@ -342,14 +418,40 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
       'status': 'ACTIVE',
     };
     final isNew = editingId == null;
-    if (isNew) {
-      row['opening_stock'] = 0;
-      row['current_stock'] = 0;
-      await repo.insertProduct(row);
-    } else {
-      await repo.updateProduct(editingId!, row);
+    final savedId = editingId;
+    try {
+      if (isNew) {
+        row['opening_stock'] = 0;
+        row['current_stock'] = 0;
+        final newId = await repo.insertProduct(row);
+        editingId = _coerceMasterId(newId);
+      } else {
+        await repo.updateProduct(editingId!, row);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Material save failed: $e')),
+        );
+      }
+      return;
     }
     await load();
+    salesInvoiceCatalogKey.currentState?.refreshCatalog();
+    await refreshMountedProductCatalogs();
+    final keepId = isNew ? editingId : savedId;
+    if (keepId != null) {
+      final match = products.where((p) => _coerceMasterId(p['id']) == keepId).toList();
+      if (match.isNotEmpty) {
+        _select(match.first);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(isNew ? 'MATERIAL MASTER SAVED' : 'MATERIAL MASTER UPDATED')),
+          );
+        }
+        return;
+      }
+    }
     _reset();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isNew ? 'MATERIAL MASTER SAVED' : 'MATERIAL MASTER UPDATED')));
@@ -390,7 +492,7 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                     itemCount: _filtered.length,
                     itemBuilder: (_, i) {
                       final p = _filtered[i];
-                      final selected = editingId == p['id'];
+                      final selected = editingId != null && editingId == _coerceMasterId(p['id']);
                       final thumb = p['image_base64'] as String?;
                       return Material(
                         color: selected ? sidebarActiveBg.withOpacity(.2) : Colors.transparent,
@@ -425,11 +527,14 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
           ),
         ),
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: LayoutBuilder(
+            builder: (context, formConstraints) {
+              final formWidth = formConstraints.maxWidth;
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                 Row(
                   children: [
                     Text(editingId == null ? 'NEW PRODUCT DATA MASTER' : 'MODIFY MASTER REGISTRY',
@@ -457,63 +562,57 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                 _sectionTitle('1. SYSTEM IDENTIFICATION PARAMETERS'),
                 Align(alignment: Alignment.centerRight, child: Text('Log Compilation System Date: $logDate', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF748094)))),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: code, decoration: _fieldDec('Material Code Key (e.g. MAT001) *'))),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: name, decoration: _fieldDec('Product Name *'))),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    TextField(controller: code, decoration: _fieldDec('Material Code Key (e.g. MAT001) *')),
+                    TextField(controller: name, decoration: _fieldDec('Product Name *')),
                   ],
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: unitId,
-                        decoration: _fieldDec('UOM Parameter Spec *'),
-                        items: units.map((u) => DropdownMenuItem(value: u['id'] as int, child: Text('${u['code']}'))).toList(),
-                        onChanged: (v) => setState(() => unitId = v),
-                      ),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    DropdownButtonFormField<int>(
+                      value: _idPresentInRows(unitId, units),
+                      isExpanded: true,
+                      decoration: _fieldDec('UOM Parameter Spec *'),
+                      items: _masterDropdownItems(units, 'code'),
+                      onChanged: units.isEmpty ? null : (v) => setState(() => unitId = v),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: unitsBound, keyboardType: TextInputType.number, decoration: _fieldDec('Units Conversion Bound Total *'))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: materialTypeId,
-                        decoration: _fieldDec('Material Master Type *'),
-                        items: materialTypes
-                            .map((t) => DropdownMenuItem(value: t['id'] as int, child: Text('${t['type_code']}')))
-                            .toList(),
-                        onChanged: (v) => setState(() => materialTypeId = v),
-                      ),
+                    TextField(controller: unitsBound, keyboardType: TextInputType.number, decoration: _fieldDec('Units Conversion Bound Total *')),
+                    DropdownButtonFormField<int>(
+                      value: _idPresentInRows(materialTypeId, materialTypes),
+                      isExpanded: true,
+                      decoration: _fieldDec('Material Master Type *'),
+                      items: _masterDropdownItems(materialTypes, 'type_code'),
+                      onChanged: materialTypes.isEmpty ? null : (v) => setState(() => materialTypeId = v),
                     ),
                   ],
+                  minFieldWidth: 180,
                 ),
                 const SizedBox(height: 10),
                 TextField(controller: hsn, decoration: _fieldDec('HSN (for invoicing)')),
                 const SizedBox(height: 16),
                 _sectionTitle('2. PHYSICAL GEOMETRY DIMENSIONAL MATRIX'),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: rawSize, decoration: _fieldDec('Raw Material Size (e.g. 100MM)'))),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: finishSize, decoration: _fieldDec('Finishing Size (e.g. 98MM)'))),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    TextField(controller: rawSize, decoration: _fieldDec('Raw Material Size (e.g. 100MM)')),
+                    TextField(controller: finishSize, decoration: _fieldDec('Finishing Size (e.g. 98MM)')),
                   ],
                 ),
                 const SizedBox(height: 16),
                 _sectionTitle('3. COMMERCIAL VALUATION METRICS'),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: purchaseRate, keyboardType: TextInputType.number, decoration: _fieldDec('Purchase Rate (₹) *'))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: salesRate,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: green, fontWeight: FontWeight.w800),
-                        decoration: _fieldDec('Sales Rate (₹) *'),
-                      ),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    TextField(controller: purchaseRate, keyboardType: TextInputType.number, decoration: _fieldDec('Purchase Rate (₹) *')),
+                    TextField(
+                      controller: salesRate,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: green, fontWeight: FontWeight.w800),
+                      decoration: _fieldDec('Sales Rate (₹) *'),
                     ),
                   ],
                 ),
@@ -548,8 +647,10 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                     alignment: Alignment.centerRight,
                     child: TextButton(onPressed: () => setState(() => imageBase64 = null), child: const Text('Remove image', style: TextStyle(fontSize: 10))),
                   ),
-              ],
-            ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -579,6 +680,36 @@ Widget _sectionTitle(String t) => Container(
       color: const Color(0xFFE8ECF0),
       child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: navy)),
     );
+
+/// Stacks master form fields when the nav drawer and product pool leave too little width.
+Widget _masterFormRow(
+  double maxWidth,
+  List<Widget> fields, {
+  double minFieldWidth = 220,
+  double gap = 12,
+}) {
+  final minRowWidth = fields.length * minFieldWidth + (fields.length - 1) * gap;
+  if (maxWidth >= minRowWidth) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < fields.length; i++) ...[
+          if (i > 0) SizedBox(width: gap),
+          Expanded(child: fields[i]),
+        ],
+      ],
+    );
+  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < fields.length; i++) ...[
+        if (i > 0) SizedBox(height: gap),
+        fields[i],
+      ],
+    ],
+  );
+}
 
 InputDecoration _fieldDec(String label) => InputDecoration(
       labelText: label,

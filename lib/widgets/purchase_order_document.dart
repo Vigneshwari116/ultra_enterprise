@@ -1,13 +1,7 @@
-import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
-
-String _fmtDate(String? iso) {
-  if (iso == null || iso.isEmpty) return '';
-  final d = DateTime.tryParse(iso);
-  if (d == null) return iso;
-  return DateFormat('dd-MM-yyyy').format(d);
-}
+import 'transaction_line_math.dart';
+import 'ultra_print_helpers.dart';
 
 String _billNoForOrder(Map<String, dynamic> po) {
   final stored = '${po['po_bill_no'] ?? ''}'.trim();
@@ -29,33 +23,41 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
       .map(
         (it) => InvoiceItem(
           description: '${it['description'] ?? ''}',
-          hsnCode: '${it['hsn'] ?? ''}',
-          qty: (it['quantity'] as num?)?.toDouble() ?? 0,
-          price: (it['rate'] as num?)?.toDouble() ?? 0,
+          hsnCode: '${it['hsn'] ?? it['hsn_code'] ?? ''}',
+          qty: coerceCatalogDouble(it['quantity']),
+          price: coerceCatalogDouble(it['rate']),
         ),
       )
       .toList();
 
   final zone = '${po['state_zone'] ?? ''}'.toLowerCase();
   final isInter = zone.contains('inter');
+  final supplierName = '${po['supplier_name'] ?? po['party_name'] ?? ''}'.trim();
   final address = [
     po['address'] ?? '',
     po['city'] ?? '',
     po['postal_pincode'] ?? '',
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
-  final freight = (po['estimated_freight'] as num?)?.toDouble() ?? 0;
+  final freight = coerceCatalogDouble(po['estimated_freight']);
+  final subtotal = (po['taxable_total'] as num?)?.toDouble() ?? items.fold<double>(0, (s, i) => s + i.amount);
+  final cgstAmt = (po['cgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : subtotal * 0.09);
+  final sgstAmt = (po['sgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : subtotal * 0.09);
+  final igstAmt = (po['igst_total'] as num?)?.toDouble() ?? (isInter ? subtotal * 0.18 : 0.0);
+  final grand = (po['grand_total'] as num?)?.toDouble() ?? subtotal + cgstAmt + sgstAmt + igstAmt + freight;
+  final pAndF = freight > 0 ? freight : (grand - subtotal - cgstAmt - sgstAmt - igstAmt).clamp(0, double.infinity);
 
   return InvoiceData(
+    kind: UltraBillKind.purchaseOrder,
     invoiceNo: _billNoForOrder(po),
-    date: _fmtDate(po['po_date'] as String?),
+    date: ultraFmtDate(po['po_date'] as String?),
     custPo: '${po['supplier_ref_no'] ?? ''}',
-    poDate: _fmtDate(po['delivery_due_date'] as String?),
+    poDate: ultraFmtDate(po['delivery_due_date'] as String?),
     dcNo: '${po['total_packages'] ?? ''}',
     dcDate: '',
     dispatch: '${po['delivery_mode'] ?? ''}',
-    ewbNo: '',
-    consigneeName: '${po['supplier_name'] ?? ''}',
+    ewbNo: '${po['remarks'] ?? ''}',
+    consigneeName: supplierName,
     consigneeAddress: address,
     gstin: '${po['gstin'] ?? ''}',
     mobile: '${po['primary_mobile'] ?? ''}',
@@ -63,15 +65,22 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
     cgstPercent: isInter ? 0 : 9,
     sgstPercent: isInter ? 0 : 9,
     igstPercent: isInter ? 18 : 0,
-    pAndF: freight,
-    amountInWords: 'RUPEES ONLY',
-    bankName: '${po['bank_name'] ?? ''}',
-    accountNo: '${po['bank_account_no'] ?? ''}',
-    ifscCode: '${po['ifsc_code'] ?? ''}',
-    bankAddress: '${po['branch_address'] ?? ''}',
+    pAndF: pAndF.toDouble(),
+    cgstAmountOverride: cgstAmt,
+    sgstAmountOverride: sgstAmt,
+    igstAmountOverride: igstAmt,
+    grandTotalOverride: grand,
+    amountInWords: formatUltraAmountInWords(grand),
+    bankName: ultraBankName(po, 'bank_name'),
+    accountNo: ultraBankAccount(po, 'bank_account_no'),
+    ifscCode: ultraBankIfsc(po, 'ifsc_code'),
+    bankAddress: ultraBankAddress(po, 'branch_address'),
     documentTitle: 'PURCHASE ORDER',
     partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
-    copyLabels: const ['ORIGINAL FOR SUPPLIER'],
+    copyLabels: ultraPurchaseOrderCopyLabels,
+    forwardingLabel: 'Estimated Freight',
+    totalGrandLabel: 'Total Value',
+    roundOff: (po['round_off'] as num?)?.toDouble() ?? 0,
   );
 }
 

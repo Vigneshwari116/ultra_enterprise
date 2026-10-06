@@ -5,12 +5,36 @@ import 'package:printing/printing.dart';
 
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
+import 'ultra_print_helpers.dart';
 
 String _money(num v) => v.toStringAsFixed(2);
+
+num? toNum(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value;
+  if (value is String) return num.tryParse(value.trim());
+  return null;
+}
+
+double toDouble(dynamic value, {double fallback = 0}) => toNum(value)?.toDouble() ?? fallback;
 
 String _fmtDate(String? iso) {
   final d = DateTime.tryParse(iso ?? '');
   return d == null ? (iso ?? '-') : DateFormat('dd-MM-yyyy').format(d);
+}
+
+String _fmtInvoicePrintDate(String? iso) {
+  final d = DateTime.tryParse(iso ?? '');
+  return d == null ? (iso ?? '') : DateFormat('MM/dd/yyyy').format(d);
+}
+
+String _partyAddress(Map<String, dynamic> inv) {
+  final parts = <String>[
+    '${inv['customer_address'] ?? ''}'.trim(),
+    '${inv['customer_city'] ?? ''}'.trim(),
+    '${inv['customer_pincode'] ?? ''}'.trim(),
+  ].where((p) => p.isNotEmpty);
+  return parts.join(', ');
 }
 
 pw.Widget _h(String t) => pw.Padding(
@@ -31,16 +55,16 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
     final db = DateTime.tryParse('${b['transaction_date'] ?? ''}') ?? DateTime(1970);
     final c = db.compareTo(da);
     if (c != 0) return c;
-    return ((b['invoice_no'] as num?) ?? 0).compareTo((a['invoice_no'] as num?) ?? 0);
+    return (toNum(b['invoice_no']) ?? 0).compareTo(toNum(a['invoice_no']) ?? 0);
   });
 
   double gTaxable = 0, gCgst = 0, gSgst = 0, gIgst = 0, gTotal = 0;
   for (final r in sorted) {
-    gTaxable += ((r['taxable_total'] ?? 0) as num).toDouble();
-    gCgst += ((r['cgst_total'] ?? 0) as num).toDouble();
-    gSgst += ((r['sgst_total'] ?? 0) as num).toDouble();
-    gIgst += ((r['igst_total'] ?? 0) as num).toDouble();
-    gTotal += ((r['grand_total'] ?? 0) as num).toDouble();
+    gTaxable += toDouble(r['taxable_total']);
+    gCgst += toDouble(r['cgst_total']);
+    gSgst += toDouble(r['sgst_total']);
+    gIgst += toDouble(r['igst_total']);
+    gTotal += toDouble(r['grand_total']);
   }
 
   final doc = pw.Document();
@@ -82,13 +106,13 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
               for (final r in sorted)
                 pw.TableRow(children: [
                   _c('${r['invoice_no'] ?? '-'}'),
-                  _c(_fmtDate(r['transaction_date'] as String?)),
+                  _c(_fmtDate(r['transaction_date']?.toString())),
                   _c('${r['customer_name'] ?? '-'}'),
-                  _c(_money((r['taxable_total'] ?? 0) as num)),
-                  _c(_money((r['cgst_total'] ?? 0) as num)),
-                  _c(_money((r['sgst_total'] ?? 0) as num)),
-                  _c(_money((r['igst_total'] ?? 0) as num)),
-                  _c(_money((r['grand_total'] ?? 0) as num), bold: true),
+                  _c(_money(toDouble(r['taxable_total']))),
+                  _c(_money(toDouble(r['cgst_total']))),
+                  _c(_money(toDouble(r['sgst_total']))),
+                  _c(_money(toDouble(r['igst_total']))),
+                  _c(_money(toDouble(r['grand_total'])), bold: true),
                 ]),
             ],
           ),
@@ -120,37 +144,56 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
       .map(
         (it) => InvoiceItem(
           description: '${it['description'] ?? ''}',
-          hsnCode: '${it['hsn'] ?? ''}',
-          qty: (it['quantity'] as num?)?.toDouble() ?? 0,
-          price: (it['rate'] as num?)?.toDouble() ?? 0,
+          hsnCode: '${it['hsn'] ?? it['hsn_code'] ?? ''}',
+          qty: toDouble(it['quantity']),
+          price: toDouble(it['rate']),
         ),
       )
       .toList();
   final zone = '${inv['state_zone'] ?? ''}'.toLowerCase();
   final isInter = zone.contains('inter');
+  final taxable = toDouble(inv['taxable_total'], fallback: items.fold<double>(0, (s, i) => s + i.amount));
+  final cgstAmt = toDouble(inv['cgst_total'], fallback: isInter ? 0.0 : taxable * 0.09);
+  final sgstAmt = toDouble(inv['sgst_total'], fallback: isInter ? 0.0 : taxable * 0.09);
+  final igstAmt = toDouble(inv['igst_total'], fallback: isInter ? taxable * 0.18 : 0.0);
+  final grand = toDouble(inv['grand_total'], fallback: taxable + cgstAmt + sgstAmt + igstAmt);
+  final fwdFromApi = inv['fwd_charge'];
+  final freight = fwdFromApi != null
+      ? toDouble(fwdFromApi)
+      : (grand - taxable - cgstAmt - sgstAmt - igstAmt);
+  final roundOff = toDouble(inv['round_off'], fallback: 0);
   return InvoiceData(
+    kind: UltraBillKind.taxInvoice,
     invoiceNo: '${inv['invoice_no'] ?? ''}',
-    date: _fmtDate(inv['transaction_date'] as String?),
+    date: _fmtInvoicePrintDate(inv['transaction_date'] as String?),
     custPo: '${inv['po_no'] ?? ''}',
-    poDate: _fmtDate(inv['po_date'] as String?),
+    poDate: _fmtInvoicePrintDate(inv['po_date'] as String?),
     dcNo: '${inv['challan_no'] ?? ''}',
-    dcDate: _fmtDate(inv['challan_date'] as String?),
+    dcDate: _fmtInvoicePrintDate(inv['challan_date'] as String?),
     dispatch: '${inv['vehicle_dispatch_mode'] ?? ''}',
     ewbNo: '${inv['eway_bill_no'] ?? ''}',
     consigneeName: '${inv['customer_name'] ?? ''}',
-    consigneeAddress: '${inv['customer_address'] ?? ''}',
+    consigneeAddress: _partyAddress(inv),
+    shippingName: '${inv['shipping_name'] ?? ''}',
+    shippingAddress: '${inv['shipping_address'] ?? ''}'.trim(),
     gstin: '${inv['customer_gstin'] ?? ''}',
     mobile: '${inv['customer_mobile'] ?? ''}',
     items: items,
     cgstPercent: isInter ? 0 : 9,
     sgstPercent: isInter ? 0 : 9,
     igstPercent: isInter ? 18 : 0,
-    pAndF: 0,
-    amountInWords: 'RUPEES ONLY',
-    bankName: '${inv['bank_name'] ?? ''}',
-    accountNo: '${inv['bank_account_no'] ?? ''}',
-    ifscCode: '${inv['ifsc_code'] ?? ''}',
-    bankAddress: '${inv['branch_address'] ?? ''}',
+    pAndF: freight > 0 ? freight : 0,
+    roundOff: roundOff,
+    cgstAmountOverride: cgstAmt,
+    sgstAmountOverride: sgstAmt,
+    igstAmountOverride: igstAmt,
+    grandTotalOverride: grand,
+    amountInWords: formatUltraAmountInWords(grand),
+    bankName: ultraBankName(inv, 'bank_name'),
+    accountNo: ultraBankAccount(inv, 'bank_account_no'),
+    ifscCode: ultraBankIfsc(inv, 'ifsc_code'),
+    bankAddress: ultraBankAddress(inv, 'branch_address'),
+    leftSignatureLabel: 'Receiver signature & Seal',
   );
 }
 
