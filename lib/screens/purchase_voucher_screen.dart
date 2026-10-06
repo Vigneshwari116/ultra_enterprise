@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
@@ -158,13 +159,15 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
       gstin,
       bank,
       account,
-      voucherNoController
+      voucherNoController,
     ]) c.dispose();
     super.dispose();
   }
 
   Future<void> _pickDate(
-      String currentIso, ValueChanged<String> onPicked) async {
+    String currentIso,
+    ValueChanged<String> onPicked,
+  ) async {
     final now = DateTime.now();
     final initial = DateTime.tryParse(currentIso) ?? now;
     final picked = await pickCompactDate(
@@ -178,32 +181,33 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
 
   Future<void> save() async {
     if (supplierId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Please select a supplier before saving.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a supplier before saving.'),
+        ),
+      );
       return;
     }
     final uuid = repo.newUuid();
-    final items = rows.map(
-      (r) {
-        final t = _lineTotals(r);
-        return {
-          'product_id': r.productId,
-          'description': r.description,
-          'uom': r.uom,
-          'hsn': r.hsn,
-          'quantity': r.qty,
-          'rate': r.rate,
-          'cgst_percent': r.cgstPct,
-          'sgst_percent': r.sgstPct,
-          'igst_percent': r.igstPct,
-          'taxable': t.taxable,
-          'cgst': t.cgst,
-          'sgst': t.sgst,
-          'igst': t.igst,
-          'total': t.total,
-        };
-      },
-    ).toList();
+    final items = rows.map((r) {
+      final t = _lineTotals(r);
+      return {
+        'product_id': r.productId,
+        'description': r.description,
+        'uom': r.uom,
+        'hsn': r.hsn,
+        'quantity': r.qty,
+        'rate': r.rate,
+        'cgst_percent': r.cgstPct,
+        'sgst_percent': r.sgstPct,
+        'igst_percent': r.igstPct,
+        'taxable': t.taxable,
+        'cgst': t.cgst,
+        'sgst': t.sgst,
+        'igst': t.igst,
+        'total': t.total,
+      };
+    }).toList();
     try {
       await repo.createPurchaseVoucher({
         'uuid': uuid,
@@ -223,15 +227,17 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Server save failed: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Server save failed: $e')));
       }
       return;
     }
     if (mounted)
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('PURCHASE VOUCHER POSTED — STOCK UPDATED')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('PURCHASE VOUCHER POSTED — STOCK UPDATED'),
+        ),
+      );
     await load();
     setState(() {
       _disposeAllRows();
@@ -248,263 +254,351 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: enterpriseScrollColumn(children: [
-        Container(
-          width: double.infinity,
-          color: const Color(0xFF19232C),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('COMMERCIAL PURCHASE TERMINAL',
-                      style: TextStyle(
-                          color: Color(0xFF2FE6E0),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .4)),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    _statMini(
-                        'TOTAL PCS',
-                        rows
-                            .fold<double>(0, (s, r) => s + r.qty)
-                            .toStringAsFixed(0)),
-                    const SizedBox(width: 22),
-                    _statMini('TAXABLE NET', taxable.toStringAsFixed(2)),
-                    const SizedBox(width: 22),
-                    _statMini('COMPOUND GST',
-                        (cgst + sgst + igst).toStringAsFixed(2)),
-                  ]),
-                ],
-              ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('₹${total.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          color: Color(0xFFF4D53A),
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  const Text('NET PAYABLE VALUE',
-                      style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: .4)),
-                ],
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: enterpriseScrollColumn(
+        children: [
+          Container(
+            width: double.infinity,
+            color: const Color(0xFF19232C),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(
-                  child: _plainSection(
-                    title: 'SECTION 1: TRANSACTION METADATA',
-                    children: [
-                      _pair(
-                        _outline('VOUCHER NO',
-                            controller: voucherNoController,
-                            readOnly: true,
-                            filled: true),
-                        enterpriseInsetDateField(
-                          label: 'VOUCHER DATE',
-                          isoDate: voucherDate,
-                          onTap: () => _pickDate(voucherDate,
-                              (v) => setState(() => voucherDate = v)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'COMMERCIAL PURCHASE TERMINAL',
+                      style: TextStyle(
+                        color: Color(0xFF2FE6E0),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .4,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _statMini(
+                          'TOTAL PCS',
+                          rows
+                              .fold<double>(0, (s, r) => s + r.qty)
+                              .toStringAsFixed(0),
                         ),
-                      ),
-                      _pair(
-                        _outline('SUPPLIER INVOICE NO',
-                            controller: supplierInvoiceNo, autofocus: true),
-                        enterpriseInsetDateField(
-                          label: 'SUPPLIER INVOICE DATE',
-                          isoDate: supplierInvoiceDate,
-                          onTap: () => _pickDate(supplierInvoiceDate,
-                              (v) => setState(() => supplierInvoiceDate = v)),
+                        const SizedBox(width: 22),
+                        _statMini('TAXABLE NET', taxable.toStringAsFixed(2)),
+                        const SizedBox(width: 22),
+                        _statMini(
+                          'COMPOUND GST',
+                          (cgst + sgst + igst).toStringAsFixed(2),
                         ),
-                      ),
-                      enterpriseInsetDropdown<int?>(
-                        label: 'AGAINST PURCHASE ORDER (OPTIONAL)',
-                        value: againstPoId,
-                        hint: const Text('— No linked PO —',
-                            style: TextStyle(
-                                fontSize: 12, color: Color(0xFF9AA5B4))),
-                        items: [
-                          const DropdownMenuItem<int?>(
-                              value: null, child: Text('— No linked PO —')),
-                          ...openOrders.map((o) {
-                            final poListId = coerceCatalogId(o['id']);
-                            if (poListId == null) {
-                              return null;
-                            }
-                            return DropdownMenuItem<int?>(
-                              value: poListId,
-                              child: Text(
-                                _poPickerLabel(o),
-                                style: const TextStyle(fontSize: 10.5),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).whereType<DropdownMenuItem<int?>>(),
-                        ],
-                        onChanged: (v) => loadAgainstPo(v),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: enterpriseInsetTextField(
-                            label: 'REMARKS', controller: remarks, maxLines: 2),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: _plainSection(
-                    title: 'SECTION 2: ACCOUNT / PARTY CONFIGURATION',
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: enterpriseInsetDropdown<int>(
-                          label: 'SELECT SUPPLIER',
-                          value: supplierId,
-                          items: suppliers
-                              .map((s) {
-                                final id = coerceCatalogId(s['id']);
-                                if (id == null) return null;
-                                return DropdownMenuItem<int>(
-                                  value: id,
-                                  child: Text('${s['supplier_name'] ?? s['name'] ?? ''}'),
-                                );
-                              })
-                              .whereType<DropdownMenuItem<int>>()
-                              .toList(),
-                          onChanged: (v) {
-                            final s = suppliers.firstWhere((x) => coerceCatalogId(x['id']) == v);
-                            setState(() {
-                              supplierId = v;
-                              fillSupplier(s);
-                            });
-                          },
-                        ),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '₹${total.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: Color(0xFFF4D53A),
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
                       ),
-                      _pair(
-                          _outline('ADDRESS',
-                              controller: supplierAddress, filled: true),
-                          _outline('CITY', controller: city, filled: true)),
-                      _pair(_outline('PINCODE', controller: pin, filled: true),
-                          _outline('GSTIN', controller: gstin, filled: true)),
-                      _pair(
-                          _outline('BANK NAME', controller: bank, filled: true),
-                          _outline('ACCOUNT NO',
-                              controller: account, filled: true)),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'NET PAYABLE VALUE',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .4,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 22),
-            const Text('SECTION 3: QUANTITY MATRIX PRODUCT ENTRY',
-                style: TextStyle(
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _plainSection(
+                        title: 'SECTION 1: TRANSACTION METADATA',
+                        children: [
+                          _pair(
+                            _outline(
+                              'VOUCHER NO',
+                              controller: voucherNoController,
+                              readOnly: true,
+                              filled: true,
+                            ),
+                            enterpriseInsetDateField(
+                              label: 'VOUCHER DATE',
+                              isoDate: voucherDate,
+                              onTap: () => _pickDate(
+                                voucherDate,
+                                (v) => setState(() => voucherDate = v),
+                              ),
+                            ),
+                          ),
+                          _pair(
+                            _outline(
+                              'SUPPLIER INVOICE NO',
+                              controller: supplierInvoiceNo,
+                              autofocus: true,
+                            ),
+                            enterpriseInsetDateField(
+                              label: 'SUPPLIER INVOICE DATE',
+                              isoDate: supplierInvoiceDate,
+                              onTap: () => _pickDate(
+                                supplierInvoiceDate,
+                                (v) => setState(() => supplierInvoiceDate = v),
+                              ),
+                            ),
+                          ),
+                          enterpriseInsetDropdown<int?>(
+                            label: 'AGAINST PURCHASE ORDER (OPTIONAL)',
+                            value: againstPoId,
+                            hint: const Text(
+                              '— No linked PO —',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF9AA5B4),
+                              ),
+                            ),
+                            items: [
+                              const DropdownMenuItem<int?>(
+                                value: null,
+                                child: Text('— No linked PO —'),
+                              ),
+                              ...openOrders.map((o) {
+                                final poListId = coerceCatalogId(o['id']);
+                                if (poListId == null) {
+                                  return null;
+                                }
+                                return DropdownMenuItem<int?>(
+                                  value: poListId,
+                                  child: Text(
+                                    _poPickerLabel(o),
+                                    style: const TextStyle(fontSize: 10.5),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).whereType<DropdownMenuItem<int?>>(),
+                            ],
+                            onChanged: (v) => loadAgainstPo(v),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: enterpriseInsetTextField(
+                              label: 'REMARKS',
+                              controller: remarks,
+                              maxLines: 2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: _plainSection(
+                        title: 'SECTION 2: ACCOUNT / PARTY CONFIGURATION',
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: enterpriseInsetDropdown<int>(
+                              label: 'SELECT SUPPLIER',
+                              value: supplierId,
+                              items: suppliers
+                                  .map((s) {
+                                    final id = coerceCatalogId(s['id']);
+                                    if (id == null) return null;
+                                    return DropdownMenuItem<int>(
+                                      value: id,
+                                      child: Text(
+                                        '${s['supplier_name'] ?? s['name'] ?? ''}',
+                                      ),
+                                    );
+                                  })
+                                  .whereType<DropdownMenuItem<int>>()
+                                  .toList(),
+                              onChanged: (v) {
+                                final s = suppliers.firstWhere(
+                                  (x) => coerceCatalogId(x['id']) == v,
+                                );
+                                setState(() {
+                                  supplierId = v;
+                                  fillSupplier(s);
+                                });
+                              },
+                            ),
+                          ),
+                          _pair(
+                            _outline(
+                              'ADDRESS',
+                              controller: supplierAddress,
+                              filled: true,
+                            ),
+                            _outline('CITY', controller: city, filled: true),
+                          ),
+                          _pair(
+                            _outline('PINCODE', controller: pin, filled: true),
+                            _outline('GSTIN', controller: gstin, filled: true),
+                          ),
+                          _pair(
+                            _outline(
+                              'BANK NAME',
+                              controller: bank,
+                              filled: true,
+                            ),
+                            _outline(
+                              'ACCOUNT NO',
+                              controller: account,
+                              filled: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                const Text(
+                  'SECTION 3: QUANTITY MATRIX PRODUCT ENTRY',
+                  style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w800,
                     color: navy,
-                    letterSpacing: .3)),
-            const SizedBox(height: 4),
-            Container(height: 1, color: border),
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: border),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child:
-                  enterpriseMatrixScroller(table: _productMatrixTable(context)),
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: OutlinedButton.icon(
-                onPressed: () => setState(() => rows.add(_PvRow())),
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('ADD NEW MATERIAL ROW',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: navy,
-                  side: const BorderSide(color: border),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3)),
+                    letterSpacing: .3,
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            enterpriseValueWordsFooter(
-                valueInWords: payableAmountInWords(total)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              decoration: BoxDecoration(
-                  color: const Color(0xFFFFF8E1),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: const Color(0xFFF4D53A))),
-              child: const Row(children: [
-                Icon(Icons.info_outline, size: 15, color: Color(0xFF8A6D00)),
-                SizedBox(width: 8),
-                Expanded(
-                    child: Text(
-                        'Posting this voucher will increase on-hand stock for every material line, and mark the linked Purchase Order (if any) as RECEIVED.',
-                        style: TextStyle(
+                const SizedBox(height: 4),
+                Container(height: 1, color: border),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: border),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: enterpriseMatrixScroller(
+                    table: _productMatrixTable(context),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: OutlinedButton.icon(
+                    onPressed: () => setState(() => rows.add(_PvRow())),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text(
+                      'ADD NEW MATERIAL ROW',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: navy,
+                      side: const BorderSide(color: border),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 13,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                enterpriseValueWordsFooter(
+                  valueInWords: payableAmountInWords(total),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8E1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFF4D53A)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 15,
+                        color: Color(0xFF8A6D00),
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Posting this voucher will increase on-hand stock for every material line, and mark the linked Purchase Order (if any) as RECEIVED.',
+                          style: TextStyle(
                             color: Color(0xFF8A6D00),
                             fontSize: 10.5,
-                            fontWeight: FontWeight.w700))),
-              ]),
-            ),
-            const SizedBox(height: 18),
-            Center(
-              child: ElevatedButton.icon(
-                onPressed: save,
-                icon: const Icon(Icons.inventory_2_outlined, size: 17),
-                label: const Text('POST PURCHASE VOUCHER',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E8B30),
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3)),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: 18),
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: save,
+                    icon: const Icon(Icons.inventory_2_outlined, size: 17),
+                    label: const Text(
+                      'POST PURCHASE VOUCHER',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E8B30),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 26,
+                        vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 30),
+              ],
             ),
-            const SizedBox(height: 30),
-          ]),
-        ),
-      ]),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _outline(String label,
-      {TextEditingController? controller,
-      bool readOnly = false,
-      bool filled = false,
-      Widget? prefixIcon,
-      VoidCallback? onTap,
-      bool autofocus = false}) {
+  Widget _outline(
+    String label, {
+    TextEditingController? controller,
+    bool readOnly = false,
+    bool filled = false,
+    Widget? prefixIcon,
+    VoidCallback? onTap,
+    bool autofocus = false,
+  }) {
     return enterpriseInsetTextField(
       label: label,
       controller: controller,
@@ -519,38 +613,52 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   Widget _statMini(String label, String value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ],
       );
   Widget _pair(Widget a, Widget b) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: a),
-          const SizedBox(width: 14),
-          Expanded(child: b),
-        ]),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: a),
+            const SizedBox(width: 14),
+            Expanded(child: b),
+          ],
+        ),
       );
-  Widget _plainSection(
-          {required String title, required List<Widget> children}) =>
+  Widget _plainSection({
+    required String title,
+    required List<Widget> children,
+  }) =>
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: navy,
-                  letterSpacing: .3)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: navy,
+              letterSpacing: .3,
+            ),
+          ),
           const SizedBox(height: 4),
           Container(height: 1, color: border),
           const SizedBox(height: 8),
@@ -593,8 +701,10 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                 child: DropdownButton<int>(
                   isExpanded: true,
                   isDense: true,
-                  hint: const Text('Item Description',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
+                  hint: const Text(
+                    'Item Description',
+                    style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4)),
+                  ),
                   value: catalogIdInList(rows[i].productId, products),
                   items: products
                       .map((p) {
@@ -602,16 +712,19 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${p['product_name']}',
-                              style: const TextStyle(fontSize: 9),
-                              overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            '${p['product_name']}',
+                            style: const TextStyle(fontSize: 9),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final p = products
-                        .firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    final p = products.firstWhere(
+                      (x) => coerceCatalogId(x['id']) == v,
+                    );
                     setState(() => rows[i].setProduct(p));
                   },
                 ),
@@ -630,15 +743,18 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${u['code']}',
-                              style: const TextStyle(fontSize: 9)),
+                          child: Text(
+                            '${u['code']}',
+                            style: const TextStyle(fontSize: 9),
+                          ),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final u =
-                        units.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    final u = units.firstWhere(
+                      (x) => coerceCatalogId(x['id']) == v,
+                    );
                     setState(() {
                       rows[i].unitId = v;
                       rows[i].uom = '${u['code']}';
@@ -648,17 +764,20 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-                child: Text(rows[i].hsn.isEmpty ? '—' : rows[i].hsn,
-                    style: enterpriseMatrixCellStyle,
-                    overflow: TextOverflow.ellipsis),
+                child: Text(
+                  rows[i].hsn.isEmpty ? '—' : rows[i].hsn,
+                  style: enterpriseMatrixCellStyle,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
                   controller: rows[i].qtyController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   onChanged: (v) =>
                       setState(() => rows[i].qty = double.tryParse(v) ?? 0),
                 ),
@@ -668,8 +787,9 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                 child: enterpriseMatrixTextField(
                   context: context,
                   controller: rows[i].rateController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   onChanged: (v) =>
                       setState(() => rows[i].rate = double.tryParse(v) ?? 0),
                 ),
@@ -709,7 +829,10 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                 child: Text(
                   '₹${_lineTotals(rows[i]).total.toStringAsFixed(2)}',
                   style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 9.5, color: navy),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 9.5,
+                    color: navy,
+                  ),
                 ),
               ),
               IconButton(
@@ -732,11 +855,8 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   }
 }
 
-String _pvMatrixNum(double v, {bool blankZero = false}) {
-  if (blankZero && v == 0) return '';
-  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
-  return v.toString();
-}
+String _pvMatrixNum(double v, {bool blankZero = false}) =>
+    formatTransactionMatrixNum(v, blankZero: blankZero);
 
 class _PvRow {
   int? productId;

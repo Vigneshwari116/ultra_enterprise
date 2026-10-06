@@ -64,18 +64,16 @@ def _build_master(src: Image.Image) -> Image.Image:
 
 
 def _build_master_foreground(src: Image.Image) -> Image.Image:
-    cutout = _remove_white_background(src)
-    fill = 0.82
+    """Adaptive-icon foreground: keep full-color logo (white blends with #FFFFFF bg)."""
+    src = src.convert("RGBA")
+    fill = 0.92
     target_w = int(MASTER_SIZE * fill)
-    target_h = max(1, int(target_w * cutout.height / cutout.width))
+    target_h = max(1, int(target_w * src.height / src.width))
     if target_h > int(MASTER_SIZE * fill):
         target_h = int(MASTER_SIZE * fill)
-        target_w = max(1, int(target_h * cutout.width / cutout.height))
+        target_w = max(1, int(target_h * src.width / src.height))
 
-    scaled = _crisp_resize(cutout, target_w, target_h)
-    if max(cutout.width, cutout.height) < 400:
-        scaled = scaled.filter(ImageFilter.UnsharpMask(radius=1.6, percent=180, threshold=2))
-
+    scaled = _crisp_resize(src, target_w, target_h)
     fg = Image.new("RGBA", (MASTER_SIZE, MASTER_SIZE), (0, 0, 0, 0))
     x = (MASTER_SIZE - target_w) // 2
     y = (MASTER_SIZE - target_h) // 2

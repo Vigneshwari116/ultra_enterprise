@@ -7,7 +7,8 @@ String _billNoForOrder(Map<String, dynamic> po) {
   final stored = '${po['po_bill_no'] ?? ''}'.trim();
   if (stored.isNotEmpty) return stored;
   final uuid = '${po['uuid'] ?? ''}';
-  final year = DateTime.tryParse('${po['po_date']}')?.year ?? DateTime.now().year;
+  final year =
+      DateTime.tryParse('${po['po_date']}')?.year ?? DateTime.now().year;
   if (uuid.length >= 6) {
     return 'PO-$year-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
   }
@@ -15,7 +16,9 @@ String _billNoForOrder(Map<String, dynamic> po) {
 }
 
 Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
-  final bundle = await UltraRepository.instance.purchaseOrderPrintBundle(purchaseOrderId);
+  final bundle = await UltraRepository.instance.purchaseOrderPrintBundle(
+    purchaseOrderId,
+  );
   if (bundle == null) return null;
   final po = bundle['order'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
@@ -32,7 +35,8 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
 
   final zone = '${po['state_zone'] ?? ''}'.toLowerCase();
   final isInter = zone.contains('inter');
-  final supplierName = '${po['supplier_name'] ?? po['party_name'] ?? ''}'.trim();
+  final supplierName =
+      '${po['supplier_name'] ?? po['party_name'] ?? ''}'.trim();
   final address = [
     po['address'] ?? '',
     po['city'] ?? '',
@@ -40,12 +44,42 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
   final freight = coerceCatalogDouble(po['estimated_freight']);
-  final subtotal = (po['taxable_total'] as num?)?.toDouble() ?? items.fold<double>(0, (s, i) => s + i.amount);
-  final cgstAmt = (po['cgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : subtotal * 0.09);
-  final sgstAmt = (po['sgst_total'] as num?)?.toDouble() ?? (isInter ? 0.0 : subtotal * 0.09);
-  final igstAmt = (po['igst_total'] as num?)?.toDouble() ?? (isInter ? subtotal * 0.18 : 0.0);
-  final grand = (po['grand_total'] as num?)?.toDouble() ?? subtotal + cgstAmt + sgstAmt + igstAmt + freight;
-  final pAndF = freight > 0 ? freight : (grand - subtotal - cgstAmt - sgstAmt - igstAmt).clamp(0, double.infinity);
+  final subtotal = (po['taxable_total'] as num?)?.toDouble() ??
+      items.fold<double>(0, (s, i) => s + i.amount);
+  final cgstAmt = (po['cgst_total'] as num?)?.toDouble() ??
+      (isInter ? 0.0 : subtotal * 0.09);
+  final sgstAmt = (po['sgst_total'] as num?)?.toDouble() ??
+      (isInter ? 0.0 : subtotal * 0.09);
+  final igstAmt = (po['igst_total'] as num?)?.toDouble() ??
+      (isInter ? subtotal * 0.18 : 0.0);
+  final grand = (po['grand_total'] as num?)?.toDouble() ??
+      subtotal + cgstAmt + sgstAmt + igstAmt + freight;
+  final pAndF = freight > 0
+      ? freight
+      : (grand - subtotal - cgstAmt - sgstAmt - igstAmt).clamp(
+          0,
+          double.infinity,
+        );
+
+  double cgstPct = 0;
+  double sgstPct = 0;
+  double igstPct = 0;
+  if (rawItems.isNotEmpty) {
+    final line = rawItems.first;
+    cgstPct = coerceCatalogDouble(line['cgst_percent']);
+    sgstPct = coerceCatalogDouble(line['sgst_percent']);
+    igstPct = coerceCatalogDouble(line['igst_percent']);
+  }
+  if (isInter) {
+    if (igstPct <= 0 && (cgstPct + sgstPct) > 0) {
+      igstPct = cgstPct + sgstPct;
+    }
+    cgstPct = 0;
+    sgstPct = 0;
+  } else if (subtotal > 0 && cgstAmt > 0 && cgstPct <= 0) {
+    cgstPct = cgstAmt / subtotal * 100;
+    sgstPct = sgstAmt / subtotal * 100;
+  }
 
   return InvoiceData(
     kind: UltraBillKind.purchaseOrder,
@@ -62,9 +96,9 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
     gstin: '${po['gstin'] ?? ''}',
     mobile: '${po['primary_mobile'] ?? ''}',
     items: items,
-    cgstPercent: isInter ? 0 : 9,
-    sgstPercent: isInter ? 0 : 9,
-    igstPercent: isInter ? 18 : 0,
+    cgstPercent: cgstPct,
+    sgstPercent: sgstPct,
+    igstPercent: igstPct,
     pAndF: pAndF.toDouble(),
     cgstAmountOverride: cgstAmt,
     sgstAmountOverride: sgstAmt,

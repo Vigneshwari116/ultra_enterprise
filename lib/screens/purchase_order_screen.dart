@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
@@ -10,7 +11,8 @@ import 'product_catalog_refresh.dart';
 
 class PurchaseOrderScreen extends StatefulWidget {
   const PurchaseOrderScreen({super.key});
-  @override State<PurchaseOrderScreen> createState() => _PurchaseOrderScreenState();
+  @override
+  State<PurchaseOrderScreen> createState() => _PurchaseOrderScreenState();
 }
 
 class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
@@ -121,6 +123,13 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
           r.igstPct = i;
         },
       );
+      r.syncGstControllers();
+    }
+  }
+
+  void _disposeAllRows() {
+    for (final r in rows) {
+      r.dispose();
     }
   }
 
@@ -136,6 +145,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   @override
   void dispose() {
     unregisterProductCatalogRefresh(_productCatalogRefreshHandler);
+    _disposeAllRows();
     for (final c in [
       supplierRef,
       packages,
@@ -156,7 +166,10 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     super.dispose();
   }
 
-  Future<void> _pickDate(String currentIso, ValueChanged<String> onPicked) async {
+  Future<void> _pickDate(
+    String currentIso,
+    ValueChanged<String> onPicked,
+  ) async {
     final now = DateTime.now();
     final initial = DateTime.tryParse(currentIso) ?? now;
     final picked = await pickCompactDate(
@@ -180,7 +193,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     final stored = '${po['po_bill_no'] ?? ''}'.trim();
     if (stored.isNotEmpty) return stored;
     final uuid = '${po['uuid'] ?? ''}';
-    final year = DateTime.tryParse('${po['po_date']}')?.year ?? DateTime.now().year;
+    final year =
+        DateTime.tryParse('${po['po_date']}')?.year ?? DateTime.now().year;
     if (uuid.length >= 6) {
       return 'PO-$year-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
     }
@@ -206,42 +220,47 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Future<int?> _persistOrder() async {
     if (supplierId == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a supplier before saving.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a supplier before saving.'),
+          ),
+        );
       }
       return null;
     }
     if (zone.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select tax matrix / state zone applicability.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Select tax matrix / state zone applicability.'),
+          ),
+        );
       }
       return null;
     }
     _syncDueDateFromDays();
     final uuid = repo.newUuid();
-    final billNo = 'PO-${DateTime.now().year}-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
-    final items = rows
-        .map(
-          (r) {
-            final t = _lineTotals(r);
-            return {
-            'product_id': r.productId,
-            'description': r.description,
-            'uom': r.uom,
-            'hsn': r.hsn,
-            'quantity': r.qty,
-            'rate': r.rate,
-            'cgst_percent': r.cgstPct,
-            'sgst_percent': r.sgstPct,
-            'igst_percent': r.igstPct,
-            'taxable': t.taxable,
-            'cgst': t.cgst,
-            'sgst': t.sgst,
-            'igst': t.igst,
-            'total': t.total,
-          };
-          },
-        )
-        .toList();
+    final billNo =
+        'PO-${DateTime.now().year}-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
+    final items = rows.map((r) {
+      final t = _lineTotals(r);
+      return {
+        'product_id': r.productId,
+        'description': r.description,
+        'uom': r.uom,
+        'hsn': r.hsn,
+        'quantity': r.qty,
+        'rate': r.rate,
+        'cgst_percent': r.cgstPct,
+        'sgst_percent': r.sgstPct,
+        'igst_percent': r.igstPct,
+        'taxable': t.taxable,
+        'cgst': t.cgst,
+        'sgst': t.sgst,
+        'igst': t.igst,
+        'total': t.total,
+      };
+    }).toList();
     try {
       final orderId = await repo.createPurchaseOrder({
         'uuid': uuid,
@@ -268,9 +287,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       return orderId;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Server save failed: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Server save failed: $e')));
       }
       return null;
     }
@@ -278,6 +296,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 
   void _resetForm() {
     setState(() {
+      _disposeAllRows();
       rows
         ..clear()
         ..add(_PoRow());
@@ -298,13 +317,17 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       await reprintPurchaseOrder(orderId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PURCHASE ORDER SAVED — PRINT DIALOG OPENED')),
+          const SnackBar(
+            content: Text('PURCHASE ORDER SAVED — PRINT DIALOG OPENED'),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('PURCHASE ORDER SAVED, BUT PDF PRINTING FAILED: $e')),
+          SnackBar(
+            content: Text('PURCHASE ORDER SAVED, BUT PDF PRINTING FAILED: $e'),
+          ),
         );
       }
     }
@@ -337,11 +360,25 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('PURCHASE ORDERS LOGS DIRECTORY',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy, letterSpacing: .3)),
+                    Text(
+                      'PURCHASE ORDERS LOGS DIRECTORY',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: navy,
+                        letterSpacing: .3,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text('REAL-TIME PROCUREMENT ORDER REGISTER & SUPPLIER COMMITMENT TRACKER',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF748094), letterSpacing: .25)),
+                    Text(
+                      'REAL-TIME PROCUREMENT ORDER REGISTER & SUPPLIER COMMITMENT TRACKER',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF748094),
+                        letterSpacing: .25,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -352,31 +389,57 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
             controller: directorySearch,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText: 'SEARCH LOGS BY SERIAL PO NO, SUPPLIER OR MATERIAL PARTICULARS...',
-              hintStyle: const TextStyle(fontSize: 11.5, color: Color(0xFF9AA5B4)),
+              hintText:
+                  'SEARCH LOGS BY SERIAL PO NO, SUPPLIER OR MATERIAL PARTICULARS...',
+              hintStyle: const TextStyle(
+                fontSize: 11.5,
+                color: Color(0xFF9AA5B4),
+              ),
               prefixIcon: const Icon(Icons.search, size: 20),
               filled: true,
               fillColor: Colors.white,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: border)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: border),
+              ),
             ),
           ),
           const SizedBox(height: 14),
           Row(
             children: [
-              Text('FILTER BY PARTY: $directoryPartyFilter',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
+              Text(
+                'FILTER BY PARTY: $directoryPartyFilter',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF748094),
+                ),
+              ),
               const Spacer(),
-              _directoryToggle('ALL', directoryPartyFilter == 'ALL', () => setState(() => directoryPartyFilter = 'ALL')),
+              _directoryToggle(
+                'ALL',
+                directoryPartyFilter == 'ALL',
+                () => setState(() => directoryPartyFilter = 'ALL'),
+              ),
               const SizedBox(width: 8),
-              _directoryToggle('SUPPLIERS', directoryPartyFilter == 'SUPPLIERS', () => setState(() => directoryPartyFilter = 'SUPPLIERS')),
+              _directoryToggle(
+                'SUPPLIERS',
+                directoryPartyFilter == 'SUPPLIERS',
+                () => setState(() => directoryPartyFilter = 'SUPPLIERS'),
+              ),
             ],
           ),
           const SizedBox(height: 18),
           if (list.isEmpty)
             const Padding(
               padding: EdgeInsets.all(32),
-              child: Center(child: Text('No purchase orders logged yet.', style: TextStyle(color: Color(0xFF748094)))),
+              child: Center(
+                child: Text(
+                  'No purchase orders logged yet.',
+                  style: TextStyle(color: Color(0xFF748094)),
+                ),
+              ),
             )
           else
             ...list.map(_directoryCard),
@@ -394,7 +457,10 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
         side: BorderSide(color: active ? navy : border),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+      ),
     );
   }
 
@@ -414,10 +480,21 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(width: 5, decoration: BoxDecoration(color: const Color(0xFFE67E22), borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)))),
+            Container(
+              width: 5,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE67E22),
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(6),
+                ),
+              ),
+            ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -426,9 +503,20 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         children: [
                           Row(
                             children: [
-                              Text('${row['party_name']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: navy)),
+                              Text(
+                                '${row['party_name']}',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: navy,
+                                ),
+                              ),
                               const SizedBox(width: 8),
-                              _badge(status, const Color(0xFFF4D53A), Colors.black87),
+                              _badge(
+                                status,
+                                const Color(0xFFF4D53A),
+                                Colors.black87,
+                              ),
                               const SizedBox(width: 6),
                               _badge('SUPPLIER', const Color(0xFFFFE4EC), red),
                             ],
@@ -436,7 +524,11 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                           const SizedBox(height: 6),
                           Text(
                             'SERIAL NO: ${row['po_no']}  ·  BILL NO: ${_billNoForRow(row)}  ·  BILL DATA DATE: ${row['po_date']}',
-                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFFE67E22)),
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFE67E22),
+                            ),
                           ),
                         ],
                       ),
@@ -444,17 +536,43 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('₹ ${amount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: navy)),
-                        Text('${qty.toStringAsFixed(0)} PCS ORDERED', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
+                        Text(
+                          '₹ ${amount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: navy,
+                          ),
+                        ),
+                        Text(
+                          '${qty.toStringAsFixed(0)} PCS ORDERED',
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF748094),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(width: 16),
                     DropdownButton<String>(
-                      value: ['PENDING', 'RECEIVED', 'CANCELLED'].contains(status) ? status : 'PENDING',
+                      value:
+                          ['PENDING', 'RECEIVED', 'CANCELLED'].contains(status)
+                              ? status
+                              : 'PENDING',
                       items: const [
-                        DropdownMenuItem(value: 'PENDING', child: Text('PENDING')),
-                        DropdownMenuItem(value: 'RECEIVED', child: Text('RECEIVED')),
-                        DropdownMenuItem(value: 'CANCELLED', child: Text('CANCELLED')),
+                        DropdownMenuItem(
+                          value: 'PENDING',
+                          child: Text('PENDING'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'RECEIVED',
+                          child: Text('RECEIVED'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'CANCELLED',
+                          child: Text('CANCELLED'),
+                        ),
                       ],
                       onChanged: (v) async {
                         if (v == null) return;
@@ -467,7 +585,13 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                     OutlinedButton.icon(
                       onPressed: () => reprintPurchaseOrder(id),
                       icon: const Icon(Icons.print_outlined, size: 16),
-                      label: const Text('REPRINT PO', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                      label: const Text(
+                        'REPRINT PO',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -482,15 +606,22 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Widget _badge(String text, Color bg, Color fg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
-      child: Text(text, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: fg)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: fg),
+      ),
     );
   }
 
   Widget _buildEntryView() {
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: enterpriseScrollColumn(children: [
+      child: enterpriseScrollColumn(
+        children: [
           Container(
             width: double.infinity,
             color: const Color(0xFF19232C),
@@ -502,8 +633,15 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('PURCHASE ORDER PLACEMENT ENGINE',
-                          style: TextStyle(color: Color(0xFF2FE6E0), fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: .4)),
+                      const Text(
+                        'PURCHASE ORDER PLACEMENT ENGINE',
+                        style: TextStyle(
+                          color: Color(0xFF2FE6E0),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .4,
+                        ),
+                      ),
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 22,
@@ -525,19 +663,41 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white70,
                     side: const BorderSide(color: Colors.white24),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                   ),
-                  child: const Text('VIEW PO DIRECTORY HISTORY', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
+                  child: const Text(
+                    'VIEW PO DIRECTORY HISTORY',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('₹ ${total.toStringAsFixed(2)}',
-                        style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
+                    Text(
+                      '₹ ${total.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: Color(0xFFF4D53A),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    const Text('ESTIMATED PROCUREMENT COST',
-                        style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: .4)),
+                    const Text(
+                      'ESTIMATED PROCUREMENT COST',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .4,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -550,29 +710,51 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
               children: [
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final stacked = constraints.maxWidth < formTwoColumnMinWidth;
+                    final stacked =
+                        constraints.maxWidth < formTwoColumnMinWidth;
                     final section1 = _plainSection(
                       title: 'SECTION 1: ORDER METADATA',
                       children: [
                         _pair(
-                          _outline('PO NUMERIC SERIAL NO (AUTO)', controller: TextEditingController(text: poNo), readOnly: true, filled: true),
+                          _outline(
+                            'PO NUMERIC SERIAL NO (AUTO)',
+                            controller: TextEditingController(text: poNo),
+                            readOnly: true,
+                            filled: true,
+                          ),
                           enterpriseInsetDateField(
                             label: 'ORDER PLACEMENT DATE',
                             isoDate: poDate,
-                            onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v)),
+                            onTap: () => _pickDate(
+                              poDate,
+                              (v) => setState(() => poDate = v),
+                            ),
                           ),
                         ),
                         _zoneField(),
                         _pair(
-                          _outline('DELIVERY TIMELINE VALIDITY (DAYS)', controller: dueDays, autofocus: true,
-                              onChanged: (_) {
-                                _syncDueDateFromDays();
-                                setState(() {});
-                              }),
-                          _outline('EXPECTED LOGISTICS PACKAGES', controller: packages),
+                          _outline(
+                            'DELIVERY TIMELINE VALIDITY (DAYS)',
+                            controller: dueDays,
+                            autofocus: true,
+                            onChanged: (_) {
+                              _syncDueDateFromDays();
+                              setState(() {});
+                            },
+                          ),
+                          _outline(
+                            'EXPECTED LOGISTICS PACKAGES',
+                            controller: packages,
+                          ),
                         ),
-                        _outline('RECOMMENDED TRANSPORT ROUTING / VEHICLE SPEED TRANSIT MODE', controller: deliveryMode),
-                        _outline('SUPPLIER REFERENCE / REMARKS', controller: supplierRef),
+                        _outline(
+                          'RECOMMENDED TRANSPORT ROUTING / VEHICLE SPEED TRANSIT MODE',
+                          controller: deliveryMode,
+                        ),
+                        _outline(
+                          'SUPPLIER REFERENCE / REMARKS',
+                          controller: supplierRef,
+                        ),
                       ],
                     );
                     final section2 = _plainSection(
@@ -587,13 +769,17 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                                 if (id == null) return null;
                                 return DropdownMenuItem<int>(
                                   value: id,
-                                  child: Text('${s['supplier_name'] ?? s['name'] ?? ''}'),
+                                  child: Text(
+                                    '${s['supplier_name'] ?? s['name'] ?? ''}',
+                                  ),
                                 );
                               })
                               .whereType<DropdownMenuItem<int>>()
                               .toList(),
                           onChanged: (v) {
-                            final s = suppliers.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                            final s = suppliers.firstWhere(
+                              (x) => coerceCatalogId(x['id']) == v,
+                            );
                             setState(() {
                               supplierId = v;
                               fillSupplier(s);
@@ -601,23 +787,57 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                           },
                         ),
                         const SizedBox(height: 12),
-                        _outline('OFFICIAL BILLING HEADQUARTERS ADDRESS', controller: supplierAddress, readOnly: true, filled: true),
+                        _outline(
+                          'OFFICIAL BILLING HEADQUARTERS ADDRESS',
+                          controller: supplierAddress,
+                          readOnly: true,
+                          filled: true,
+                        ),
                         const SizedBox(height: 12),
                         _pair(
-                          _outline('CITY', controller: city, readOnly: true, filled: true),
-                          _outline('PINCODE', controller: pin, readOnly: true, filled: true),
+                          _outline(
+                            'CITY',
+                            controller: city,
+                            readOnly: true,
+                            filled: true,
+                          ),
+                          _outline(
+                            'PINCODE',
+                            controller: pin,
+                            readOnly: true,
+                            filled: true,
+                          ),
                         ),
                         _pair(
-                          _outline('REGISTERED GSTIN REFERENCE', controller: gstin, readOnly: true, filled: true),
-                          _outline('BANK IDENTIFIER NAME', controller: bank, readOnly: true, filled: true),
+                          _outline(
+                            'REGISTERED GSTIN REFERENCE',
+                            controller: gstin,
+                            readOnly: true,
+                            filled: true,
+                          ),
+                          _outline(
+                            'BANK IDENTIFIER NAME',
+                            controller: bank,
+                            readOnly: true,
+                            filled: true,
+                          ),
                         ),
-                        _outline('BANK ACCOUNT NO', controller: account, readOnly: true, filled: true),
+                        _outline(
+                          'BANK ACCOUNT NO',
+                          controller: account,
+                          readOnly: true,
+                          filled: true,
+                        ),
                       ],
                     );
                     if (stacked) {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [section1, const SizedBox(height: 16), section2],
+                        children: [
+                          section1,
+                          const SizedBox(height: 16),
+                          section2,
+                        ],
                       );
                     }
                     return Row(
@@ -631,8 +851,15 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   },
                 ),
                 const SizedBox(height: 22),
-                const Text('SECTION 3: MATERIAL SPECIFICATION MATRIX ENTRY GRID',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
+                const Text(
+                  'SECTION 3: MATERIAL SPECIFICATION MATRIX ENTRY GRID',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: navy,
+                    letterSpacing: .3,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Container(height: 1, color: border),
                 const SizedBox(height: 14),
@@ -650,12 +877,23 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   child: OutlinedButton.icon(
                     onPressed: () => setState(() => rows.add(_PoRow())),
                     icon: const Icon(Icons.add, size: 16),
-                    label: const Text('+ ADD NEW MATRIX MATERIAL ROW', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5)),
+                    label: const Text(
+                      '+ ADD NEW MATRIX MATERIAL ROW',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11.5,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: navy,
                       side: const BorderSide(color: border),
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 13,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3),
+                      ),
                     ),
                   ),
                 ),
@@ -667,13 +905,23 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                       child: TextField(
                         controller: remarks,
                         maxLines: 3,
-                        style: const TextStyle(fontSize: 11.5, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: Colors.white,
+                        ),
                         decoration: InputDecoration(
-                          hintText: 'Enter PO delivery clauses, specifications or logistics handling notes...',
-                          hintStyle: const TextStyle(color: Colors.white54, fontSize: 11),
+                          hintText:
+                              'Enter PO delivery clauses, specifications or logistics handling notes...',
+                          hintStyle: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
                           filled: true,
                           fillColor: const Color(0xFF19232C),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide.none),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide: BorderSide.none,
+                          ),
                           contentPadding: const EdgeInsets.all(14),
                         ),
                       ),
@@ -691,20 +939,36 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text('ESTIMATED FREIGHT',
-                                style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
+                            const Text(
+                              'ESTIMATED FREIGHT',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                             const SizedBox(height: 4),
                             TextField(
                               controller: freight,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
                               onChanged: (_) => setState(() {}),
                               textAlign: TextAlign.right,
                               textInputAction: TextInputAction.done,
                               minLines: 1,
                               maxLines: 1,
                               style: const TextStyle(
-                                  color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.2),
-                              decoration: enterpriseInsetInputDecoration(onDarkPanel: true, multiline: true),
+                                color: Color(0xFFF4D53A),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                                height: 1.2,
+                              ),
+                              decoration: enterpriseInsetInputDecoration(
+                                onDarkPanel: true,
+                                multiline: true,
+                              ),
                             ),
                           ],
                         ),
@@ -721,13 +985,23 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   child: ElevatedButton.icon(
                     onPressed: saveAndPrint,
                     icon: const Icon(Icons.print_outlined, size: 17),
-                    label: const Text('GENERATE & COMMIT PURCHASE ORDER VOUCHER',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                    label: const Text(
+                      'GENERATE & COMMIT PURCHASE ORDER VOUCHER',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: teal,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 26,
+                        vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3),
+                      ),
                     ),
                   ),
                 ),
@@ -740,14 +1014,16 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     );
   }
 
-  Widget _outline(String label,
-      {TextEditingController? controller,
-      bool readOnly = false,
-      bool filled = false,
-      Widget? prefixIcon,
-      VoidCallback? onTap,
-      ValueChanged<String>? onChanged,
-      bool autofocus = false}) {
+  Widget _outline(
+    String label, {
+    TextEditingController? controller,
+    bool readOnly = false,
+    bool filled = false,
+    Widget? prefixIcon,
+    VoidCallback? onTap,
+    ValueChanged<String>? onChanged,
+    bool autofocus = false,
+  }) {
     return enterpriseInsetTextField(
       label: label,
       controller: controller,
@@ -766,7 +1042,14 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       label: 'TAX MATRIX PREFERENCE APPLICABILITY *',
       value: zone.isEmpty ? null : zone,
       borderColor: mandatory ? red : null,
-      hint: const Text('Choose Option (Mandatory Entry Row)', style: TextStyle(color: red, fontSize: 12.5, fontWeight: FontWeight.w600)),
+      hint: const Text(
+        'Choose Option (Mandatory Entry Row)',
+        style: TextStyle(
+          color: red,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       items: const [
         DropdownMenuItem(value: 'Intra State', child: Text('Intra State')),
         DropdownMenuItem(value: 'Inter State', child: Text('Inter State')),
@@ -781,9 +1064,23 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Widget _statMini(String label, String value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ],
       );
 
@@ -799,10 +1096,22 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
         ),
       );
 
-  Widget _plainSection({required String title, required List<Widget> children}) => Column(
+  Widget _plainSection({
+    required String title,
+    required List<Widget> children,
+  }) =>
+      Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: navy,
+              letterSpacing: .3,
+            ),
+          ),
           const SizedBox(height: 4),
           Container(height: 1, color: border),
           const SizedBox(height: 8),
@@ -810,19 +1119,36 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
         ],
       );
 
-  static const _matrixHeadStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 7.5, height: 1.15);
-  static const _matrixCellStyle = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
+  static const _matrixHeadStyle = TextStyle(
+    color: Colors.white,
+    fontWeight: FontWeight.w800,
+    fontSize: 7.5,
+    height: 1.15,
+  );
+  static const _matrixCellStyle = TextStyle(
+    fontSize: 9.5,
+    fontWeight: FontWeight.w600,
+    color: navy,
+  );
   static final _matrixInputDecoration = InputDecoration(
     isDense: true,
     contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(3),
+      borderSide: const BorderSide(color: border),
+    ),
   );
 
   Widget _matrixHeadCell(String label) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
-      child: Text(label, style: _matrixHeadStyle, maxLines: 2, overflow: TextOverflow.ellipsis),
+      child: Text(
+        label,
+        style: _matrixHeadStyle,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 
@@ -849,7 +1175,9 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
         ),
         ...List.generate(rows.length, (i) {
           return TableRow(
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: border.withOpacity(.6)))),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: border.withOpacity(.6))),
+            ),
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
@@ -860,7 +1188,10 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 child: DropdownButton<int>(
                   isExpanded: true,
                   isDense: true,
-                  hint: const Text('Enter Description', style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
+                  hint: const Text(
+                    'Enter Description',
+                    style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4)),
+                  ),
                   value: catalogIdInList(rows[i].productId, products),
                   items: products
                       .map((p) {
@@ -868,13 +1199,19 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            '${p['product_name']}',
+                            style: const TextStyle(fontSize: 9),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final p = products.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    final p = products.firstWhere(
+                      (x) => coerceCatalogId(x['id']) == v,
+                    );
                     setState(() => rows[i].setProduct(p, stateZone: zone));
                   },
                 ),
@@ -893,13 +1230,18 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${u['code']}', style: const TextStyle(fontSize: 9)),
+                          child: Text(
+                            '${u['code']}',
+                            style: const TextStyle(fontSize: 9),
+                          ),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final u = units.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    final u = units.firstWhere(
+                      (x) => coerceCatalogId(x['id']) == v,
+                    );
                     setState(() {
                       rows[i].unitId = v;
                       rows[i].uom = '${u['code']}';
@@ -909,64 +1251,91 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-                child: Text(rows[i].hsn, style: _matrixCellStyle, overflow: TextOverflow.ellipsis),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-                child: enterpriseMatrixTextField(
-                  context: context,
-                  key: ValueKey('q$i'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
+                child: Text(
+                  rows[i].hsn,
+                  style: _matrixCellStyle,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('r$i'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
+                  controller: rows[i].qtyController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: (v) =>
+                      setState(() => rows[i].qty = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  controller: TextEditingController(text: '${rows[i].cgstPct}'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
+                  controller: rows[i].rateController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: (v) =>
+                      setState(() => rows[i].rate = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  controller: TextEditingController(text: '${rows[i].sgstPct}'),
+                  controller: rows[i].cgstController,
                   keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
+                  onChanged: (v) =>
+                      setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  controller: TextEditingController(text: '${rows[i].igstPct}'),
+                  controller: rows[i].sgstController,
                   keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
+                  onChanged: (v) =>
+                      setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  controller: rows[i].igstController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) =>
+                      setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-                child: Text(_lineTotals(rows[i]).total.toStringAsFixed(2), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
+                child: Text(
+                  _lineTotals(rows[i]).total.toStringAsFixed(2),
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
                 child: IconButton(
-                  onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
+                  onPressed: rows.length == 1
+                      ? null
+                      : () => setState(() {
+                            rows[i].dispose();
+                            rows.removeAt(i);
+                          }),
                   icon: const Icon(Icons.delete_outline, color: red, size: 17),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
                 ),
               ),
             ],
@@ -989,6 +1358,40 @@ class _PoRow {
   double sgstPct = 9;
   double igstPct = 0;
 
+  late final TextEditingController qtyController;
+  late final TextEditingController rateController;
+  late final TextEditingController cgstController;
+  late final TextEditingController sgstController;
+  late final TextEditingController igstController;
+
+  _PoRow() {
+    qtyController = TextEditingController();
+    rateController = TextEditingController();
+    cgstController = TextEditingController(
+      text: formatTransactionMatrixNum(cgstPct),
+    );
+    sgstController = TextEditingController(
+      text: formatTransactionMatrixNum(sgstPct),
+    );
+    igstController = TextEditingController(
+      text: formatTransactionMatrixNum(igstPct),
+    );
+  }
+
+  void syncGstControllers() {
+    cgstController.text = formatTransactionMatrixNum(cgstPct);
+    sgstController.text = formatTransactionMatrixNum(sgstPct);
+    igstController.text = formatTransactionMatrixNum(igstPct);
+  }
+
+  void dispose() {
+    qtyController.dispose();
+    rateController.dispose();
+    cgstController.dispose();
+    sgstController.dispose();
+    igstController.dispose();
+  }
+
   void setProduct(Map<String, dynamic> p, {required String stateZone}) {
     productId = coerceCatalogId(p['id']);
     description = '${p['product_name'] ?? ''}';
@@ -996,6 +1399,7 @@ class _PoRow {
     uom = catalogUomCode(p);
     hsn = catalogProductHsn(p);
     rate = catalogPurchaseRate(p);
+    rateController.text = formatTransactionMatrixNum(rate);
     final productGst = catalogTotalGstPercent(p);
     if (productGst != null && productGst > 0) {
       applyZoneGstSplit(
@@ -1007,6 +1411,7 @@ class _PoRow {
           igstPct = i;
         },
       );
+      syncGstControllers();
     } else if (stateZone.trim().isNotEmpty) {
       applyZoneGstFromPercents(
         interState: isInterStateZone(stateZone),
@@ -1019,6 +1424,7 @@ class _PoRow {
           igstPct = i;
         },
       );
+      syncGstControllers();
     }
   }
 }
