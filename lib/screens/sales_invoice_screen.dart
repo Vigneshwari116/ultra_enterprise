@@ -47,18 +47,28 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     units = await repo.units();
     final count = await repo.nextSalesVoucherNo();
     voucherNo = '$count';
+    _reconcileCustomerSelection();
     if (customers.isNotEmpty && customerId == null) {
-      customerId = customers.first['id'];
+      customerId = coerceCatalogId(customers.first['id']);
       fillCustomer(customers.first);
     }
     if (mounted) setState(() {});
   }
 
-  /// Refreshes product/UOM lists when returning from Unit Master.
+  void _reconcileCustomerSelection() {
+    if (customerId == null) return;
+    if (!customers.any((c) => coerceCatalogId(c['id']) == customerId)) {
+      customerId = null;
+    }
+  }
+
+  /// Refreshes remote master lists when this screen becomes active again.
   @override
   Future<void> refreshCatalog() async {
+    customers = await repo.customers();
     products = await repo.products();
     units = await repo.units();
+    _reconcileCustomerSelection();
     if (mounted) setState(() {});
   }
 
@@ -332,10 +342,18 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                         label: 'SELECT CUSTOMER (COMMERCIAL INVOICING) *',
                         value: customerId,
                         items: customers
-                            .map((c) => DropdownMenuItem<int>(value: c['id'] as int, child: Text('${c['customer_name']}')))
+                            .map((c) {
+                              final id = coerceCatalogId(c['id']);
+                              if (id == null) return null;
+                              return DropdownMenuItem<int>(
+                                value: id,
+                                child: Text('${c['customer_name'] ?? c['name'] ?? ''}'),
+                              );
+                            })
+                            .whereType<DropdownMenuItem<int>>()
                             .toList(),
                         onChanged: (v) {
-                          final c = customers.firstWhere((x) => x['id'] == v);
+                          final c = customers.firstWhere((x) => coerceCatalogId(x['id']) == v);
                           setState(() {
                             customerId = v;
                             fillCustomer(c);

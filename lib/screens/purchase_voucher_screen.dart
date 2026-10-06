@@ -48,9 +48,19 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   }
 
   Future<void> refreshProductCatalog() async {
+    suppliers = await repo.suppliers();
     products = await repo.products();
     units = await repo.units();
+    openOrders = await repo.openPurchaseOrders();
+    _reconcileSupplierSelection();
     if (mounted) setState(() {});
+  }
+
+  void _reconcileSupplierSelection() {
+    if (supplierId == null) return;
+    if (!suppliers.any((s) => coerceCatalogId(s['id']) == supplierId)) {
+      supplierId = null;
+    }
   }
 
   Future<void> load() async {
@@ -60,6 +70,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
     openOrders = await repo.openPurchaseOrders();
     voucherNo = '${await repo.nextPurchaseVoucherNo()}';
     voucherNoController.text = voucherNo;
+    _reconcileSupplierSelection();
     if (mounted) setState(() {});
   }
 
@@ -102,9 +113,9 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
       return;
     }
     againstPoId = poId;
-    final po = openOrders.firstWhere((x) => x['id'] == poId);
-    supplierId = _toInt(po['supplier_id']);
-    final s = suppliers.where((x) => x['id'] == supplierId);
+    final po = openOrders.firstWhere((x) => coerceCatalogId(x['id']) == poId);
+    supplierId = coerceCatalogId(po['supplier_id']);
+    final s = suppliers.where((x) => coerceCatalogId(x['id']) == supplierId);
     if (s.isNotEmpty) fillSupplier(s.first);
     final items = await repo.purchaseOrderItems(poId);
     _disposeAllRows();
@@ -333,12 +344,12 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                           const DropdownMenuItem<int?>(
                               value: null, child: Text('— No linked PO —')),
                           ...openOrders.map((o) {
-                            final poId = _toInt(o['id']);
-                            if (poId == null) {
+                            final poListId = coerceCatalogId(o['id']);
+                            if (poListId == null) {
                               return null;
                             }
                             return DropdownMenuItem<int?>(
-                              value: poId,
+                              value: poListId,
                               child: Text(
                                 _poPickerLabel(o),
                                 style: const TextStyle(fontSize: 10.5),
@@ -368,12 +379,18 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                           label: 'SELECT SUPPLIER',
                           value: supplierId,
                           items: suppliers
-                              .map((s) => DropdownMenuItem<int>(
-                                  value: s['id'] as int,
-                                  child: Text('${s['supplier_name']}')))
+                              .map((s) {
+                                final id = coerceCatalogId(s['id']);
+                                if (id == null) return null;
+                                return DropdownMenuItem<int>(
+                                  value: id,
+                                  child: Text('${s['supplier_name'] ?? s['name'] ?? ''}'),
+                                );
+                              })
+                              .whereType<DropdownMenuItem<int>>()
                               .toList(),
                           onChanged: (v) {
-                            final s = suppliers.firstWhere((x) => x['id'] == v);
+                            final s = suppliers.firstWhere((x) => coerceCatalogId(x['id']) == v);
                             setState(() {
                               supplierId = v;
                               fillSupplier(s);

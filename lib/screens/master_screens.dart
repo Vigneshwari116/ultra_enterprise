@@ -4,6 +4,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/csv_import.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/master_form_helpers.dart';
+import 'product_catalog_refresh.dart';
 import 'sales_invoice_screen.dart';
 
 class MasterPage extends StatefulWidget {
@@ -847,6 +848,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
       await UltraRepository.instance.updateCustomer(existingId, _formToRow());
       _notify('Customer updated.');
     }
+    salesInvoiceCatalogKey.currentState?.refreshCatalog();
     await load();
     if (existingId != null) {
       final row = data.where((c) => c['id'] == existingId).toList();
@@ -892,6 +894,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
         imported++;
       }
       await load();
+      salesInvoiceCatalogKey.currentState?.refreshCatalog();
       _notify('$imported customer record(s) imported.');
     } catch (e) {
       _notify('Import failed: $e');
@@ -1294,6 +1297,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
       await UltraRepository.instance.updateSupplier(existingId, _formToRow());
       _notify('Supplier updated.');
     }
+    await refreshMountedProductCatalogs();
     await load();
     if (existingId != null) {
       final row = data.where((s) => s['id'] == existingId).toList();
@@ -1341,6 +1345,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
         imported++;
       }
       await load();
+      await refreshMountedProductCatalogs();
       _notify('$imported supplier record(s) imported.');
     } catch (e) {
       _notify('Import failed: $e');
