@@ -1384,6 +1384,12 @@ class _PoRow {
     igstController.text = formatTransactionMatrixNum(igstPct);
   }
 
+  void _syncControllersFromModel() {
+    qtyController.text = formatTransactionMatrixNum(qty);
+    rateController.text = formatTransactionMatrixRate(rate);
+    syncGstControllers();
+  }
+
   void dispose() {
     qtyController.dispose();
     rateController.dispose();
@@ -1399,7 +1405,6 @@ class _PoRow {
     uom = catalogUomCode(p);
     hsn = catalogProductHsn(p);
     rate = catalogPurchaseRate(p);
-    rateController.text = formatTransactionMatrixNum(rate);
     final productGst = catalogTotalGstPercent(p);
     if (productGst != null && productGst > 0) {
       applyZoneGstSplit(
@@ -1411,7 +1416,6 @@ class _PoRow {
           igstPct = i;
         },
       );
-      syncGstControllers();
     } else if (stateZone.trim().isNotEmpty) {
       applyZoneGstFromPercents(
         interState: isInterStateZone(stateZone),
@@ -1424,7 +1428,7 @@ class _PoRow {
           igstPct = i;
         },
       );
-      syncGstControllers();
     }
+    _syncControllersFromModel();
   }
 }

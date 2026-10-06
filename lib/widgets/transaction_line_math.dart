@@ -208,3 +208,9 @@ String formatTransactionMatrixNum(double v, {bool blankZero = false}) {
   if (v == v.roundToDouble()) return v.toStringAsFixed(0);
   return v.toString();
 }
+
+/// Rate column display — always two decimals (e.g. 100.00) for purchase screens.
+String formatTransactionMatrixRate(double v, {bool blankZero = false}) {
+  if (blankZero && v == 0) return '';
+  return v.toStringAsFixed(2);
+}
