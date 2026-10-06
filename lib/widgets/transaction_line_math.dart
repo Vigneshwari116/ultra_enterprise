@@ -19,7 +19,8 @@ double coerceCatalogDouble(dynamic value, {double fallback = 0}) {
   return fallback;
 }
 
-bool isInterStateZone(String zone) => zone.trim().toLowerCase().contains('inter');
+bool isInterStateZone(String zone) =>
+    zone.trim().toLowerCase().contains('inter');
 
 /// Total GST % implied by line percents (intra: CGST+SGST; inter: IGST or combined).
 double rowTotalGstPercent(double cgstPct, double sgstPct, double igstPct) {
@@ -135,7 +136,8 @@ double catalogPurchaseRate(Map<String, dynamic> product) {
   return 0;
 }
 
-int? catalogUnitId(Map<String, dynamic> product) => coerceCatalogId(product['unit_id']);
+int? catalogUnitId(Map<String, dynamic> product) =>
+    coerceCatalogId(product['unit_id']);
 
 String catalogUomCode(Map<String, dynamic> product) {
   final code = '${product['uom_code'] ?? product['uom'] ?? ''}'.trim();
@@ -166,7 +168,8 @@ class TransactionLineTotals {
     required double igstPct,
     String? stateZone,
   }) {
-    final inter = _resolveInterState(stateZone, cgstPct: cgstPct, sgstPct: sgstPct, igstPct: igstPct);
+    final inter = _resolveInterState(stateZone,
+        cgstPct: cgstPct, sgstPct: sgstPct, igstPct: igstPct);
     final taxable = qty * rate;
     final cgst = inter ? 0.0 : taxable * cgstPct / 100;
     final sgst = inter ? 0.0 : taxable * sgstPct / 100;
@@ -180,7 +183,10 @@ class TransactionLineTotals {
     );
   }
 
-  static bool _resolveInterState(String? stateZone, {required double cgstPct, required double sgstPct, required double igstPct}) {
+  static bool _resolveInterState(String? stateZone,
+      {required double cgstPct,
+      required double sgstPct,
+      required double igstPct}) {
     if (stateZone != null && stateZone.trim().isNotEmpty) {
       return isInterStateZone(stateZone);
     }

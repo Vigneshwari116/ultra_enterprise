@@ -157,7 +157,10 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
   final sgstAmt = toDouble(inv['sgst_total'], fallback: isInter ? 0.0 : taxable * 0.09);
   final igstAmt = toDouble(inv['igst_total'], fallback: isInter ? taxable * 0.18 : 0.0);
   final grand = toDouble(inv['grand_total'], fallback: taxable + cgstAmt + sgstAmt + igstAmt);
-  final freight = grand - taxable - cgstAmt - sgstAmt - igstAmt;
+  final fwdFromApi = inv['fwd_charge'];
+  final freight = fwdFromApi != null
+      ? toDouble(fwdFromApi)
+      : (grand - taxable - cgstAmt - sgstAmt - igstAmt);
   final roundOff = toDouble(inv['round_off'], fallback: 0);
   return InvoiceData(
     kind: UltraBillKind.taxInvoice,

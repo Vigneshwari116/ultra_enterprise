@@ -24,22 +24,40 @@ class SalesInvoiceScreen extends StatefulWidget {
 
 class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   final repo = UltraRepository.instance;
-  final po=TextEditingController(), challan=TextEditingController(), packages=TextEditingController(text:'0'), vehicle=TextEditingController(), due=TextEditingController(text:'0'), eway=TextEditingController();
-  final customerAddress=TextEditingController(), city=TextEditingController(), pin=TextEditingController(), gstin=TextEditingController(), bank=TextEditingController(), account=TextEditingController(), shipping=TextEditingController();
+  final po = TextEditingController(),
+      challan = TextEditingController(),
+      packages = TextEditingController(text: '0'),
+      vehicle = TextEditingController(),
+      due = TextEditingController(text: '0'),
+      eway = TextEditingController();
+  final customerAddress = TextEditingController(),
+      city = TextEditingController(),
+      pin = TextEditingController(),
+      gstin = TextEditingController(),
+      bank = TextEditingController(),
+      account = TextEditingController(),
+      shipping = TextEditingController();
   final fwdCharge = TextEditingController(text: '0');
 
   // Internal dates are kept as ISO (yyyy-MM-dd); displayed as dd-MM-yyyy like the reference.
-  String date=DateFormat('yyyy-MM-dd').format(DateTime.now());
-  String poDate=DateFormat('yyyy-MM-dd').format(DateTime.now());
-  String challanDate=DateFormat('yyyy-MM-dd').format(DateTime.now());
+  String date = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  String poDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  String challanDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   // Empty until the user picks one — mirrors the reference's mandatory red "Choose Option" state.
-  String zone='';
-  String voucherNo='';
+  String zone = '';
+  String voucherNo = '';
 
-  List<Map<String,dynamic>> customers=[]; List<Map<String,dynamic>> products=[]; List<Map<String,dynamic>> units=[]; int? customerId;
-  final rows=[_InvoiceRow()];
+  List<Map<String, dynamic>> customers = [];
+  List<Map<String, dynamic>> products = [];
+  List<Map<String, dynamic>> units = [];
+  int? customerId;
+  final rows = [_InvoiceRow()];
 
-  @override void initState(){super.initState();load();}
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
 
   Future<void> load() async {
     customers = await repo.customers();
@@ -72,9 +90,18 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     if (mounted) setState(() {});
   }
 
-  void fillCustomer(Map<String,dynamic> c){customerAddress.text=c['address']??'';city.text=c['city']??'';pin.text=c['postal_pincode']??'';gstin.text=c['gstin']??'';bank.text=c['bank_name']??'';account.text=c['bank_account_no']??'';shipping.text=c['shipping_address']??'';}
+  void fillCustomer(Map<String, dynamic> c) {
+    customerAddress.text = c['address'] ?? '';
+    city.text = c['city'] ?? '';
+    pin.text = c['postal_pincode'] ?? '';
+    gstin.text = c['gstin'] ?? '';
+    bank.text = c['bank_name'] ?? '';
+    account.text = c['bank_account_no'] ?? '';
+    shipping.text = c['shipping_address'] ?? '';
+  }
 
-  TransactionLineTotals _lineTotals(_InvoiceRow r) => TransactionLineTotals.compute(
+  TransactionLineTotals _lineTotals(_InvoiceRow r) =>
+      TransactionLineTotals.compute(
         qty: r.qty,
         rate: r.rate,
         cgstPct: r.cgstPct,
@@ -95,6 +122,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
           r.cgstPct = c;
           r.sgstPct = s;
           r.igstPct = i;
+          r.cgstController.text = _siMatrixNum(c);
+          r.sgstController.text = _siMatrixNum(s);
+          r.igstController.text = _siMatrixNum(i);
         },
       );
     }
@@ -106,9 +136,29 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   double get igst => rows.fold(0, (s, r) => s + _lineTotals(r).igst);
   double get total => taxable + cgst + sgst + igst;
 
-  @override void dispose(){for(final c in [po,challan,packages,vehicle,due,eway,customerAddress,city,pin,gstin,bank,account,shipping,fwdCharge])c.dispose();super.dispose();}
+  @override
+  void dispose() {
+    for (final c in [
+      po,
+      challan,
+      packages,
+      vehicle,
+      due,
+      eway,
+      customerAddress,
+      city,
+      pin,
+      gstin,
+      bank,
+      account,
+      shipping,
+      fwdCharge
+    ]) c.dispose();
+    super.dispose();
+  }
 
-  Future<void> _pickDate(String currentIso, ValueChanged<String> onPicked) async {
+  Future<void> _pickDate(
+      String currentIso, ValueChanged<String> onPicked) async {
     final now = DateTime.now();
     final initial = DateTime.tryParse(currentIso) ?? now;
     final picked = await pickCompactDate(
@@ -127,71 +177,73 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
-  double get fwd => double.tryParse(fwdCharge.text) ?? 0;
+  double get fwd => double.tryParse(fwdCharge.text.trim()) ?? 0;
 
   double get netPayable => total + fwd;
 
   Future<int?> _persistInvoice() async {
     if (zone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select the State Zone Applicability before saving.')),
+        const SnackBar(
+            content: Text(
+                'Please select the State Zone Applicability before saving.')),
       );
       return null;
     }
     if (customerId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a customer before saving.')),
+        const SnackBar(
+            content: Text('Please select a customer before saving.')),
       );
       return null;
     }
     final uuid = repo.newUuid();
-    final items = rows
-        .map(
-          (r) {
-            final t = _lineTotals(r);
-            return {
-            'product_id': r.productId,
-            'description': r.description,
-            'uom': r.uom,
-            'hsn': r.hsn,
-            'quantity': r.qty,
-            'rate': r.rate,
-            'cgst_percent': r.cgstPct,
-            'sgst_percent': r.sgstPct,
-            'igst_percent': r.igstPct,
-            'taxable': t.taxable,
-            'cgst': t.cgst,
-            'sgst': t.sgst,
-            'igst': t.igst,
-            'total': t.total,
-          };
-          },
-        )
-        .toList();
+    final items = rows.map(
+      (r) {
+        final t = _lineTotals(r);
+        return {
+          'product_id': r.productId,
+          'description': r.description,
+          'uom': r.uom,
+          'hsn': r.hsn,
+          'quantity': r.qty,
+          'rate': r.rate,
+          'cgst_percent': r.cgstPct,
+          'sgst_percent': r.sgstPct,
+          'igst_percent': r.igstPct,
+          'taxable': t.taxable,
+          'cgst': t.cgst,
+          'sgst': t.sgst,
+          'igst': t.igst,
+          'total': t.total,
+        };
+      },
+    ).toList();
     try {
-    final invoiceId = await repo.createSalesInvoice({
-      'uuid': uuid,
-      'invoice_no': int.tryParse(voucherNo),
-      'transaction_date': date,
-      'po_no': po.text,
-      'po_date': poDate,
-      'state_zone': zone,
-      'challan_no': challan.text,
-      'challan_date': challanDate,
-      'total_packages': int.tryParse(packages.text) ?? 0,
-      'vehicle_dispatch_mode': vehicle.text,
-      'due_days': int.tryParse(due.text) ?? 0,
-      'eway_bill_no': eway.text,
-      'customer_id': customerId,
-      'taxable_total': taxable,
-      'cgst_total': cgst,
-      'sgst_total': sgst,
-      'igst_total': igst,
-      'grand_total': netPayable,
-      'status': 'POSTED',
-      'items': items,
-    });
-    return invoiceId;
+      final invoiceId = await repo.createSalesInvoice({
+        'uuid': uuid,
+        'invoice_no': int.tryParse(voucherNo),
+        'transaction_date': date,
+        'po_no': po.text,
+        'po_date': poDate,
+        'state_zone': zone,
+        'challan_no': challan.text,
+        'challan_date': challanDate,
+        'total_packages': int.tryParse(packages.text) ?? 0,
+        'vehicle_dispatch_mode': vehicle.text,
+        'due_days': int.tryParse(due.text) ?? 0,
+        'eway_bill_no': eway.text,
+        'customer_id': customerId,
+        'taxable_total': taxable,
+        'cgst_total': cgst,
+        'sgst_total': sgst,
+        'igst_total': igst,
+        'grand_total': netPayable,
+        'fwd_charge': fwd,
+        'status': 'POSTED',
+        'items': items,
+      });
+      return invoiceId;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -203,8 +255,13 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   }
 
   void _resetForm() {
+    for (final r in rows) {
+      r.dispose();
+    }
     setState(() {
-      rows..clear()..add(_InvoiceRow());
+      rows
+        ..clear()
+        ..add(_InvoiceRow());
       po.clear();
       challan.clear();
       packages.text = '0';
@@ -240,17 +297,20 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     try {
       final data = await invoiceDataFromId(invoiceId);
       if (data != null) {
-        await printUltraInvoice(data);
+        await layoutPrintUltraInvoice(data);
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('SALES VOUCHER SAVED — PRINT DIALOG OPENED')),
+          const SnackBar(
+              content: Text('SALES VOUCHER SAVED — PRINT DIALOG OPENED')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('SALES INVOICE SAVED, BUT PDF PRINTING FAILED: $e')),
+          SnackBar(
+              content:
+                  Text('SALES INVOICE SAVED, BUT PDF PRINTING FAILED: $e')),
         );
       }
     }
@@ -258,10 +318,11 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     _resetForm();
   }
 
-  @override Widget build(BuildContext context){
+  @override
+  Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: enterpriseScrollColumn(children:[
+      child: enterpriseScrollColumn(children: [
         Container(
           width: double.infinity,
           color: const Color(0xFF19232C),
@@ -273,14 +334,23 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('COMMERCIAL SALES TERMINAL',
-                      style: TextStyle(color: Color(0xFF2FE6E0), fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: .4)),
+                      style: TextStyle(
+                          color: Color(0xFF2FE6E0),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .4)),
                   const SizedBox(height: 10),
                   Row(children: [
-                    _statMini('TOTAL PCS', rows.fold<double>(0,(s,r)=>s+r.qty).toStringAsFixed(0)),
+                    _statMini(
+                        'TOTAL PCS',
+                        rows
+                            .fold<double>(0, (s, r) => s + r.qty)
+                            .toStringAsFixed(0)),
                     const SizedBox(width: 22),
                     _statMini('TAXABLE NET', taxable.toStringAsFixed(2)),
                     const SizedBox(width: 22),
-                    _statMini('COMPOUND GST', (cgst+sgst+igst).toStringAsFixed(2)),
+                    _statMini('COMPOUND GST',
+                        (cgst + sgst + igst).toStringAsFixed(2)),
                   ]),
                 ],
               ),
@@ -289,10 +359,17 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text('₹${netPayable.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
+                      style: const TextStyle(
+                          color: Color(0xFFF4D53A),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900)),
                   const SizedBox(height: 2),
                   const Text('NET PAYABLE VALUE',
-                      style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: .4)),
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: .4)),
                 ],
               ),
             ],
@@ -300,91 +377,110 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             LayoutBuilder(
               builder: (context, constraints) {
                 final stacked = constraints.maxWidth < formTwoColumnMinWidth;
                 final section1 = _plainSection(
-                    title: 'SECTION 1: TRANSACTION METADATA',
-                    children: [
-                      _pair(
-                        _outline('SALES VOUCHER NO (AUTO)', controller: TextEditingController(text: voucherNo), readOnly: true, filled: true),
-                        enterpriseInsetDateField(
-                          label: 'TRANSACTION DATE',
-                          isoDate: date,
-                          onTap: () => _pickDate(date, (v) => setState(() => date = v)),
-                        ),
+                  title: 'SECTION 1: TRANSACTION METADATA',
+                  children: [
+                    _pair(
+                      _outline('SALES VOUCHER NO (AUTO)',
+                          controller: TextEditingController(text: voucherNo),
+                          readOnly: true,
+                          filled: true),
+                      enterpriseInsetDateField(
+                        label: 'TRANSACTION DATE',
+                        isoDate: date,
+                        onTap: () =>
+                            _pickDate(date, (v) => setState(() => date = v)),
                       ),
-                      _pair(
-                        _outline('PO NO', controller: po, autofocus: true),
-                        enterpriseInsetDateField(
-                          label: 'PO DATE',
-                          isoDate: poDate,
-                          onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v)),
-                        ),
+                    ),
+                    _pair(
+                      _outline('PO NO', controller: po, autofocus: true),
+                      enterpriseInsetDateField(
+                        label: 'PO DATE',
+                        isoDate: poDate,
+                        onTap: () => _pickDate(
+                            poDate, (v) => setState(() => poDate = v)),
                       ),
-                      _zoneField(),
-                      const SizedBox(height: 8),
-                      _pair(
-                        _outline('CHALLAN / DC NO', controller: challan),
-                        enterpriseInsetDateField(
-                          label: 'CHALLAN / DC DATE',
-                          isoDate: challanDate,
-                          onTap: () => _pickDate(challanDate, (v) => setState(() => challanDate = v)),
-                        ),
+                    ),
+                    _zoneField(),
+                    const SizedBox(height: 8),
+                    _pair(
+                      _outline('CHALLAN / DC NO', controller: challan),
+                      enterpriseInsetDateField(
+                        label: 'CHALLAN / DC DATE',
+                        isoDate: challanDate,
+                        onTap: () => _pickDate(challanDate,
+                            (v) => setState(() => challanDate = v)),
                       ),
-                      _pair(
-                        _outline('TOTAL NO OF PACKAGES', controller: packages),
-                        _outline('VEHICLE NO / DISPATCH MODE', controller: vehicle),
-                      ),
-                      _pair(
-                        _outline('DUE DAYS', controller: due),
-                        _outline('E-WAY BILL NO (EWB NO)', controller: eway),
-                      ),
-                    ],
-                  );
+                    ),
+                    _pair(
+                      _outline('TOTAL NO OF PACKAGES', controller: packages),
+                      _outline('VEHICLE NO / DISPATCH MODE',
+                          controller: vehicle),
+                    ),
+                    _pair(
+                      _outline('DUE DAYS', controller: due),
+                      _outline('E-WAY BILL NO (EWB NO)', controller: eway),
+                    ),
+                  ],
+                );
                 final section2 = _plainSection(
-                    title: 'SECTION 2: ACCOUNT / PARTY CONFIGURATION',
-                    children: [
-                      enterpriseInsetDropdown<int>(
-                        label: 'SELECT CUSTOMER (COMMERCIAL INVOICING) *',
-                        value: customerId,
-                        items: customers
-                            .map((c) {
-                              final id = coerceCatalogId(c['id']);
-                              if (id == null) return null;
-                              return DropdownMenuItem<int>(
-                                value: id,
-                                child: Text('${c['customer_name'] ?? c['name'] ?? ''}'),
-                              );
-                            })
-                            .whereType<DropdownMenuItem<int>>()
-                            .toList(),
-                        onChanged: (v) {
-                          final c = customers.firstWhere((x) => coerceCatalogId(x['id']) == v);
-                          setState(() {
-                            customerId = v;
-                            fillCustomer(c);
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      _outline('ADDRESS', controller: customerAddress, readOnly: true, filled: true),
-                      const SizedBox(height: 14),
-                      _pair(
-                        _outline('CITY', controller: city, readOnly: true, filled: true),
-                        _outline('POSTAL PINCODE', controller: pin, readOnly: true, filled: true),
-                      ),
-                      _pair(
-                        _outline('PARTY GSTIN NO', controller: gstin, readOnly: true, filled: true),
-                        _outline('BANK IDENTIFIER NAME', controller: bank, readOnly: true, filled: true),
-                      ),
-                      _pair(
-                        _outline('BANK ACCOUNT NO', controller: account, readOnly: true, filled: true),
-                        _outline('SHIPPING ADDRESS', controller: shipping, readOnly: true, filled: true),
-                      ),
-                    ],
-                  );
+                  title: 'SECTION 2: ACCOUNT / PARTY CONFIGURATION',
+                  children: [
+                    enterpriseInsetDropdown<int>(
+                      label: 'SELECT CUSTOMER (COMMERCIAL INVOICING) *',
+                      value: customerId,
+                      items: customers
+                          .map((c) {
+                            final id = coerceCatalogId(c['id']);
+                            if (id == null) return null;
+                            return DropdownMenuItem<int>(
+                              value: id,
+                              child: Text(
+                                  '${c['customer_name'] ?? c['name'] ?? ''}'),
+                            );
+                          })
+                          .whereType<DropdownMenuItem<int>>()
+                          .toList(),
+                      onChanged: (v) {
+                        final c = customers
+                            .firstWhere((x) => coerceCatalogId(x['id']) == v);
+                        setState(() {
+                          customerId = v;
+                          fillCustomer(c);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    _outline('ADDRESS',
+                        controller: customerAddress,
+                        readOnly: true,
+                        filled: true),
+                    const SizedBox(height: 14),
+                    _pair(
+                      _outline('CITY',
+                          controller: city, readOnly: true, filled: true),
+                      _outline('POSTAL PINCODE',
+                          controller: pin, readOnly: true, filled: true),
+                    ),
+                    _pair(
+                      _outline('PARTY GSTIN NO',
+                          controller: gstin, readOnly: true, filled: true),
+                      _outline('BANK IDENTIFIER NAME',
+                          controller: bank, readOnly: true, filled: true),
+                    ),
+                    _pair(
+                      _outline('BANK ACCOUNT NO',
+                          controller: account, readOnly: true, filled: true),
+                      _outline('SHIPPING ADDRESS',
+                          controller: shipping, readOnly: true, filled: true),
+                    ),
+                  ],
+                );
                 if (stacked) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -407,7 +503,11 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
             ),
             const SizedBox(height: 14),
             const Text('SECTION 3: QUANTITY MATRIX PRODUCT ENTRY',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
+                style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: navy,
+                    letterSpacing: .3)),
             const SizedBox(height: 4),
             Container(height: 1, color: border),
             const SizedBox(height: 14),
@@ -420,48 +520,62 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
               width: double.infinity,
               child: enterpriseMatrixScroller(table: _productMatrixTable()),
             ),
-            const SizedBox(height:12),
+            const SizedBox(height: 12),
             Center(
               child: OutlinedButton.icon(
-                onPressed:()=>setState(()=>rows.add(_InvoiceRow())),
-                icon:const Icon(Icons.add,size:16),
-                label:const Text('ADD NEW MATERIAL ROW', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5)),
+                onPressed: () => setState(() => rows.add(_InvoiceRow())),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('ADD NEW MATERIAL ROW',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: navy,
                   side: const BorderSide(color: border),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(3)),
                 ),
               ),
             ),
-            const SizedBox(height:18),
+            const SizedBox(height: 18),
             enterpriseValueWordsFooter(
               valueInWords: payableAmountInWords(netPayable),
               chargeController: fwdCharge,
               onChargeChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height:18),
+            const SizedBox(height: 18),
             Center(
               child: ElevatedButton.icon(
                 onPressed: saveAndPrint,
                 icon: const Icon(Icons.print_outlined, size: 17),
-                label: const Text('SAVE & PRINT SALES VOUCHER', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                label: const Text('SAVE & PRINT SALES VOUCHER',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2E8B30),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(3)),
                 ),
               ),
             ),
-            const SizedBox(height:30),
+            const SizedBox(height: 30),
           ]),
         ),
       ]),
     );
   }
 
-  Widget _outline(String label, {TextEditingController? controller, bool readOnly = false, bool filled = false, Widget? prefixIcon, VoidCallback? onTap, bool autofocus = false}) {
+  Widget _outline(String label,
+      {TextEditingController? controller,
+      bool readOnly = false,
+      bool filled = false,
+      Widget? prefixIcon,
+      VoidCallback? onTap,
+      bool autofocus = false}) {
     return enterpriseInsetTextField(
       label: label,
       controller: controller,
@@ -479,7 +593,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       label: 'SELECT STATE ZONE APPLICABILITY *',
       value: zone.isEmpty ? null : zone,
       borderColor: mandatory ? red : null,
-      hint: const Text('Choose Option (Mandatory Entry Row)', style: TextStyle(color: red, fontSize: 12.5, fontWeight: FontWeight.w600)),
+      hint: const Text('Choose Option (Mandatory Entry Row)',
+          style: TextStyle(
+              color: red, fontSize: 12.5, fontWeight: FontWeight.w600)),
       items: const [
         DropdownMenuItem(value: 'Intra State', child: Text('Intra State')),
         DropdownMenuItem(value: 'Inter State', child: Text('Inter State')),
@@ -492,44 +608,71 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   }
 
   Widget _statMini(String label, String value) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 2),
-      Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
-    ],
-  );
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800)),
+        ],
+      );
   Widget _pair(Widget a, Widget b) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Expanded(child: a), const SizedBox(width: 14), Expanded(child: b),
-    ]),
-  );
-  Widget _plainSection({required String title, required List<Widget> children}) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
-      const SizedBox(height: 4),
-      Container(height: 1, color: border),
-      const SizedBox(height: 8),
-      ...children,
-    ],
-  );
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: a),
+          const SizedBox(width: 14),
+          Expanded(child: b),
+        ]),
+      );
+  Widget _plainSection(
+          {required String title, required List<Widget> children}) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: navy,
+                  letterSpacing: .3)),
+          const SizedBox(height: 4),
+          Container(height: 1, color: border),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      );
   String _amountInWords(double v) => payableAmountInWords(v);
 
-  static const _matrixHeadStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 7.5, height: 1.15);
-  static const _matrixCellStyle = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
+  static const _matrixHeadStyle = TextStyle(
+      color: Colors.white,
+      fontWeight: FontWeight.w800,
+      fontSize: 7.5,
+      height: 1.15);
+  static const _matrixCellStyle =
+      TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
   static final _matrixInputDecoration = InputDecoration(
     isDense: true,
     contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
+    enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(3),
+        borderSide: const BorderSide(color: border)),
   );
 
   Widget _matrixHeadCell(String label) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
-      child: Text(label, style: _matrixHeadStyle, maxLines: 2, overflow: TextOverflow.ellipsis),
+      child: Text(label,
+          style: _matrixHeadStyle,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis),
     );
   }
 
@@ -569,7 +712,8 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                 child: DropdownButton<int>(
                   isExpanded: true,
                   isDense: true,
-                  hint: const Text('Item Description', style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
+                  hint: const Text('Item Description',
+                      style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
                   value: catalogIdInList(rows[i].productId, products),
                   items: products
                       .map((p) {
@@ -577,13 +721,16 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
+                          child: Text('${p['product_name']}',
+                              style: const TextStyle(fontSize: 9),
+                              overflow: TextOverflow.ellipsis),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final p = products.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    final p = products
+                        .firstWhere((x) => coerceCatalogId(x['id']) == v);
                     setState(() => rows[i].setProduct(p, stateZone: zone));
                   },
                 ),
@@ -602,13 +749,15 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${u['code']}', style: const TextStyle(fontSize: 9)),
+                          child: Text('${u['code']}',
+                              style: const TextStyle(fontSize: 9)),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
                       .toList(),
                   onChanged: (v) {
-                    final u = units.firstWhere((x) => coerceCatalogId(x['id']) == v);
+                    final u =
+                        units.firstWhere((x) => coerceCatalogId(x['id']) == v);
                     setState(() {
                       rows[i].unitId = v;
                       rows[i].uom = '${u['code']}';
@@ -618,62 +767,76 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-                child: Text(rows[i].hsn, style: _matrixCellStyle, overflow: TextOverflow.ellipsis),
+                child: Text(rows[i].hsn,
+                    style: _matrixCellStyle, overflow: TextOverflow.ellipsis),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('q$i'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
+                  controller: rows[i].qtyController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (v) =>
+                      setState(() => rows[i].qty = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('r$i'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
+                  controller: rows[i].rateController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (v) =>
+                      setState(() => rows[i].rate = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  controller: TextEditingController(text: '${rows[i].cgstPct}'),
+                  controller: rows[i].cgstController,
                   keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
+                  onChanged: (v) =>
+                      setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  controller: TextEditingController(text: '${rows[i].sgstPct}'),
+                  controller: rows[i].sgstController,
                   keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
+                  onChanged: (v) =>
+                      setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  controller: TextEditingController(text: '${rows[i].igstPct}'),
+                  controller: rows[i].igstController,
                   keyboardType: TextInputType.number,
-                  onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
+                  onChanged: (v) =>
+                      setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
                 child: Text(
                   _lineTotals(rows[i]).total.toStringAsFixed(2),
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 9.5, color: navy),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 9.5, color: navy),
                 ),
               ),
               IconButton(
-                onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
+                onPressed: rows.length == 1
+                    ? null
+                    : () => setState(() {
+                          rows[i].dispose();
+                          rows.removeAt(i);
+                        }),
                 icon: const Icon(Icons.delete_outline, color: red, size: 15),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
@@ -685,6 +848,12 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       ],
     );
   }
+}
+
+String _siMatrixNum(double v, {bool blankZero = false}) {
+  if (blankZero && v == 0) return '';
+  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
+  return v.toStringAsFixed(2);
 }
 
 class _InvoiceRow {
@@ -699,6 +868,28 @@ class _InvoiceRow {
   double sgstPct = 9;
   double igstPct = 0;
 
+  late final TextEditingController qtyController;
+  late final TextEditingController rateController;
+  late final TextEditingController cgstController;
+  late final TextEditingController sgstController;
+  late final TextEditingController igstController;
+
+  _InvoiceRow() {
+    qtyController = TextEditingController();
+    rateController = TextEditingController();
+    cgstController = TextEditingController(text: _siMatrixNum(cgstPct));
+    sgstController = TextEditingController(text: _siMatrixNum(sgstPct));
+    igstController = TextEditingController(text: _siMatrixNum(igstPct));
+  }
+
+  void dispose() {
+    qtyController.dispose();
+    rateController.dispose();
+    cgstController.dispose();
+    sgstController.dispose();
+    igstController.dispose();
+  }
+
   void setProduct(Map<String, dynamic> p, {required String stateZone}) {
     productId = coerceCatalogId(p['id']);
     description = '${p['product_name'] ?? ''}';
@@ -706,6 +897,7 @@ class _InvoiceRow {
     uom = catalogUomCode(p);
     hsn = catalogProductHsn(p);
     rate = catalogSalesRate(p);
+    rateController.text = rate == 0 ? '' : rate.toStringAsFixed(2);
     final productGst = catalogTotalGstPercent(p);
     if (productGst != null && productGst > 0) {
       applyZoneGstSplit(
@@ -730,5 +922,8 @@ class _InvoiceRow {
         },
       );
     }
+    cgstController.text = _siMatrixNum(cgstPct);
+    sgstController.text = _siMatrixNum(sgstPct);
+    igstController.text = _siMatrixNum(igstPct);
   }
 }
