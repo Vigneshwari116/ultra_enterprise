@@ -377,26 +377,44 @@ pw.Widget _cell(
 }
 
 pw.Widget _topBar(String documentTitle, String copyLabel) {
-  return pw.Container(
-    decoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
-    child: pw.Row(
-      children: [
-        pw.Expanded(
-            child: _cell(
-                right: true,
-                child: pw.Text(documentTitle,
-                    style: _ts(size: 11, weight: pw.FontWeight.bold)))),
-        pw.Expanded(
-          child: _cell(
-            child: pw.Align(
-                alignment: pw.Alignment.centerRight,
-                child: pw.Text(copyLabel,
-                    style: _ts(size: 11, weight: pw.FontWeight.bold))),
-          ),
-        ),
-      ],
+  return pw.Table(
+    border: const pw.TableBorder(
+      bottom: pw.BorderSide(color: _black, width: 1),
+      verticalInside: pw.BorderSide(color: _black, width: 1),
     ),
+    columnWidths: const {
+      0: pw.FlexColumnWidth(1),
+      1: pw.FlexColumnWidth(1),
+    },
+    children: [
+      pw.TableRow(
+        children: [
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: pw.FittedBox(
+              alignment: pw.Alignment.centerLeft,
+              fit: pw.BoxFit.scaleDown,
+              child: pw.Text(
+                documentTitle,
+                style: _ts(size: 11, weight: pw.FontWeight.bold),
+                maxLines: 1,
+              ),
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Text(
+                copyLabel,
+                style: _ts(size: 11, weight: pw.FontWeight.bold),
+                maxLines: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ],
   );
 }
 
@@ -1118,18 +1136,65 @@ pw.Widget _taxTotalsAndBank(InvoiceData d) {
     _totalsRow('G.Total', ':', value2: _money(d.grandTotal), bold: true),
   ];
 
-  return pw.Container(
-    decoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
-    child: pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      children: [
-        pw.Expanded(
-          flex: 3,
-          child: pw.Container(
-            decoration: const pw.BoxDecoration(
-                border:
-                    pw.Border(right: pw.BorderSide(color: _black, width: 1))),
+  final bankDetails = pw.Table(
+    border: pw.TableBorder.all(color: _black, width: 1),
+    columnWidths: const {
+      0: pw.FlexColumnWidth(1.1),
+      1: pw.FlexColumnWidth(2),
+    },
+    children: [
+      pw.TableRow(children: [
+        pw.Padding(
+            padding: const pw.EdgeInsets.all(3),
+            child: pw.Text('BANK NAME :', style: _ts(size: 7.5))),
+        pw.Padding(
+            padding: const pw.EdgeInsets.all(3),
+            child: pw.Text(d.bankName,
+                style: _ts(size: 7.5, weight: pw.FontWeight.bold))),
+      ]),
+      pw.TableRow(children: [
+        pw.Padding(
+            padding: const pw.EdgeInsets.all(3),
+            child: pw.Text('ACCOUNT NO', style: _ts(size: 7.5))),
+        pw.Padding(
+            padding: const pw.EdgeInsets.all(3),
+            child: pw.Text(d.accountNo, style: _ts(size: 7.5))),
+      ]),
+      pw.TableRow(children: [
+        pw.Padding(
+            padding: const pw.EdgeInsets.all(3),
+            child: pw.Text('IFS CODE :', style: _ts(size: 7.5))),
+        pw.Padding(
+            padding: const pw.EdgeInsets.all(3),
+            child: pw.Text(d.ifscCode, style: _ts(size: 7.5))),
+      ]),
+      pw.TableRow(children: [
+        pw.Padding(
+            padding: const pw.EdgeInsets.all(3),
+            child: pw.Text('BRANCH :', style: _ts(size: 7.5))),
+        pw.Padding(
+            padding: const pw.EdgeInsets.all(3),
+            child: pw.Text(d.bankAddress,
+                style: _ts(size: 7.5, weight: pw.FontWeight.bold))),
+      ]),
+    ],
+  );
+
+  return pw.Table(
+    border: const pw.TableBorder(
+      left: pw.BorderSide(color: _black, width: 1),
+      right: pw.BorderSide(color: _black, width: 1),
+      bottom: pw.BorderSide(color: _black, width: 1),
+      verticalInside: pw.BorderSide(color: _black, width: 1),
+    ),
+    columnWidths: const {
+      0: pw.FlexColumnWidth(3),
+      1: pw.FlexColumnWidth(2),
+    },
+    children: [
+      pw.TableRow(
+        children: [
+          pw.Container(
             padding: const pw.EdgeInsets.all(6),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1145,69 +1210,22 @@ pw.Widget _taxTotalsAndBank(InvoiceData d) {
                 pw.Text(d.amountInWords,
                     style: _ts(size: 8.5, weight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 8),
-                pw.Table(
-                  border: pw.TableBorder.all(color: _black, width: 1),
-                  columnWidths: const {
-                    0: pw.FlexColumnWidth(1.1),
-                    1: pw.FlexColumnWidth(2)
-                  },
-                  children: [
-                    pw.TableRow(children: [
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(3),
-                          child: pw.Text('BANK NAME :', style: _ts(size: 7.5))),
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(3),
-                          child: pw.Text(d.bankName,
-                              style:
-                                  _ts(size: 7.5, weight: pw.FontWeight.bold))),
-                    ]),
-                    pw.TableRow(children: [
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(3),
-                          child: pw.Text('ACCOUNT NO', style: _ts(size: 7.5))),
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(3),
-                          child: pw.Text(d.accountNo, style: _ts(size: 7.5))),
-                    ]),
-                    pw.TableRow(children: [
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(3),
-                          child: pw.Text('IFS CODE :', style: _ts(size: 7.5))),
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(3),
-                          child: pw.Text(d.ifscCode, style: _ts(size: 7.5))),
-                    ]),
-                    pw.TableRow(children: [
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(3),
-                          child: pw.Text('BRANCH :', style: _ts(size: 7.5))),
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(3),
-                          child: pw.Text(d.bankAddress,
-                              style:
-                                  _ts(size: 7.5, weight: pw.FontWeight.bold))),
-                    ]),
-                  ],
-                ),
+                bankDetails,
               ],
             ),
           ),
-        ),
-        pw.Expanded(
-          flex: 2,
-          child: pw.Table(
+          pw.Table(
             border: pw.TableBorder.all(color: _black, width: 1),
             columnWidths: const {
               0: pw.FlexColumnWidth(1.4),
               1: pw.FlexColumnWidth(0.5),
-              2: pw.FlexColumnWidth(1.2)
+              2: pw.FlexColumnWidth(1.2),
             },
             children: totalRows,
           ),
-        ),
-      ],
-    ),
+        ],
+      ),
+    ],
   );
 }
 
