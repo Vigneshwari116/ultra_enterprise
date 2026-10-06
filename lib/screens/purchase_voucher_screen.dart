@@ -64,32 +64,46 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
   double get igst=>rows.fold(0,(s,r)=>s+_lineTotals(r).igst);
   double get total=>taxable+cgst+sgst+igst;
 
-  Future<void> loadAgainstPo(int? poId)async{
-    againstPoId=poId;
-    if(poId==null)return;
-    final po=openOrders.firstWhere((x)=>x['id']==poId);
-    supplierId=po['supplier_id'] as int?;
-    final s=suppliers.where((x)=>x['id']==supplierId);
-    if(s.isNotEmpty)fillSupplier(s.first);
-    final items=await repo.purchaseOrderItems(poId);
-    if(items.isNotEmpty){
-      rows..clear()..addAll(items.map((it)=>_PvRow()
-        ..productId=coerceCatalogId(it['product_id'])
-        ..unitId=coerceCatalogId(it['unit_id'])
-        ..description=it['description']??''
-        ..uom=it['uom']??'PCS'
-        ..hsn='${it['hsn']??''}'
-        ..qty=(it['quantity']??0).toDouble()
-        ..rate=(it['rate']??0).toDouble()
-        ..cgstPct=(it['cgst_percent']??9).toDouble()
-        ..sgstPct=(it['sgst_percent']??9).toDouble()
-        ..igstPct=(it['igst_percent']??0).toDouble()));
+  Future<void> loadAgainstPo(int? poId) async {
+    if (poId == null) {
+      setState(() => againstPoId = null);
+      return;
     }
-    if(mounted)setState((){});
+    againstPoId = poId;
+    final po = openOrders.firstWhere((x) => x['id'] == poId);
+    supplierId = po['supplier_id'] as int?;
+    final s = suppliers.where((x) => x['id'] == supplierId);
+    if (s.isNotEmpty) fillSupplier(s.first);
+    final items = await repo.purchaseOrderItems(poId);
+    _disposeAllRows();
+    rows.clear();
+    if (items.isNotEmpty) {
+      rows.addAll(items.map(_PvRow.fromPurchaseOrderItem));
+    } else {
+      rows.add(_PvRow());
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _disposeAllRows() {
+    for (final r in rows) {
+      r.dispose();
+    }
+  }
+
+  String _poPickerLabel(Map<String, dynamic> o) {
+    final poNo = o['po_no'] ?? o['id'];
+    final party = '${o['party_name'] ?? '-'}';
+    final rawDate = '${o['po_date'] ?? ''}';
+    final parsed = DateTime.tryParse(rawDate);
+    final dateLabel = parsed == null ? rawDate : DateFormat('dd-MM-yyyy').format(parsed);
+    final total = (o['grand_total'] as num?)?.toDouble() ?? 0;
+    return 'PO-$poNo • $party • $dateLabel • ₹${total.toStringAsFixed(2)}';
   }
 
   @override void dispose(){
     unregisterProductCatalogRefresh(_productCatalogRefreshHandler);
+    _disposeAllRows();
     for(final c in [supplierInvoiceNo,remarks,supplierAddress,city,pin,gstin,bank,account])c.dispose();
     super.dispose();
   }
@@ -168,8 +182,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
     if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('PURCHASE VOUCHER POSTED — STOCK UPDATED')));
     await load();
     setState(() {
+      _disposeAllRows();
       rows..clear()..add(_PvRow());
-      supplierInvoiceNo.clear(); remarks.clear(); againstPoId=null;
+      supplierInvoiceNo.clear();
+      remarks.clear();
+      againstPoId = null;
     });
   }
 
@@ -245,7 +262,16 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                         hint: const Text('— No linked PO —', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
                         items: [
                           const DropdownMenuItem<int?>(value: null, child: Text('— No linked PO —')),
-                          ...openOrders.map((o) => DropdownMenuItem<int?>(value: o['id'] as int, child: Text('PO-${o['po_no']}  •  ${o['party_name']}'))),
+                          ...openOrders.map(
+                            (o) => DropdownMenuItem<int?>(
+                              value: o['id'] as int,
+                              child: Text(
+                                _poPickerLabel(o),
+                                style: const TextStyle(fontSize: 10.5),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
                         ],
                         onChanged: (v) => loadAgainstPo(v),
                       ),
@@ -303,8 +329,8 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
             const SizedBox(height:12),
             Center(
               child: OutlinedButton.icon(
-                onPressed:()=>setState(()=>rows.add(_PvRow())),
-                icon:const Icon(Icons.add,size:16),
+                onPressed: () => setState(() => rows.add(_PvRow())),
+                icon: const Icon(Icons.add, size: 16),
                 label:const Text('ADD NEW MATERIAL ROW', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: navy,
@@ -475,8 +501,8 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('pvq$i'),
-                  keyboardType: TextInputType.number,
+                  controller: rows[i].qtyController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
                 ),
               ),
@@ -484,8 +510,8 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('pvr$i'),
-                  keyboardType: TextInputType.number,
+                  controller: rows[i].rateController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
                 ),
               ),
@@ -493,9 +519,8 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('pvcg-$i-${rows[i].cgstPct}'),
+                  controller: rows[i].cgstController,
                   keyboardType: TextInputType.number,
-                  controller: TextEditingController(text: '${rows[i].cgstPct}'),
                   onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
@@ -503,9 +528,8 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('pvsg-$i-${rows[i].sgstPct}'),
+                  controller: rows[i].sgstController,
                   keyboardType: TextInputType.number,
-                  controller: TextEditingController(text: '${rows[i].sgstPct}'),
                   onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
@@ -513,9 +537,8 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('pvig-$i-${rows[i].igstPct}'),
+                  controller: rows[i].igstController,
                   keyboardType: TextInputType.number,
-                  controller: TextEditingController(text: '${rows[i].igstPct}'),
                   onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
                 ),
               ),
@@ -527,7 +550,12 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
                 ),
               ),
               IconButton(
-                onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
+                onPressed: rows.length == 1
+                    ? null
+                    : () => setState(() {
+                          rows[i].dispose();
+                          rows.removeAt(i);
+                        }),
                 icon: const Icon(Icons.delete_outline, color: red, size: 15),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
@@ -543,15 +571,86 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen>{
   String _amountInWords(double v) => payableAmountInWords(v);
 }
 
-class _PvRow{
-  int? productId; int? unitId; String description='',uom='PCS',hsn=''; double qty=0,rate=0,cgstPct=9,sgstPct=9,igstPct=0;
-  void setProduct(Map<String,dynamic> p){
-    productId=coerceCatalogId(p['id']);
-    description='${p['product_name']??''}';
-    unitId=catalogUnitId(p);
-    uom=catalogUomCode(p);
-    hsn=catalogProductHsn(p);
-    rate=catalogPurchaseRate(p);
+String _pvMatrixNum(double v, {bool blankZero = false}) {
+  if (blankZero && v == 0) return '';
+  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
+  return v.toString();
+}
+
+class _PvRow {
+  int? productId;
+  int? unitId;
+  String description = '';
+  String uom = 'PCS';
+  String hsn = '';
+  double qty = 0;
+  double rate = 0;
+  double cgstPct = 9;
+  double sgstPct = 9;
+  double igstPct = 0;
+  /// When true, [setProduct] keeps [rate] unless the user picks a different product (PO agreed rate).
+  bool preserveAgreedRate = false;
+
+  late final TextEditingController qtyController;
+  late final TextEditingController rateController;
+  late final TextEditingController cgstController;
+  late final TextEditingController sgstController;
+  late final TextEditingController igstController;
+
+  _PvRow() {
+    qtyController = TextEditingController();
+    rateController = TextEditingController();
+    cgstController = TextEditingController(text: _pvMatrixNum(cgstPct));
+    sgstController = TextEditingController(text: _pvMatrixNum(sgstPct));
+    igstController = TextEditingController(text: _pvMatrixNum(igstPct));
+  }
+
+  factory _PvRow.fromPurchaseOrderItem(Map<String, dynamic> it) {
+    final row = _PvRow()
+      ..productId = coerceCatalogId(it['product_id'])
+      ..unitId = coerceCatalogId(it['unit_id'])
+      ..description = '${it['description'] ?? ''}'
+      ..uom = '${it['uom'] ?? 'PCS'}'
+      ..hsn = '${it['hsn'] ?? ''}'
+      ..qty = (it['quantity'] as num?)?.toDouble() ?? 0
+      ..rate = (it['rate'] as num?)?.toDouble() ?? 0
+      ..cgstPct = (it['cgst_percent'] as num?)?.toDouble() ?? 9
+      ..sgstPct = (it['sgst_percent'] as num?)?.toDouble() ?? 9
+      ..igstPct = (it['igst_percent'] as num?)?.toDouble() ?? 0
+      ..preserveAgreedRate = true;
+    row._syncControllersFromModel();
+    return row;
+  }
+
+  void _syncControllersFromModel() {
+    qtyController.text = _pvMatrixNum(qty);
+    rateController.text = _pvMatrixNum(rate);
+    cgstController.text = _pvMatrixNum(cgstPct);
+    sgstController.text = _pvMatrixNum(sgstPct);
+    igstController.text = _pvMatrixNum(igstPct);
+  }
+
+  void dispose() {
+    qtyController.dispose();
+    rateController.dispose();
+    cgstController.dispose();
+    sgstController.dispose();
+    igstController.dispose();
+  }
+
+  void setProduct(Map<String, dynamic> p) {
+    final previousProductId = productId;
+    productId = coerceCatalogId(p['id']);
+    description = '${p['product_name'] ?? ''}';
+    unitId = catalogUnitId(p);
+    uom = catalogUomCode(p);
+    hsn = catalogProductHsn(p);
+    final productChanged = productId != previousProductId;
+    if (!preserveAgreedRate || productChanged) {
+      rate = catalogPurchaseRate(p);
+      rateController.text = _pvMatrixNum(rate);
+      preserveAgreedRate = false;
+    }
     final productGst = catalogTotalGstPercent(p);
     if (productGst != null && productGst > 0) {
       applyZoneGstSplit(
@@ -563,6 +662,9 @@ class _PvRow{
           igstPct = i;
         },
       );
+      cgstController.text = _pvMatrixNum(cgstPct);
+      sgstController.text = _pvMatrixNum(sgstPct);
+      igstController.text = _pvMatrixNum(igstPct);
     }
   }
 }
