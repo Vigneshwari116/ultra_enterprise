@@ -48,6 +48,9 @@ class InvoiceData {
   final String ewbNo;
   final String consigneeName;
   final String consigneeAddress;
+  final String shippingName;
+  final String shippingAddress;
+  final String serviceTaxNo;
   final String gstin;
   final String mobile;
   final List<InvoiceItem> items;
@@ -80,6 +83,8 @@ class InvoiceData {
   final double? sgstAmountOverride;
   final double? igstAmountOverride;
   final double? grandTotalOverride;
+  /// When false, totals block shows amount in words only (quotation layout).
+  final bool showBankInTotals;
 
   const InvoiceData({
     required this.invoiceNo,
@@ -92,6 +97,9 @@ class InvoiceData {
     this.ewbNo = '',
     required this.consigneeName,
     required this.consigneeAddress,
+    this.shippingName = '',
+    this.shippingAddress = '',
+    this.serviceTaxNo = '',
     required this.gstin,
     this.mobile = '',
     required this.items,
@@ -121,6 +129,7 @@ class InvoiceData {
     this.sgstAmountOverride,
     this.igstAmountOverride,
     this.grandTotalOverride,
+    this.showBankInTotals = true,
   });
 
   UltraTotalsMode get totalsMode {
@@ -130,6 +139,7 @@ class InvoiceData {
         return UltraTotalsMode.forwardingSummary;
       case UltraBillKind.creditNote:
       case UltraBillKind.debitNote:
+      case UltraBillKind.purchaseVoucher:
         return UltraTotalsMode.noteTaxSummary;
       default:
         return UltraTotalsMode.standardGst;
@@ -146,17 +156,37 @@ class InvoiceData {
 /// The five physical copies printed for every tax invoice, top-right label
 /// exactly as on the paper form.
 const List<String> ultraInvoiceCopyLabels = [
-  'ORIGINAL FOR RECIPIENT',
+  'ORIGINAL FOR BUYER',
   'DUPLICATE FOR TRANSPORTER',
-  'TRIPLICATE FOR SUPPLIER',
-  'COPY FOR ACCOUNTS',
-  'EXTRA COPY',
 ];
 
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
 final PdfColor _grey = PdfColor.fromInt(0xFF748094);
 
-const int _minItemRows = 8;
+const int _minItemRows = 4;
+const int _minTaxInvoiceItemRows = 4;
+
+int _minRowsForKind(InvoiceData d) {
+  if (d.kind == UltraBillKind.taxInvoice) return _minTaxInvoiceItemRows;
+  if (d.kind == UltraBillKind.quotation) return 3;
+  return _minItemRows;
+}
+
+const List<String> _standardDocumentTerms = [
+  '1. Goods once sold will not be taken back or exchanged.',
+  '2. Interest @24% will be charged if not paid within due period.',
+  '3. All Disputes Subject to Bangalore Jurisdiction Only.',
+  '4. All Payment Should Be Made By A/c Payee Cheque/D.D Only',
+  '5. Our Risk/Responsibility Ceases Once Goods Leave Our Premises.',
+];
+
+const List<String> _taxInvoiceDocumentTerms = [
+  '1.Good once sold will not be taken back or exchange',
+  '2.Interest @24%  will be charged if not paid with inthe due period.',
+  '3.All Disputes Subject to Bangalore Judrisdiction Only.',
+  '4.All Payment Should Be Made By A/c Payee Cheque/D.D Only',
+  '5.Our Risk/Reponsebility Ceases Once Goods Leave Our Premises',
+];
 
 pw.TextStyle _ts({double size = 8, pw.FontWeight weight = pw.FontWeight.normal}) =>
     pw.TextStyle(font: weight == pw.FontWeight.bold ? pw.Font.helveticaBold() : pw.Font.helvetica(), fontSize: size, color: _black);
@@ -247,19 +277,29 @@ Future<void> shareUltraInvoicePdf(InvoiceData data, {String? filename}) async {
 
 pw.Widget _invoicePage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
   final border = pw.BoxDecoration(border: pw.Border.all(color: _black, width: 1));
-  final fillerRows = (_minItemRows - d.items.length).clamp(0, 24);
-  return pw.Container(
-    decoration: border,
-    child: pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      children: [
-        _topBar(d.documentTitle, copyLabel),
+  final minRows = _minRowsForKind(d);
+  final fillerRows = (minRows - d.items.length).clamp(0, 24);
+  final pageBody = pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+    children: [
+      _topBar(d.documentTitle, copyLabel),
+      if (d.kind == UltraBillKind.taxInvoice) ...[
+        _taxCompanyHeaderWithMeta(d, logo),
+        _taxConsigneeAndShipping(d),
+      ] else ...[
         _companyHeader(logo),
         _consigneeAndMeta(d),
-        pw.Expanded(child: _itemsTable(d, fillerRows: fillerRows)),
-        _totalsAndBank(d),
-        _termsAndSignature(d),
       ],
+      pw.Expanded(child: _itemsTable(d, fillerRows: fillerRows)),
+      d.kind == UltraBillKind.taxInvoice ? _taxTotalsAndBank(d) : _totalsAndBank(d),
+      _termsAndSignature(d),
+    ],
+  );
+  return pw.Container(
+    decoration: border,
+    child: pw.SizedBox(
+      height: PdfPageFormat.a4.height - 36,
+      child: pageBody,
     ),
   );
 }
@@ -317,6 +357,159 @@ pw.Widget _companyHeader(pw.MemoryImage logo) {
               pw.Text('Works: No.B-48, KSSIDC INDL Estate, Near Karnataka Bank, Bommasandra Indl. Area, BENGALURU-560 099.',
                   style: const pw.TextStyle(fontSize: 7), textAlign: pw.TextAlign.center),
             ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+pw.Widget _taxCompanyHeaderWithMeta(InvoiceData d, pw.MemoryImage logo) {
+  final metaBorder = pw.TableBorder.all(color: _black, width: 1);
+  final metaTop = pw.Table(
+    border: metaBorder,
+    columnWidths: const {
+      0: pw.FlexColumnWidth(1.6),
+      1: pw.FlexColumnWidth(1.2),
+      2: pw.FlexColumnWidth(0.9),
+      3: pw.FlexColumnWidth(1.3),
+    },
+    children: [
+      pw.TableRow(children: [
+        _metaField('Invoice No', ''),
+        _metaValue(d.invoiceNo, bold: true),
+        _metaField('DATE :', ''),
+        _metaValue(d.date, bold: true),
+      ]),
+      pw.TableRow(children: [
+        _metaField('Cust.P.O :', ''),
+        _metaValue(d.custPo.isEmpty ? '0' : d.custPo),
+        _metaField('DATE :', ''),
+        _metaValue(d.poDate.isEmpty ? d.date : d.poDate, bold: true),
+      ]),
+      pw.TableRow(children: [
+        _metaField('D.C.NO  :', ''),
+        _metaValue(d.dcNo.isEmpty ? '0' : d.dcNo),
+        _metaField('DATE :', ''),
+        _metaValue(d.dcDate.isEmpty ? d.date : d.dcDate, bold: true),
+      ]),
+    ],
+  );
+  final metaBottom = pw.Table(
+    border: pw.TableBorder(
+      left: const pw.BorderSide(color: _black, width: 1),
+      right: const pw.BorderSide(color: _black, width: 1),
+      bottom: const pw.BorderSide(color: _black, width: 1),
+      horizontalInside: const pw.BorderSide(color: _black, width: 1),
+    ),
+    columnWidths: const {0: pw.FlexColumnWidth(1.6), 1: pw.FlexColumnWidth(3.4)},
+    children: [
+      pw.TableRow(children: [_metaField('DESPATCH :', ''), _metaValue(d.dispatch.isEmpty ? '0' : d.dispatch, bold: true)]),
+      pw.TableRow(children: [_metaField('EWB NO:', ''), _metaValue(d.ewbNo)]),
+    ],
+  );
+
+  return pw.Container(
+    decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
+    padding: const pw.EdgeInsets.fromLTRB(6, 6, 6, 6),
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Container(width: 58, height: 46, child: pw.Image(logo, fit: pw.BoxFit.contain)),
+            pw.SizedBox(height: 2),
+            pw.SizedBox(
+              width: 118,
+              child: pw.Text(
+                'Works:No.B-48,KSSIDC INDL Estate,Near KarnatakaBank,Bommasandra Indl.Area,BENGALURU-560 099.',
+                style: _ts(size: 6.2),
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(width: 6),
+        pw.Expanded(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Text('ULTRA ENGINEERING WORKS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 17)),
+              pw.Text('SPM MANUFACTURERS & FABRICATORS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5)),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                'OFFICE:NO:15/6,5th CROSS ,VIDYA NAGAR,S.K.F.FACTORY',
+                style: _ts(size: 6.8),
+                textAlign: pw.TextAlign.center,
+              ),
+              pw.Text('BOMMASANDRA INDL.AREA,BENGALURU-560 099.', style: _ts(size: 6.8), textAlign: pw.TextAlign.center),
+              pw.Text('Tele Fax:080-27834287, Mob: 9342509313', style: _ts(size: 6.8), textAlign: pw.TextAlign.center),
+            ],
+          ),
+        ),
+        pw.SizedBox(
+          width: 168,
+          child: pw.Column(children: [metaTop, metaBottom]),
+        ),
+      ],
+    ),
+  );
+}
+
+pw.Widget _taxConsigneeAndShipping(InvoiceData d) {
+  final shipName = d.shippingName.isNotEmpty ? d.shippingName : d.consigneeName;
+  final shipAddr = d.shippingAddress.isNotEmpty ? d.shippingAddress : '';
+  return pw.Container(
+    height: 98,
+    decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Expanded(
+          child: pw.Container(
+            decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(color: _black, width: 1))),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 2),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('NAME & ADDRESS OF CONSIGNEE', style: _ts(size: 7.2, weight: pw.FontWeight.bold)),
+                      pw.SizedBox(height: 2),
+                      pw.Text(d.consigneeName, style: _ts(size: 8.5, weight: pw.FontWeight.bold)),
+                      pw.Text(d.consigneeAddress, style: _ts(size: 7.5)),
+                    ],
+                  ),
+                ),
+                pw.Spacer(),
+                pw.Container(
+                  decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: _black, width: 1))),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(child: pw.Text(d.mobile, style: _ts(size: 8.5, weight: pw.FontWeight.bold))),
+                      pw.Text('MOBILE', style: _ts(size: 8, weight: pw.FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        pw.Expanded(
+          child: pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 4),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('SHIPPING NAME & ADDRESS OF CONSIGNEE', style: _ts(size: 7.2, weight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 2),
+                pw.Text(shipName, style: _ts(size: 8.5, weight: pw.FontWeight.bold)),
+                if (shipAddr.isNotEmpty) pw.Text(shipAddr, style: _ts(size: 7.5)),
+              ],
+            ),
           ),
         ),
       ],
@@ -515,12 +708,17 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
                 pw.Container(
                   decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: _black, width: 1))),
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: pw.Row(
-                    children: [
-                      pw.Expanded(child: pw.Text('GSTIN: ${d.gstin}', style: _ts(size: 8, weight: pw.FontWeight.bold))),
-                      pw.Text('MOBILE: ${d.mobile.isEmpty ? '' : d.mobile}', style: _ts(size: 8)),
-                    ],
-                  ),
+                  child: d.kind == UltraBillKind.quotation
+                      ? pw.Text('GSTIN: ${d.gstin}', style: _ts(size: 8, weight: pw.FontWeight.bold))
+                      : pw.Row(
+                          children: [
+                            pw.Expanded(child: pw.Text('GSTIN: ${d.gstin}', style: _ts(size: 8, weight: pw.FontWeight.bold))),
+                            pw.Text(
+                              d.mobile.isEmpty ? 'MOBILE:' : 'MOBILE: ${d.mobile}',
+                              style: _ts(size: 8),
+                            ),
+                          ],
+                        ),
                 ),
               ],
             ),
@@ -617,17 +815,21 @@ pw.Widget _itemsTable(InvoiceData d, {required int fillerRows}) {
     );
   }
 
-  final priceHeader = d.kind == UltraBillKind.deliveryChallan || d.kind == UltraBillKind.creditNote || d.kind == UltraBillKind.debitNote
-      ? 'PRICE/QTY'
-      : 'PRICE';
+  final priceHeader = d.kind == UltraBillKind.taxInvoice
+      ? 'PRICE/UNIT'
+      : d.kind == UltraBillKind.deliveryChallan || d.kind == UltraBillKind.creditNote || d.kind == UltraBillKind.debitNote
+          ? 'PRICE/QTY'
+          : 'PRICE';
+  final hsnHeader = d.kind == UltraBillKind.taxInvoice ? 'HSN/SAC' : 'HSN CODE';
+  final slHeader = d.kind == UltraBillKind.taxInvoice ? 'SL.NO' : 'SL';
   final withRemarks = d.kind == UltraBillKind.deliveryChallan;
   final colCount = withRemarks ? 7 : 6;
 
   pw.TableRow headerRow() => pw.TableRow(
         children: [
-          cell('SL', align: pw.TextAlign.center),
+          cell(slHeader, align: pw.TextAlign.center),
           cell('DESCRIPTION'),
-          cell('HSN CODE', align: pw.TextAlign.center),
+          cell(hsnHeader, align: pw.TextAlign.center),
           cell('QTY', align: pw.TextAlign.center),
           cell(priceHeader, align: pw.TextAlign.right),
           cell('AMOUNT', align: pw.TextAlign.right),
@@ -681,15 +883,94 @@ pw.Widget _itemsTable(InvoiceData d, {required int fillerRows}) {
   );
 }
 
-pw.TableRow _totalsRow(String label, String value, {bool bold = false}) => pw.TableRow(
-  children: [
-    pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: pw.Text(label, style: _ts(size: 8.5, weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
-    pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      child: pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(value, style: _ts(size: 8.5, weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
-    ),
-  ],
+pw.TableRow _totalsRow(String label, String value, {String? value2, bool bold = false}) => pw.TableRow(
+  children: value2 == null
+      ? [
+          pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: pw.Text(label, style: _ts(size: 8.5, weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(value, style: _ts(size: 8.5, weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
+          ),
+        ]
+      : [
+          pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3), child: pw.Text(label, style: _ts(size: 8, weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
+          pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3), child: pw.Text(value, style: _ts(size: 8))),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+            child: pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text(value2, style: _ts(size: 8.5, weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
+          ),
+        ],
 );
+
+pw.Widget _taxTotalsAndBank(InvoiceData d) {
+  final totalRows = [
+    _totalsRow('Total', ':', value2: _money(d.subtotal)),
+    _totalsRow('SGST', ': ${d.sgstPercent.toStringAsFixed(2)} %', value2: _money(d.sgstAmt)),
+    _totalsRow('CGST', ': ${d.cgstPercent.toStringAsFixed(2)} %', value2: _money(d.cgstAmt)),
+    _totalsRow('IGST', ': ${d.igstPercent.toStringAsFixed(2)} %', value2: _money(d.igstAmt)),
+    _totalsRow('P & F', ':', value2: _money(d.pAndF)),
+    _totalsRow('Round Off', ':', value2: _money(d.roundOff)),
+    _totalsRow('G.Total', ':', value2: _money(d.grandTotal), bold: true),
+  ];
+
+  return pw.Container(
+    decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Expanded(
+          flex: 3,
+          child: pw.Container(
+            decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(color: _black, width: 1))),
+            padding: const pw.EdgeInsets.all(6),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('GSTIN:${d.gstin}', style: _ts(size: 8, weight: pw.FontWeight.bold)),
+                if (d.serviceTaxNo.isNotEmpty)
+                  pw.Text('SERVICE TAX NO: ${d.serviceTaxNo}', style: _ts(size: 8, weight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 4),
+                pw.Text('RUPEES IN WORDS:', style: _ts(size: 8, weight: pw.FontWeight.bold)),
+                pw.Text(d.amountInWords, style: _ts(size: 8.5, weight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 8),
+                pw.Table(
+                  border: pw.TableBorder.all(color: _black, width: 1),
+                  columnWidths: const {0: pw.FlexColumnWidth(1.1), 1: pw.FlexColumnWidth(2)},
+                  children: [
+                    pw.TableRow(children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('BANK NAME :', style: _ts(size: 7.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text(d.bankName, style: _ts(size: 7.5, weight: pw.FontWeight.bold))),
+                    ]),
+                    pw.TableRow(children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('ACCOUNT NO', style: _ts(size: 7.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text(d.accountNo, style: _ts(size: 7.5))),
+                    ]),
+                    pw.TableRow(children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('IFS CODE :', style: _ts(size: 7.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text(d.ifscCode, style: _ts(size: 7.5))),
+                    ]),
+                    pw.TableRow(children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('BRANCH :', style: _ts(size: 7.5))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text(d.bankAddress, style: _ts(size: 7.5, weight: pw.FontWeight.bold))),
+                    ]),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        pw.Expanded(
+          flex: 2,
+          child: pw.Table(
+            border: pw.TableBorder.all(color: _black, width: 1),
+            columnWidths: const {0: pw.FlexColumnWidth(1.4), 1: pw.FlexColumnWidth(0.5), 2: pw.FlexColumnWidth(1.2)},
+            children: totalRows,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
 pw.Widget _totalsAndBank(InvoiceData d) {
   List<pw.TableRow> totalRows;
@@ -704,8 +985,9 @@ pw.Widget _totalsAndBank(InvoiceData d) {
     case UltraTotalsMode.noteTaxSummary:
       totalRows = [
         _totalsRow('Subtotal', _money(d.subtotal)),
-        _totalsRow('CGST', _money(d.cgstAmt)),
-        _totalsRow('SGST', _money(d.sgstAmt)),
+        if (d.cgstAmt > 0) _totalsRow('CGST', _money(d.cgstAmt)),
+        if (d.sgstAmt > 0) _totalsRow('SGST', _money(d.sgstAmt)),
+        if (d.igstAmt > 0) _totalsRow('IGST', _money(d.igstAmt)),
         _totalsRow('Round Off', _money(d.roundOff)),
         _totalsRow(d.totalGrandLabel, _money(d.grandTotal), bold: true),
       ];
@@ -717,6 +999,7 @@ pw.Widget _totalsAndBank(InvoiceData d) {
         _totalsRow('SGST : ${d.sgstPercent.toStringAsFixed(2)} %', _money(d.sgstAmt)),
         _totalsRow('IGST : ${d.igstPercent.toStringAsFixed(2)} %', _money(d.igstAmt)),
         _totalsRow(d.forwardingLabel, _money(d.pAndF)),
+        _totalsRow('Round Off', _money(d.roundOff)),
         _totalsRow(d.totalGrandLabel, _money(d.grandTotal), bold: true),
       ];
   }
@@ -736,9 +1019,11 @@ pw.Widget _totalsAndBank(InvoiceData d) {
               children: [
                 pw.Text('VALUE IN WORDS:', style: _ts(size: 8, weight: pw.FontWeight.bold)),
                 pw.Text(d.amountInWords, style: _ts(size: 9, weight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 10),
-                pw.Text('BANK: ${d.bankName} | A/C: ${d.accountNo}', style: _ts(size: 8)),
-                pw.Text('IFS CODE: ${d.ifscCode} | ADDRESS: ${d.bankAddress}', style: _ts(size: 8)),
+                if (d.showBankInTotals) ...[
+                  pw.SizedBox(height: 10),
+                  pw.Text('BANK: ${d.bankName} | A/C: ${d.accountNo}', style: _ts(size: 8)),
+                  pw.Text('IFS CODE: ${d.ifscCode} | ADDRESS: ${d.bankAddress}', style: _ts(size: 8)),
+                ],
               ],
             ),
           ),
@@ -757,13 +1042,7 @@ pw.Widget _totalsAndBank(InvoiceData d) {
 }
 
 pw.Widget _termsAndSignature(InvoiceData d) {
-  const defaultTerms = [
-    '1. Good once sold will not be taken back or exchange',
-    '2. Interest @24% will be charged if not paid within due period.',
-    '3. All Disputes Subject to Bangalore Jurisdiction Only.',
-    '4. All Payment Should Be Made By A/c Payee Cheque/D.D Only',
-    '5. Our Risk/Responsibility Ceases Once Goods Leave Our Premises',
-  ];
+  final defaultTerms = d.kind == UltraBillKind.taxInvoice ? _taxInvoiceDocumentTerms : _standardDocumentTerms;
   final terms = d.customTerms ?? defaultTerms;
   return pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.stretch,

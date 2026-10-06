@@ -783,12 +783,15 @@ class AppDatabase {
       SELECT si.*,
         COALESCE(c.customer_name, '-') AS customer_name,
         COALESCE(c.address, '') AS customer_address,
+        COALESCE(c.city, '') AS customer_city,
+        COALESCE(c.postal_pincode, '') AS customer_pincode,
         COALESCE(c.gstin, '') AS customer_gstin,
         COALESCE(c.primary_mobile, '') AS customer_mobile,
         COALESCE(c.bank_name, '') AS bank_name,
         COALESCE(c.bank_account_no, '') AS bank_account_no,
         COALESCE(c.ifsc_code, '') AS ifsc_code,
         COALESCE(c.branch_address, '') AS branch_address,
+        COALESCE(c.shipping_consignee_name, '') AS shipping_name,
         COALESCE(c.shipping_address, '') AS shipping_address
       FROM sales_invoices si
       LEFT JOIN customers c ON c.id = si.customer_id

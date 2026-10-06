@@ -75,7 +75,9 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
     bankAddress: ultraBankAddress(po, 'branch_address'),
     documentTitle: 'PURCHASE ORDER',
     partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
-    copyLabels: const ['ORIGINAL FOR SUPPLIER'],
+    copyLabels: const ['DUPLICATE PURCHASE ORDER REPRINT'],
+    totalGrandLabel: 'Total Value',
+    roundOff: (po['round_off'] as num?)?.toDouble() ?? 0,
   );
 }
 

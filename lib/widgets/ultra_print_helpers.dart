@@ -6,6 +6,13 @@ String ultraFmtDate(String? iso) {
   return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
 }
 
+/// ISO-style dates used on quotation / credit-note PDF meta blocks.
+String ultraFmtDateIso(String? iso) {
+  if (iso == null || iso.isEmpty) return '';
+  final d = DateTime.tryParse(iso);
+  return d == null ? iso : DateFormat('yyyy-MM-dd').format(d);
+}
+
 const ultraDefaultBankName = 'STATE BANK OF INDIA';
 const ultraDefaultBankAccount = '54009859972';
 const ultraDefaultBankIfsc = 'SBIN0040552';

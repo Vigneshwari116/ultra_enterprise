@@ -60,12 +60,12 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
     partySectionTitle: 'CUSTOMER / PARTY DETAILS',
     copyLabels: const ['DUPLICATE QUOTATION REPRINT'],
     invoiceNo: '${q['serial_no'] ?? q['ref_no'] ?? ''}',
-    date: ultraFmtDate(q['quotation_date'] as String?),
+    date: ultraFmtDateIso(q['quotation_date'] as String?),
     custPo: '${q['ref_no'] ?? ''}',
-    poDate: ultraFmtDate(q['reference_date'] as String?),
+    poDate: ultraFmtDateIso(q['reference_date'] as String?),
     dispatch: refName,
     ewbNo: '$validityDays DAYS',
-    consigneeName: '${q['party_name'] ?? ''} (${q['party_kind'] ?? ''})',
+    consigneeName: '${q['party_name'] ?? ''}',
     consigneeAddress: address,
     gstin: '${q['gstin'] ?? ''}',
     mobile: '',
@@ -82,5 +82,6 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
     leftSignatureLabel: 'Prepared By',
     forwardingLabel: 'Forwarding',
     totalGrandLabel: 'Total Cost',
+    showBankInTotals: false,
   );
 }
