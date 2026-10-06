@@ -190,6 +190,7 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
     accountNo: ultraBankAccount(inv, 'bank_account_no'),
     ifscCode: ultraBankIfsc(inv, 'ifsc_code'),
     bankAddress: ultraBankAddress(inv, 'branch_address'),
+    leftSignatureLabel: 'Receiver signature & Seal',
   );
 }
 

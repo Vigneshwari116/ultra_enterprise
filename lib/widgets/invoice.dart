@@ -83,6 +83,8 @@ class InvoiceData {
   final double? sgstAmountOverride;
   final double? igstAmountOverride;
   final double? grandTotalOverride;
+  /// When false, totals block shows amount in words only (quotation layout).
+  final bool showBankInTotals;
 
   const InvoiceData({
     required this.invoiceNo,
@@ -115,7 +117,7 @@ class InvoiceData {
     this.copyLabels = ultraInvoiceCopyLabels,
     this.kind = UltraBillKind.taxInvoice,
     this.customTerms,
-    this.leftSignatureLabel = 'Receiver signature & Seal',
+    this.leftSignatureLabel = 'Receiver signature',
     this.preambleLines = const [],
     this.origInvNo = '',
     this.origInvDate = '',
@@ -127,6 +129,7 @@ class InvoiceData {
     this.sgstAmountOverride,
     this.igstAmountOverride,
     this.grandTotalOverride,
+    this.showBankInTotals = true,
   });
 
   UltraTotalsMode get totalsMode {
@@ -136,6 +139,7 @@ class InvoiceData {
         return UltraTotalsMode.forwardingSummary;
       case UltraBillKind.creditNote:
       case UltraBillKind.debitNote:
+      case UltraBillKind.purchaseVoucher:
         return UltraTotalsMode.noteTaxSummary;
       default:
         return UltraTotalsMode.standardGst;
@@ -159,8 +163,30 @@ const List<String> ultraInvoiceCopyLabels = [
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
 final PdfColor _grey = PdfColor.fromInt(0xFF748094);
 
-const int _minItemRows = 8;
+const int _minItemRows = 4;
 const int _minTaxInvoiceItemRows = 4;
+
+int _minRowsForKind(InvoiceData d) {
+  if (d.kind == UltraBillKind.taxInvoice) return _minTaxInvoiceItemRows;
+  if (d.kind == UltraBillKind.quotation) return 3;
+  return _minItemRows;
+}
+
+const List<String> _standardDocumentTerms = [
+  '1. Goods once sold will not be taken back or exchanged.',
+  '2. Interest @24% will be charged if not paid within due period.',
+  '3. All Disputes Subject to Bangalore Jurisdiction Only.',
+  '4. All Payment Should Be Made By A/c Payee Cheque/D.D Only',
+  '5. Our Risk/Responsibility Ceases Once Goods Leave Our Premises.',
+];
+
+const List<String> _taxInvoiceDocumentTerms = [
+  '1.Good once sold will not be taken back or exchange',
+  '2.Interest @24%  will be charged if not paid with inthe due period.',
+  '3.All Disputes Subject to Bangalore Judrisdiction Only.',
+  '4.All Payment Should Be Made By A/c Payee Cheque/D.D Only',
+  '5.Our Risk/Reponsebility Ceases Once Goods Leave Our Premises',
+];
 
 pw.TextStyle _ts({double size = 8, pw.FontWeight weight = pw.FontWeight.normal}) =>
     pw.TextStyle(font: weight == pw.FontWeight.bold ? pw.Font.helveticaBold() : pw.Font.helvetica(), fontSize: size, color: _black);
@@ -251,7 +277,7 @@ Future<void> shareUltraInvoicePdf(InvoiceData data, {String? filename}) async {
 
 pw.Widget _invoicePage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
   final border = pw.BoxDecoration(border: pw.Border.all(color: _black, width: 1));
-  final minRows = d.kind == UltraBillKind.taxInvoice ? _minTaxInvoiceItemRows : _minItemRows;
+  final minRows = _minRowsForKind(d);
   final fillerRows = (minRows - d.items.length).clamp(0, 24);
   final pageBody = pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.stretch,
@@ -682,12 +708,17 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
                 pw.Container(
                   decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: _black, width: 1))),
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: pw.Row(
-                    children: [
-                      pw.Expanded(child: pw.Text('GSTIN: ${d.gstin}', style: _ts(size: 8, weight: pw.FontWeight.bold))),
-                      pw.Text('MOBILE: ${d.mobile.isEmpty ? '' : d.mobile}', style: _ts(size: 8)),
-                    ],
-                  ),
+                  child: d.kind == UltraBillKind.quotation
+                      ? pw.Text('GSTIN: ${d.gstin}', style: _ts(size: 8, weight: pw.FontWeight.bold))
+                      : pw.Row(
+                          children: [
+                            pw.Expanded(child: pw.Text('GSTIN: ${d.gstin}', style: _ts(size: 8, weight: pw.FontWeight.bold))),
+                            pw.Text(
+                              d.mobile.isEmpty ? 'MOBILE:' : 'MOBILE: ${d.mobile}',
+                              style: _ts(size: 8),
+                            ),
+                          ],
+                        ),
                 ),
               ],
             ),
@@ -954,8 +985,9 @@ pw.Widget _totalsAndBank(InvoiceData d) {
     case UltraTotalsMode.noteTaxSummary:
       totalRows = [
         _totalsRow('Subtotal', _money(d.subtotal)),
-        _totalsRow('CGST', _money(d.cgstAmt)),
-        _totalsRow('SGST', _money(d.sgstAmt)),
+        if (d.cgstAmt > 0) _totalsRow('CGST', _money(d.cgstAmt)),
+        if (d.sgstAmt > 0) _totalsRow('SGST', _money(d.sgstAmt)),
+        if (d.igstAmt > 0) _totalsRow('IGST', _money(d.igstAmt)),
         _totalsRow('Round Off', _money(d.roundOff)),
         _totalsRow(d.totalGrandLabel, _money(d.grandTotal), bold: true),
       ];
@@ -967,6 +999,7 @@ pw.Widget _totalsAndBank(InvoiceData d) {
         _totalsRow('SGST : ${d.sgstPercent.toStringAsFixed(2)} %', _money(d.sgstAmt)),
         _totalsRow('IGST : ${d.igstPercent.toStringAsFixed(2)} %', _money(d.igstAmt)),
         _totalsRow(d.forwardingLabel, _money(d.pAndF)),
+        _totalsRow('Round Off', _money(d.roundOff)),
         _totalsRow(d.totalGrandLabel, _money(d.grandTotal), bold: true),
       ];
   }
@@ -986,9 +1019,11 @@ pw.Widget _totalsAndBank(InvoiceData d) {
               children: [
                 pw.Text('VALUE IN WORDS:', style: _ts(size: 8, weight: pw.FontWeight.bold)),
                 pw.Text(d.amountInWords, style: _ts(size: 9, weight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 10),
-                pw.Text('BANK: ${d.bankName} | A/C: ${d.accountNo}', style: _ts(size: 8)),
-                pw.Text('IFS CODE: ${d.ifscCode} | ADDRESS: ${d.bankAddress}', style: _ts(size: 8)),
+                if (d.showBankInTotals) ...[
+                  pw.SizedBox(height: 10),
+                  pw.Text('BANK: ${d.bankName} | A/C: ${d.accountNo}', style: _ts(size: 8)),
+                  pw.Text('IFS CODE: ${d.ifscCode} | ADDRESS: ${d.bankAddress}', style: _ts(size: 8)),
+                ],
               ],
             ),
           ),
@@ -1007,13 +1042,7 @@ pw.Widget _totalsAndBank(InvoiceData d) {
 }
 
 pw.Widget _termsAndSignature(InvoiceData d) {
-  const defaultTerms = [
-    '1.Good once sold will not be taken back or exchange',
-    '2.Interest @24%  will be charged if not paid with inthe due period.',
-    '3.All Disputes Subject to Bangalore Judrisdiction Only.',
-    '4.All Payment Should Be Made By A/c Payee Cheque/D.D Only',
-    '5.Our Risk/Reponsebility Ceases Once Goods Leave Our Premises',
-  ];
+  final defaultTerms = d.kind == UltraBillKind.taxInvoice ? _taxInvoiceDocumentTerms : _standardDocumentTerms;
   final terms = d.customTerms ?? defaultTerms;
   return pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.stretch,

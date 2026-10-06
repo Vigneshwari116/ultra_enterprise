@@ -47,7 +47,7 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
     kind: UltraBillKind.purchaseVoucher,
     documentTitle: 'PURCHASE VOUCHER',
     partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
-    copyLabels: const ['ORIGINAL FOR SUPPLIER'],
+    copyLabels: const ['DUPLICATE PURCHASE VOUCHER COPY'],
     invoiceNo: _voucherBillNo(v),
     date: ultraFmtDate(v['voucher_date'] as String?),
     custPo: '${v['supplier_invoice_no'] ?? ''}',
@@ -73,6 +73,8 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
     accountNo: ultraBankAccount(v, 'bank_account_no'),
     ifscCode: ultraBankIfsc(v, 'ifsc_code'),
     bankAddress: ultraBankAddress(v, 'branch_address'),
+    totalGrandLabel: 'Total Value',
+    roundOff: (v['round_off'] as num?)?.toDouble() ?? 0,
   );
 }
 
