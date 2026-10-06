@@ -297,11 +297,16 @@ const Map<int, TableColumnWidth> enterpriseProductMatrixColumns = {
 };
 
 /// Delivery challan material matrix (non-proforma base columns).
-Map<int, TableColumnWidth> deliveryChallanMatrixColumns({required bool proforma, required bool includeRemarks}) {
+Map<int, TableColumnWidth> deliveryChallanMatrixColumns({
+  required bool proforma,
+  required bool includeRemarks,
+  bool showAvailableStock = false,
+}) {
   final flex = <double>[0.55, 2.65, 0.9, 1.0, 0.85, 0.95];
   if (proforma) {
     flex.addAll([0.75, 0.75, 0.75]);
   }
+  if (showAvailableStock) flex.add(0.75);
   flex.add(1.1);
   if (includeRemarks) flex.add(2.0);
   flex.add(0.55);

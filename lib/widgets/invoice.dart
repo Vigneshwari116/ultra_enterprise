@@ -413,12 +413,19 @@ pw.Widget _quotationPage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
 
 pw.Widget _deliveryChallanPage(
     InvoiceData d, String copyLabel, pw.MemoryImage logo) {
+  final showTax = d.documentTitle == 'PROFORMA INVOICE' ||
+      (d.cgstAmountOverride ?? 0) > 0 ||
+      (d.sgstAmountOverride ?? 0) > 0 ||
+      (d.igstAmountOverride ?? 0) > 0;
+  final totals = showTax
+      ? _noteTaxTotalsAndBank(d)
+      : _forwardingTotalsAndBank(d);
   return _documentShell([
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
     _deliveryChallanItemsTable(d, fillerRows: _fillerRowsFor(d)),
-    _forwardingTotalsAndBank(d),
+    totals,
     _termsAndSignature(d),
   ]);
 }

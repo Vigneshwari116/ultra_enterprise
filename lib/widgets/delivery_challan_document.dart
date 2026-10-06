@@ -1,11 +1,14 @@
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
+import 'transaction_line_math.dart';
 import 'ultra_print_helpers.dart';
 
 Future<void> reprintDeliveryChallan(int challanId) async {
   final data = await deliveryChallanInvoiceData(challanId);
-  if (data == null) return;
-  await printUltraInvoice(data);
+  if (data == null) {
+    throw Exception('Delivery challan not found (id: $challanId)');
+  }
+  await layoutPrintUltraInvoice(data);
 }
 
 Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
@@ -36,6 +39,22 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
       )
       .toList();
 
+  var cgstTotal = 0.0;
+  var sgstTotal = 0.0;
+  var igstTotal = 0.0;
+  for (final it in rawItems) {
+    final t = TransactionLineTotals.compute(
+      qty: coerceCatalogDouble(it['quantity']),
+      rate: coerceCatalogDouble(it['rate']),
+      cgstPct: coerceCatalogDouble(it['cgst_percent'], fallback: 9),
+      sgstPct: coerceCatalogDouble(it['sgst_percent'], fallback: 9),
+      igstPct: coerceCatalogDouble(it['igst_percent']),
+    );
+    cgstTotal += t.cgst;
+    sgstTotal += t.sgst;
+    igstTotal += t.igst;
+  }
+
   final address = [
     dc['billing_address'] ?? '',
     dc['city'] ?? '',
@@ -45,7 +64,9 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
   final subtotal = (dc['base_value'] as num?)?.toDouble() ??
       items.fold<double>(0, (s, i) => s + i.amount);
   final fwd = (dc['fwd_charge'] as num?)?.toDouble() ?? 0;
-  final grand = (dc['grand_total'] as num?)?.toDouble() ?? subtotal + fwd;
+  final grand = (dc['grand_total'] as num?)?.toDouble() ??
+      subtotal + cgstTotal + sgstTotal + igstTotal + fwd;
+  final validityDays = '${dc['validity_days'] ?? '0'}';
 
   return InvoiceData(
     kind: UltraBillKind.deliveryChallan,
@@ -59,13 +80,18 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
     dcNo: '${dc['account_ref'] ?? ''}',
     dcDate: ultraFmtDate(dc['po_ref_date'] as String?),
     dispatch: '${dc['vehicle_dispatch'] ?? ''}',
-    ewbNo: '${dc['eway_bill_no'] ?? ''}',
+    ewbNo: type == 'PROFORMA' && validityDays != '0'
+        ? 'VALIDITY: $validityDays DAYS'
+        : '${dc['eway_bill_no'] ?? ''}',
     consigneeName: '${dc['party_name'] ?? ''}',
     consigneeAddress: address,
     gstin: '${dc['gstin'] ?? ''}',
     mobile: 'NOT AVAILABLE',
     items: items,
     pAndF: fwd,
+    cgstAmountOverride: cgstTotal,
+    sgstAmountOverride: sgstTotal,
+    igstAmountOverride: igstTotal,
     grandTotalOverride: grand,
     amountInWords: formatUltraAmountInWords(grand),
     bankName: ultraDefaultBankName,

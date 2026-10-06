@@ -66,6 +66,7 @@ Future<Response> createDeliveryChallan(Request request, Connection conn) async {
   final items = asItemList(body.remove('items'));
   if (items.isEmpty) return jsonError('Delivery challan must contain at least one item');
 
+  try {
   return await conn.runTx((tx) async {
     final result = await tx.execute(
       Sql.named('''
@@ -111,6 +112,20 @@ Future<Response> createDeliveryChallan(Request request, Connection conn) async {
       },
     );
     final challanId = result.first.first as int;
+    final dcType = '${body['dc_type']}';
+    if (dcType == 'OUTWARD') {
+      for (final it in items) {
+        final productId = _asInt(it['product_id']);
+        final qty = _num(it['quantity']) ?? 0;
+        if (productId == null || qty <= 0) continue;
+        final available = await _stockOnHand(tx, productId);
+        if (qty > available) {
+          throw StateError(
+            'Insufficient stock for product $productId: available $available, requested $qty',
+          );
+        }
+      }
+    }
     for (final it in items) {
       await tx.execute(
         Sql.named('''
@@ -124,7 +139,52 @@ Future<Response> createDeliveryChallan(Request request, Connection conn) async {
         '''),
         parameters: {...it, 'challan_id': challanId},
       );
+      final productId = _asInt(it['product_id']);
+      final qty = _num(it['quantity']) ?? 0;
+      if (productId == null || qty <= 0) continue;
+      if (dcType == 'INWARD') {
+        await _adjustStock(tx, productId, qty);
+      } else if (dcType == 'OUTWARD') {
+        await _adjustStock(tx, productId, -qty);
+      }
     }
     return jsonOk({'id': challanId, 'challan': {'id': challanId}}, status: 201);
   });
+  } on StateError catch (e) {
+    return jsonError(e.message, status: 400);
+  }
+}
+
+Future<num> _stockOnHand(Session session, int productId) async {
+  final rows = await session.execute(
+    Sql.named('SELECT quantity FROM stock WHERE product_id = @id'),
+    parameters: {'id': productId},
+  );
+  if (rows.isEmpty) return 0;
+  return rows.first.toColumnMap()['quantity'] as num? ?? 0;
+}
+
+Future<void> _adjustStock(Session session, int productId, num delta) async {
+  await session.execute(
+    Sql.named('''
+      INSERT INTO stock (product_id, quantity)
+      VALUES (@product_id, @delta)
+      ON CONFLICT (product_id)
+      DO UPDATE SET quantity = stock.quantity + @delta, updated_at = NOW()
+    '''),
+    parameters: {'product_id': productId, 'delta': delta},
+  );
+}
+
+int? _asInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse('$value'.trim());
+}
+
+num? _num(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value;
+  return num.tryParse('$value'.trim());
 }
