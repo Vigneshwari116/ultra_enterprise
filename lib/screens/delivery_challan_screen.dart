@@ -120,8 +120,15 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     suppliers = await repo.suppliers();
     products = await repo.products();
     units = await repo.units();
+    _reconcilePartySelection();
     await refreshSerial();
     if (mounted) setState(() {});
+  }
+
+  void _reconcilePartySelection() {
+    if (partyKey == null) return;
+    final valid = _partyItems.any((item) => item.value == partyKey);
+    if (!valid) partyKey = null;
   }
 
   Future<void> refreshSerial() async {
@@ -194,19 +201,22 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
 
   List<DropdownMenuItem<String>> get _partyItems {
     final items = <DropdownMenuItem<String>>[];
-    if (kind == DcKind.inward) {
-      for (final s in suppliers) {
-        items.add(DropdownMenuItem(
-          value: 'SUPPLIER:${s['id']}',
-          child: Text('${s['supplier_name']}', style: const TextStyle(color: red, fontSize: 11)),
-        ));
-      }
-      return items;
+    for (final s in suppliers) {
+      final id = coerceCatalogId(s['id']);
+      if (id == null) continue;
+      items.add(DropdownMenuItem(
+        value: 'SUPPLIER:$id',
+        child: Text('[SUPPLIER] ${s['supplier_name']}',
+            style: const TextStyle(color: red, fontSize: 13.5, fontWeight: FontWeight.w600)),
+      ));
     }
     for (final c in customers) {
+      final id = coerceCatalogId(c['id']);
+      if (id == null) continue;
       items.add(DropdownMenuItem(
-        value: 'CUSTOMER:${c['id']}',
-        child: Text('${c['customer_name']}', style: const TextStyle(color: Color(0xFF1A5FB4), fontSize: 11)),
+        value: 'CUSTOMER:$id',
+        child: Text('[CUSTOMER] ${c['customer_name']}',
+            style: const TextStyle(color: Color(0xFF1A5FB4), fontSize: 13.5, fontWeight: FontWeight.w600)),
       ));
     }
     return items;
@@ -240,18 +250,10 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
 
   String? _validateBeforeSave() {
     if (partyKey == null) {
-      return kind == DcKind.inward
-          ? 'Please select a supplier before saving.'
-          : 'Please select a customer before saving.';
+      return 'Select trans-party profile (supplier / customer).';
     }
     final parts = partyKey!.split(':');
     if (parts.length != 2) return 'Invalid party selection.';
-    if (kind == DcKind.inward && parts[0] != 'SUPPLIER') {
-      return 'DC Inward requires a supplier.';
-    }
-    if (kind != DcKind.inward && parts[0] != 'CUSTOMER') {
-      return 'DC Outward and Proforma require a customer.';
-    }
     if (docDate.trim().isEmpty) return 'Document date is required.';
     final validRows = rows.where((r) => r.productId != null).toList();
     if (validRows.isEmpty) return 'Add at least one product line.';
@@ -658,7 +660,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                         enterpriseInsetDropdown<String>(
                           label: 'SELECT TRANS-PARTY PROFILE (SUPPLIER / CUSTOMER) *',
                           value: partyKey,
-                          hint: const Text('Choose supplier or customer', style: TextStyle(fontSize: 11)),
+                          hint: const Text('Choose supplier or customer', style: TextStyle(fontSize: 13.5)),
                           items: _partyItems,
                           onChanged: (v) => setState(() => _fillParty(v!)),
                         ),
@@ -674,7 +676,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                   },
                 ),
                 const SizedBox(height: 18),
-                const Text('SECTION 3: MATERIAL MATRIX GRID ENTRY', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy)),
+                const Text('SECTION 3: MATERIAL MATRIX GRID ENTRY', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy)),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
@@ -689,14 +691,6 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                     label: const Text('+ ADD NEW MATERIAL ROW', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
                   ),
                 ),
-                if (kind == DcKind.outward)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'Available stock is shown per product. Outward quantity cannot exceed stock on hand.',
-                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF748094), fontWeight: FontWeight.w600),
-                    ),
-                  ),
                 const SizedBox(height: 14),
                 enterpriseValueWordsFooter(
                   valueInWords: _words(grandTotal),
@@ -741,7 +735,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
         side: BorderSide(color: active ? accent : Colors.white24),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+      child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
     );
   }
 
@@ -751,25 +745,23 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
       columnWidths: deliveryChallanMatrixColumns(
         proforma: proforma,
         includeRemarks: !proforma,
-        showAvailableStock: kind == DcKind.outward,
       ),
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(
           decoration: const BoxDecoration(color: navy2),
           children: [
-            _h('SL'),
-            _h('MATERIAL DESCRIPTION'),
-            _h('UOM'),
-            _h('HSN'),
-            _h('QTY'),
-            _h('RATE/VAL'),
-            if (proforma) _h('CGST%'),
-            if (proforma) _h('SGST%'),
-            if (proforma) _h('IGST%'),
-            if (kind == DcKind.outward) _h('AVAIL'),
-            _h('LINE TOTAL'),
-            if (!proforma) _h('REMARKS / DELIVERY PURPOSE'),
+            enterpriseMatrixHeadCell('SL'),
+            enterpriseMatrixHeadCell('MATERIAL DESCRIPTION'),
+            enterpriseMatrixHeadCell('UOM'),
+            enterpriseMatrixHeadCell('HSN'),
+            enterpriseMatrixHeadCell('QTY'),
+            enterpriseMatrixHeadCell('RATE/VAL'),
+            if (proforma) enterpriseMatrixHeadCell('CGST%'),
+            if (proforma) enterpriseMatrixHeadCell('SGST%'),
+            if (proforma) enterpriseMatrixHeadCell('IGST%'),
+            enterpriseMatrixHeadCell(proforma ? 'EXTENDED VAL' : 'LINE TOTAL'),
+            if (!proforma) enterpriseMatrixHeadCell('REMARKS / DELIVERY PURPOSE'),
             const SizedBox.shrink(),
           ],
         ),
@@ -777,43 +769,44 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
           final r = rows[i];
           final lineTotal = _lineTotals(r).total;
           return TableRow(
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: border.withValues(alpha: 0.6)))),
             children: [
-              Text('${i + 1}', style: const TextStyle(fontSize: 9)),
+              enterpriseMatrixBoxedText('${i + 1}'),
               _prodDrop(i),
               _uomDrop(i),
-              Text(r.hsn, style: const TextStyle(fontSize: 9)),
+              enterpriseMatrixBoxedText(r.hsn.isEmpty ? '-' : r.hsn),
               _num(context, i, r.qtyController, (v) => r.qty = v),
               _num(context, i, r.rateController, (v) => r.rate = v),
               if (proforma) _num(context, i, r.cgstController, (v) => r.cgstPct = v),
               if (proforma) _num(context, i, r.sgstController, (v) => r.sgstPct = v),
               if (proforma) _num(context, i, r.igstController, (v) => r.igstPct = v),
-              if (kind == DcKind.outward)
-                Text(
-                  r.productId == null ? '-' : _availableStock(r.productId).toStringAsFixed(0),
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: r.productId != null && r.qty > _availableStock(r.productId) ? red : null,
-                  ),
-                ),
-              Text(lineTotal.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+              enterpriseMatrixBoxedText(
+                lineTotal.toStringAsFixed(2),
+                alignRight: true,
+                fontWeight: FontWeight.w800,
+              ),
               if (!proforma)
                 Padding(
-                  padding: const EdgeInsets.all(2),
+                  padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                   child: enterpriseMatrixTextField(
                     context: context,
                     controller: r.remarksController,
                     onChanged: (v) => r.remarks = v,
                   ),
                 ),
-              IconButton(
-                onPressed: rows.length == 1
-                    ? null
-                    : () => setState(() {
-                          rows[i].dispose();
-                          rows.removeAt(i);
-                        }),
-                icon: const Icon(Icons.delete_outline, color: red, size: 17),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+                child: IconButton(
+                  onPressed: rows.length == 1
+                      ? null
+                      : () => setState(() {
+                            rows[i].dispose();
+                            rows.removeAt(i);
+                          }),
+                  icon: const Icon(Icons.delete_outline, color: red, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                ),
               ),
             ],
           );
@@ -822,31 +815,59 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     );
   }
 
-  Widget _prodDrop(int i) => DropdownButton<int>(
-        isExpanded: true,
-        isDense: true,
-        hint: const Text('Item Description', style: TextStyle(fontSize: 9)),
-        value: rows[i].productId,
-        items: products.map((p) => DropdownMenuItem(value: p['id'] as int, child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9)))).toList(),
-        onChanged: (v) {
-          final p = products.firstWhere((x) => coerceCatalogId(x['id']) == v);
-          setState(() => rows[i].setProduct(p, kind: kind));
-        },
+  Widget _prodDrop(int i) => enterpriseMatrixDropdownShell(
+        child: DropdownButton<int>(
+          isExpanded: true,
+          isDense: true,
+          underline: const SizedBox.shrink(),
+          hint: const Text('Item Description',
+              style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
+          value: catalogIdInList(rows[i].productId, products),
+          items: products
+              .map((p) {
+                final id = coerceCatalogId(p['id']);
+                if (id == null) return null;
+                return DropdownMenuItem<int>(
+                  value: id,
+                  child: Text('${p['product_name']}',
+                      style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
+                );
+              })
+              .whereType<DropdownMenuItem<int>>()
+              .toList(),
+          onChanged: (v) {
+            final p = products.firstWhere((x) => coerceCatalogId(x['id']) == v);
+            setState(() => rows[i].setProduct(p, kind: kind));
+          },
+        ),
       );
 
-  Widget _uomDrop(int i) => DropdownButton<int>(
-        isExpanded: true,
-        isDense: true,
-        value: rows[i].unitId,
-        hint: const Text('UOM', style: TextStyle(fontSize: 9)),
-        items: units.map((u) => DropdownMenuItem(value: u['id'] as int, child: Text('${u['code']}', style: const TextStyle(fontSize: 9)))).toList(),
-        onChanged: (v) {
-          final u = units.firstWhere((x) => x['id'] == v);
-          setState(() {
-            rows[i].unitId = v;
-            rows[i].uom = '${u['code']}';
-          });
-        },
+  Widget _uomDrop(int i) => enterpriseMatrixDropdownShell(
+        child: DropdownButton<int>(
+          isExpanded: true,
+          isDense: true,
+          underline: const SizedBox.shrink(),
+          value: catalogIdInList(rows[i].unitId, units),
+          hint: const Text('UOM', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
+          items: units
+              .map((u) {
+                final id = coerceCatalogId(u['id']);
+                if (id == null) return null;
+                return DropdownMenuItem<int>(
+                  value: id,
+                  child: Text('${u['code']}', style: enterpriseMatrixCellStyle),
+                );
+              })
+              .whereType<DropdownMenuItem<int>>()
+              .toList(),
+          onChanged: (v) {
+            final u = units.firstWhere((x) => coerceCatalogId(x['id']) == v);
+            setState(() {
+              rows[i].unitId = v;
+              rows[i].uom = '${u['code']}';
+            });
+          },
+        ),
       );
 
   Widget _num(
@@ -865,20 +886,18 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
         ),
       );
 
-  Widget _h(String t) => Padding(padding: const EdgeInsets.all(6), child: Text(t, style: const TextStyle(color: Colors.white, fontSize: 7.5, fontWeight: FontWeight.w800)));
-
   Widget _mini(String l, String v) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l, style: const TextStyle(color: Colors.white54, fontSize: 8)),
-          Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11)),
+          Text(l, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+          Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
         ],
       );
 
   Widget _section(String title, List<Widget> children) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: navy)),
+          Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy)),
           const Divider(),
           ...children,
         ],

@@ -4,14 +4,14 @@ import 'package:intl/intl.dart';
 import 'enterprise_widgets.dart';
 
 const enterpriseInsetLabelStyle = TextStyle(
-  fontSize: 9,
+  fontSize: 11,
   fontWeight: FontWeight.w700,
   color: Color(0xFF748094),
   letterSpacing: 0.2,
 );
 
 const enterpriseInsetValueStyle = TextStyle(
-  fontSize: 11.5,
+  fontSize: 13.5,
   fontWeight: FontWeight.w600,
   color: navy,
 );
@@ -56,7 +56,7 @@ Widget enterpriseInsetFieldShell({
   required Widget child,
   bool filled = false,
   Color? borderColor,
-  EdgeInsets padding = const EdgeInsets.fromLTRB(8, 5, 8, 5),
+  EdgeInsets padding = const EdgeInsets.fromLTRB(10, 8, 10, 8),
 }) {
   return Container(
     decoration: enterpriseInsetBoxDecoration(filled: filled, borderColor: borderColor),
@@ -187,6 +187,7 @@ Widget enterpriseInsetDropdown<T>({
           hint: hint,
           items: items,
           onChanged: onChanged,
+          style: enterpriseInsetValueStyle,
         ),
       ),
     ),
@@ -194,7 +195,7 @@ Widget enterpriseInsetDropdown<T>({
 }
 
 /// Horizontally scrollable line-item matrix; stretches to full row width on wide layouts.
-Widget enterpriseMatrixScroller({required Table table, double minWidth = 640}) {
+Widget enterpriseMatrixScroller({required Table table, double minWidth = 960}) {
   return LayoutBuilder(
     builder: (context, constraints) {
       var width = constraints.maxWidth;
@@ -232,7 +233,7 @@ Widget enterpriseValueWordsFooter({
     ),
     child: Text(
       '$wordsLabel: $valueInWords',
-      style: TextStyle(color: wordsColor, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3),
+      style: TextStyle(color: wordsColor, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.3),
     ),
   );
 
@@ -259,7 +260,7 @@ Widget enterpriseValueWordsFooter({
             children: [
               Text(
                 chargeLabel,
-                style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700),
+                style: const TextStyle(color: Colors.white54, fontSize: 10.5, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 4),
               TextField(
@@ -300,13 +301,11 @@ const Map<int, TableColumnWidth> enterpriseProductMatrixColumns = {
 Map<int, TableColumnWidth> deliveryChallanMatrixColumns({
   required bool proforma,
   required bool includeRemarks,
-  bool showAvailableStock = false,
 }) {
   final flex = <double>[0.55, 2.65, 0.9, 1.0, 0.85, 0.95];
   if (proforma) {
     flex.addAll([0.75, 0.75, 0.75]);
   }
-  if (showAvailableStock) flex.add(0.75);
   flex.add(1.1);
   if (includeRemarks) flex.add(2.0);
   flex.add(0.55);
@@ -341,22 +340,78 @@ const Map<int, TableColumnWidth> adjustmentNoteMatrixColumns = {
 const TextStyle enterpriseMatrixHeadStyle = TextStyle(
   color: Colors.white,
   fontWeight: FontWeight.w800,
-  fontSize: 7.5,
-  height: 1.15,
+  fontSize: 9,
+  height: 1.2,
 );
 
 const TextStyle enterpriseMatrixCellStyle = TextStyle(
-  fontSize: 9.5,
+  fontSize: 12,
   fontWeight: FontWeight.w600,
   color: navy,
 );
 
 final InputDecoration enterpriseMatrixInputDecoration = InputDecoration(
   isDense: true,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+  contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
   border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
 );
+
+/// Bordered shell for matrix dropdowns (product, UOM).
+Widget enterpriseMatrixDropdownShell({required Widget child}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+    child: Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(3),
+        color: Colors.white,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: child,
+    ),
+  );
+}
+
+/// Bordered read-only matrix cell (SL, HSN, totals).
+Widget enterpriseMatrixBoxedCell({
+  required Widget child,
+  EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+  bool alignRight = false,
+}) {
+  return Padding(
+    padding: padding,
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(3),
+        color: Colors.white,
+      ),
+      alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
+      child: child,
+    ),
+  );
+}
+
+Widget enterpriseMatrixBoxedText(
+  String text, {
+  TextStyle? style,
+  bool alignRight = false,
+  FontWeight? fontWeight,
+}) {
+  return enterpriseMatrixBoxedCell(
+    alignRight: alignRight,
+    child: Text(
+      text,
+      style: (style ?? enterpriseMatrixCellStyle).copyWith(fontWeight: fontWeight),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    ),
+  );
+}
 
 Widget enterpriseMatrixTextField({
   required BuildContext context,
