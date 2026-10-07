@@ -674,26 +674,84 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
 
   Widget _invoiceRow(Map<String, dynamic> r) {
     final total = _asDouble(r['grand_total']);
+    final narrow = AppBreakpoints.isNarrow(context);
+    final reprintBtn = OutlinedButton.icon(
+      onPressed: () => reprintSalesInvoice(r['id'] as int),
+      icon: const Icon(Icons.print, size: 12),
+      label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
+      style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8)),
+    );
     return Container(
-      height: 58,
       margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _border)),
-      child: Row(children: [
-        Container(width: 3, height: 38, color: _navy),
-        const SizedBox(width: 10),
-        Expanded(flex: 4, child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text('${r['customer_name']}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _navy)), const SizedBox(height: 4), Row(children: [Text('SERIAL NO: ${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 8.5, color: _teal, fontWeight: FontWeight.w700)), const SizedBox(width: 8), Text('•  RECORDING DATE: ${_date(r['transaction_date'])}', style: const TextStyle(fontSize: 8, color: Color(0xFF748094)))] )])),
-        Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [const Text('DEBIT VAL (REV)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))), Text('₹${total.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Color(0xFF2B65B0), fontWeight: FontWeight.w800))])),
-        const SizedBox(width: 18),
-        Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [const Text('CREDIT VAL (REC)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))), const Text('₹0', style: TextStyle(fontSize: 12, color: Color(0xFFB93636), fontWeight: FontWeight.w800))])),
-        const SizedBox(width: 12),
-        OutlinedButton.icon(
-          onPressed: () => reprintSalesInvoice(r['id'] as int),
-          icon: const Icon(Icons.print, size: 12),
-          label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
-          style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8)),
-        ),
-      ]),
+      child: narrow
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${r['customer_name']}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _navy)),
+                const SizedBox(height: 4),
+                Text(
+                  'SERIAL NO: ${r['invoice_no'] ?? '-'}  •  RECORDING DATE: ${_date(r['transaction_date'])}',
+                  style: const TextStyle(fontSize: 8, color: Color(0xFF748094)),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('DEBIT ₹${total.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Color(0xFF2B65B0), fontWeight: FontWeight.w800)),
+                    Text('CREDIT ₹0', style: const TextStyle(fontSize: 12, color: Color(0xFFB93636), fontWeight: FontWeight.w800)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                reprintBtn,
+              ],
+            )
+          : Row(children: [
+              Container(width: 3, height: 38, color: _navy),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 4,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('${r['customer_name']}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _navy)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text('SERIAL NO: ${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 8.5, color: _teal, fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 8),
+                        Text('•  RECORDING DATE: ${_date(r['transaction_date'])}', style: const TextStyle(fontSize: 8, color: Color(0xFF748094))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('DEBIT VAL (REV)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))),
+                    Text('₹${total.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Color(0xFF2B65B0), fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('CREDIT VAL (REC)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))),
+                    const Text('₹0', style: TextStyle(fontSize: 12, color: Color(0xFFB93636), fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              reprintBtn,
+            ]),
     );
   }
 

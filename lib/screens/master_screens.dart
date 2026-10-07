@@ -21,20 +21,31 @@ class MasterPage extends StatefulWidget {
 class _MasterPageState extends State<MasterPage> {
   @override
   Widget build(BuildContext context) {
+    final narrow = AppBreakpoints.isNarrow(context);
+    final pad = AppBreakpoints.pagePadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(widget.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: navy)),
+        Text(widget.title, style: TextStyle(fontSize: narrow ? 18 : 22, fontWeight: FontWeight.w900, color: navy)),
         const SizedBox(height: 4),
         const Text('COMMERCIAL MASTER CONFIGURATION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
         const SizedBox(height: 18),
         SectionHeader(number: widget.section, title: widget.tableTitle),
         const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search, size: 18), hintText: 'Search records...'))),
-          const SizedBox(width: 10),
-          PrimaryButton(label: 'ADD NEW', onPressed: widget.onAdd ?? () {}),
-        ]),
+        narrow
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search, size: 18), hintText: 'Search records...')),
+                  const SizedBox(height: 10),
+                  PrimaryButton(label: 'ADD NEW', onPressed: widget.onAdd ?? () {}),
+                ],
+              )
+            : Row(children: [
+                Expanded(child: TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search, size: 18), hintText: 'Search records...'))),
+                const SizedBox(width: 10),
+                PrimaryButton(label: 'ADD NEW', onPressed: widget.onAdd ?? () {}),
+              ]),
         const SizedBox(height: 12),
         EnterpriseTable(columns: widget.columns, rows: widget.rows),
       ]),

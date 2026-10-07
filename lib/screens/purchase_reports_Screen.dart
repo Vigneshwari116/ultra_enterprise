@@ -482,6 +482,35 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         final displayNo = '${v['_display_no']}';
         final displayDate = '${v['_display_date'] ?? ''}';
 
+        final narrow = AppBreakpoints.isNarrow(context);
+        final amountCol = _amountColumn(
+          isPo ? 'ORDER VALUE' : 'PROCUREMENT VALUE (CR)',
+          '₹${total.toStringAsFixed(0)}',
+          isPo ? const Color(0xFF2E6FDD) : const Color(0xFFDD3B3B),
+        );
+        final details = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(party, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                _badge(type, isPo ? const Color(0xFF2E6FDD) : const Color(0xFF748094)),
+                _badge(status, status == 'POSTED' || status == 'RECEIVED' ? const Color(0xFF2E8B30) : const Color(0xFFB8860B)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${isPo ? 'PO NO' : 'VOUCHER NO'}: '
+              '${isPo ? (v['po_no'] ?? '-') : (v['voucher_no'] ?? '-')}'
+              '  •  REF: $displayNo'
+              '  •  DATE: ${_fmtDate(displayDate)}',
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFB8860B)),
+            ),
+          ],
+        );
         return Container(
           margin: const EdgeInsets.only(bottom: 1),
           padding: const EdgeInsets.symmetric(
@@ -493,62 +522,46 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
               bottom: BorderSide(color: border),
             ),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
+          child: narrow
+              ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            party,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _badge(
-                          type,
-                          isPo
-                              ? const Color(0xFF2E6FDD)
-                              : const Color(0xFF748094),
-                        ),
-                        const SizedBox(width: 6),
-                        _badge(
-                          status,
-                          status == 'POSTED' || status == 'RECEIVED'
-                              ? const Color(0xFF2E8B30)
-                              : const Color(0xFFB8860B),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${isPo ? 'PO NO' : 'VOUCHER NO'}: '
-                      '${isPo ? (v['po_no'] ?? '-') : (v['voucher_no'] ?? '-')}'
-                      '  •  REF: $displayNo'
-                      '  •  DATE: ${_fmtDate(displayDate)}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFFB8860B),
+                    details,
+                    const SizedBox(height: 8),
+                    amountCol,
+                    if (isPo) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final id = v['id'] as int?;
+                          if (id == null) return;
+                          await reprintPurchaseOrder(id);
+                        },
+                        icon: const Icon(Icons.print_outlined, size: 14),
+                        label: const Text('REPRINT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                        style: OutlinedButton.styleFrom(foregroundColor: navy, side: const BorderSide(color: border)),
                       ),
-                    ),
+                    ] else ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final id = v['id'] as int?;
+                          if (id == null) return;
+                          await printPurchaseVoucherReprint(v);
+                        },
+                        icon: const Icon(Icons.print_outlined, size: 14),
+                        label: const Text('REPRINT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                        style: OutlinedButton.styleFrom(foregroundColor: navy, side: const BorderSide(color: border)),
+                      ),
+                    ],
                   ],
-                ),
-              ),
+                )
+              : Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: details),
               if (!isPo) const SizedBox(width: 24),
-              _amountColumn(
-                isPo ? 'ORDER VALUE' : 'PROCUREMENT VALUE (CR)',
-                '₹${total.toStringAsFixed(0)}',
-                isPo ? const Color(0xFF2E6FDD) : const Color(0xFFDD3B3B),
-              ),
+              amountCol,
               const SizedBox(width: 16),
               if (isPo)
                 OutlinedButton.icon(
@@ -826,18 +839,21 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Table(
-          columnWidths: const {
-            0: FlexColumnWidth(1.3),
-            1: FlexColumnWidth(2.2),
-            2: FlexColumnWidth(2.8),
-            3: FlexColumnWidth(1.4),
-            4: FlexColumnWidth(1.3),
-            5: FlexColumnWidth(1.3),
-            6: FlexColumnWidth(1.3),
-            7: FlexColumnWidth(1.5),
-          },
-          children: rows,
+        responsiveHorizontalTable(
+          context,
+          Table(
+            columnWidths: const {
+              0: FlexColumnWidth(1.3),
+              1: FlexColumnWidth(2.2),
+              2: FlexColumnWidth(2.8),
+              3: FlexColumnWidth(1.4),
+              4: FlexColumnWidth(1.3),
+              5: FlexColumnWidth(1.3),
+              6: FlexColumnWidth(1.3),
+              7: FlexColumnWidth(1.5),
+            },
+            children: rows,
+          ),
         ),
 
         const SizedBox(height: 16),
@@ -863,29 +879,14 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _auditSummaryItem(
-                      'PURCHASE ORDER VALUE',
-                      poTotal,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _auditSummaryItem(
-                      'PURCHASE VOUCHER VALUE',
-                      voucherTotal,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _auditSummaryItem(
-                      'TOTAL RECORD VALUE',
-                      gTotal,
-                    ),
-                  ),
+              responsiveRowOrColumn(
+                context,
+                [
+                  _auditSummaryItem('PURCHASE ORDER VALUE', poTotal),
+                  _auditSummaryItem('PURCHASE VOUCHER VALUE', voucherTotal),
+                  _auditSummaryItem('TOTAL RECORD VALUE', gTotal),
                 ],
+                spacing: 12,
               ),
               const SizedBox(height: 12),
               const Divider(),

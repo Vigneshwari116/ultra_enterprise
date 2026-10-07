@@ -205,21 +205,28 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
   Widget _history() {
     final list = _filteredHistory;
+    final narrow = AppBreakpoints.isNarrow(context);
+    final pad = AppBreakpoints.pagePadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               IconButton(onPressed: () => setState(() => showHistory = false), icon: const Icon(Icons.arrow_back)),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('QUOTATION LOGS DIRECTORY', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
-                    Text('COMMERCIAL QUOTATIONS TRACK REVERSALS AUDIT TRAIL REPOSITORY',
-                        style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
+                  children: [
+                    Text(
+                      'QUOTATION LOGS DIRECTORY',
+                      style: TextStyle(fontSize: narrow ? 16 : 20, fontWeight: FontWeight.w900, color: navy),
+                    ),
+                    const Text(
+                      'COMMERCIAL QUOTATIONS TRACK REVERSALS AUDIT TRAIL REPOSITORY',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
               ),
@@ -238,17 +245,37 @@ class _QuotationScreenState extends State<QuotationScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Text('FILTER BY PARTY: $partyFilter', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
-              const Spacer(),
-              _filterBtn('ALL'),
-              const SizedBox(width: 6),
-              _filterBtn('SUPPLIERS'),
-              const SizedBox(width: 6),
-              _filterBtn('CUSTOMERS'),
-            ],
-          ),
+          narrow
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('FILTER BY PARTY: $partyFilter', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _filterBtn('ALL'),
+                          const SizedBox(width: 6),
+                          _filterBtn('SUPPLIERS'),
+                          const SizedBox(width: 6),
+                          _filterBtn('CUSTOMERS'),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Text('FILTER BY PARTY: $partyFilter', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
+                    const Spacer(),
+                    _filterBtn('ALL'),
+                    const SizedBox(width: 6),
+                    _filterBtn('SUPPLIERS'),
+                    const SizedBox(width: 6),
+                    _filterBtn('CUSTOMERS'),
+                  ],
+                ),
           const SizedBox(height: 16),
           ...list.map(_historyCard),
         ],
@@ -271,60 +298,109 @@ class _QuotationScreenState extends State<QuotationScreen> {
     final qty = (r['total_qty'] as num?)?.toDouble() ?? 0;
     final status = '${r['status'] ?? 'PENDING'}';
     final kind = '${r['party_kind']}';
+    final narrow = AppBreakpoints.isNarrow(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border), borderRadius: BorderRadius.circular(6)),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(width: 5, color: const Color(0xFFE67E22)),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
+              child: narrow
+                  ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text('${r['party_name']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                            const SizedBox(width: 6),
                             _badge(status, const Color(0xFFF4D53A)),
-                            const SizedBox(width: 4),
                             _badge(kind, kind == 'SUPPLIER' ? const Color(0xFFFFE4EC) : const Color(0xFFE3F2FD)),
                           ],
                         ),
-                        Text('SERIAL NO: ${r['serial_no']}  ·  REF NO: ${_refForRow(r)}  ·  QUOTATION DATE: ${r['quotation_date']}',
-                            style: const TextStyle(fontSize: 10, color: Color(0xFF748094))),
+                        const SizedBox(height: 6),
+                        Text(
+                          'SERIAL NO: ${r['serial_no']}  ·  REF NO: ${_refForRow(r)}  ·  QUOTATION DATE: ${r['quotation_date']}',
+                          style: const TextStyle(fontSize: 10, color: Color(0xFF748094)),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                        Text('${qty.toStringAsFixed(0)} PCS QUOTED', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
+                        const SizedBox(height: 8),
+                        DropdownButton<String>(
+                          isExpanded: true,
+                          value: ['PENDING', 'APPROVED', 'REJECTED'].contains(status) ? status : 'PENDING',
+                          items: const [
+                            DropdownMenuItem(value: 'PENDING', child: Text('PENDING')),
+                            DropdownMenuItem(value: 'APPROVED', child: Text('APPROVED')),
+                            DropdownMenuItem(value: 'REJECTED', child: Text('REJECTED')),
+                          ],
+                          onChanged: (v) async {
+                            if (v == null) return;
+                            await repo.updateQuotationStatus(id, v);
+                            historyRows = await repo.quotationsWithParty();
+                            setState(() {});
+                          },
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => reprintQuotation(id),
+                          icon: const Icon(Icons.print_outlined, size: 16),
+                          label: const Text('REPRINT QT'),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text('${r['party_name']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                                  const SizedBox(width: 6),
+                                  _badge(status, const Color(0xFFF4D53A)),
+                                  const SizedBox(width: 4),
+                                  _badge(kind, kind == 'SUPPLIER' ? const Color(0xFFFFE4EC) : const Color(0xFFE3F2FD)),
+                                ],
+                              ),
+                              Text(
+                                'SERIAL NO: ${r['serial_no']}  ·  REF NO: ${_refForRow(r)}  ·  QUOTATION DATE: ${r['quotation_date']}',
+                                style: const TextStyle(fontSize: 10, color: Color(0xFF748094)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                            Text('${qty.toStringAsFixed(0)} PCS QUOTED', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
+                          ],
+                        ),
+                        const SizedBox(width: 8),
+                        DropdownButton<String>(
+                          value: ['PENDING', 'APPROVED', 'REJECTED'].contains(status) ? status : 'PENDING',
+                          items: const [
+                            DropdownMenuItem(value: 'PENDING', child: Text('PENDING')),
+                            DropdownMenuItem(value: 'APPROVED', child: Text('APPROVED')),
+                            DropdownMenuItem(value: 'REJECTED', child: Text('REJECTED')),
+                          ],
+                          onChanged: (v) async {
+                            if (v == null) return;
+                            await repo.updateQuotationStatus(id, v);
+                            historyRows = await repo.quotationsWithParty();
+                            setState(() {});
+                          },
+                        ),
+                        OutlinedButton.icon(onPressed: () => reprintQuotation(id), icon: const Icon(Icons.print_outlined, size: 16), label: const Text('REPRINT QT')),
                       ],
                     ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-                      Text('${qty.toStringAsFixed(0)} PCS QUOTED', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  DropdownButton<String>(
-                    value: ['PENDING', 'APPROVED', 'REJECTED'].contains(status) ? status : 'PENDING',
-                    items: const [
-                      DropdownMenuItem(value: 'PENDING', child: Text('PENDING')),
-                      DropdownMenuItem(value: 'APPROVED', child: Text('APPROVED')),
-                      DropdownMenuItem(value: 'REJECTED', child: Text('REJECTED')),
-                    ],
-                    onChanged: (v) async {
-                      if (v == null) return;
-                      await repo.updateQuotationStatus(id, v);
-                      historyRows = await repo.quotationsWithParty();
-                      setState(() {});
-                    },
-                  ),
-                  OutlinedButton.icon(onPressed: () => reprintQuotation(id), icon: const Icon(Icons.print_outlined, size: 16), label: const Text('REPRINT QT')),
-                ],
-              ),
             ),
           ),
         ],
@@ -345,25 +421,19 @@ class _QuotationScreenState extends State<QuotationScreen> {
           Container(
             width: double.infinity,
             color: const Color(0xFF19232C),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('QUOTATION PLACEMENT ENGINE', style: TextStyle(color: teal, fontSize: 15, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 18,
-                        children: [
-                          _mini('TOTAL QTY', totalQty.toStringAsFixed(0)),
-                          _mini('NET TOTAL', netTotal.toStringAsFixed(2)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppBreakpoints.isNarrow(context) ? 12 : 16,
+              vertical: 12,
+            ),
+            child: enterpriseTerminalHeader(
+              title: 'QUOTATION PLACEMENT ENGINE',
+              stats: [
+                _mini('TOTAL QTY', totalQty.toStringAsFixed(0)),
+                _mini('NET TOTAL', netTotal.toStringAsFixed(2)),
+              ],
+              totalAmount: '₹ ${netTotal.toStringAsFixed(2)}',
+              totalLabel: 'ESTIMATED OFFER VALUE',
+              actions: [
                 OutlinedButton.icon(
                   onPressed: () async {
                     historyRows = await repo.quotationsWithParty();
@@ -372,14 +442,6 @@ class _QuotationScreenState extends State<QuotationScreen> {
                   icon: const Icon(Icons.list_alt, size: 16),
                   label: const Text('VIEW QUOTATION HISTORY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
                   style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white24)),
-                ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('₹ ${netTotal.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
-                    const Text('ESTIMATED OFFER VALUE', style: TextStyle(color: Colors.white54, fontSize: 8.5)),
-                  ],
                 ),
               ],
             ),
@@ -637,7 +699,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
   Widget _pair(Widget a, Widget b) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
-        child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]),
+        child: responsivePair(context, a, b),
       );
 
   Widget _field(String label, TextEditingController c, {int maxLines = 1, bool autofocus = false}) => Padding(

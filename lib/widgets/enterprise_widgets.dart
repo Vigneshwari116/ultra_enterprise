@@ -70,6 +70,19 @@ Widget responsiveRowOrColumn(
   );
 }
 
+/// Two fields side-by-side on wide screens, stacked on narrow.
+Widget responsivePair(BuildContext context, Widget a, Widget b, {double spacing = 12}) {
+  if (AppBreakpoints.isNarrow(context)) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [a, SizedBox(height: spacing), b],
+    );
+  }
+  return Row(
+    children: [Expanded(child: a), SizedBox(width: spacing), Expanded(child: b)],
+  );
+}
+
 /// Wraps wide tables so they scroll horizontally on narrow screens.
 Widget responsiveHorizontalTable(BuildContext context, Widget table, {double minWidth = 640}) {
   if (!AppBreakpoints.isNarrow(context)) return table;
