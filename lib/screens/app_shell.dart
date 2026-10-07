@@ -300,7 +300,7 @@ class _AppShellState extends State<AppShell> {
                       _headerDate(),
                       style: const TextStyle(
                         color: Color(0xFF748094),
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -312,7 +312,7 @@ class _AppShellState extends State<AppShell> {
                   'ULTRA ENGINEERING',
                   style: TextStyle(
                     color: navy,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -322,7 +322,7 @@ class _AppShellState extends State<AppShell> {
                 'SUPERUSER',
                 style: TextStyle(
                   color: teal,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -461,7 +461,7 @@ class _AppShellState extends State<AppShell> {
                 'Dashboard',
                 style: TextStyle(
                   color: selected ? tealDark : Colors.white70,
-                  fontSize: 10.5,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -497,7 +497,7 @@ class _AppShellState extends State<AppShell> {
                     group.title,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 10.5,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -540,7 +540,7 @@ class _AppShellState extends State<AppShell> {
                           leaf.label,
                           style: TextStyle(
                             color: highlight ? sidebarActiveBg : Colors.white60,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
                           ),
                         ),
