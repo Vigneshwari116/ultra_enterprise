@@ -173,27 +173,20 @@ List<String> ultraOriginalDuplicateLabels(
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
 final PdfColor _grey = PdfColor.fromInt(0xFF748094);
 
-const int _minItemRows = 8;
-const int _minTaxInvoiceItemRows = 10;
-const double _itemRowHeight = 24;
-const double _itemHeaderHeight = 26;
 const double _pageMarginH = 8;
 const double _pageMarginV = 6;
 
-int _minRowsForKind(InvoiceData d) {
-  if (d.kind == UltraBillKind.taxInvoice) return _minTaxInvoiceItemRows;
-  if (d.kind == UltraBillKind.quotation) return 6;
-  return _minItemRows;
-}
-
-int _computeFillerRows(double tableHeight, InvoiceData d) {
-  final itemCount = d.items.length;
-  final minFiller = (_minRowsForKind(d) - itemCount).clamp(0, 48);
-  final used = _itemHeaderHeight + (itemCount + minFiller) * _itemRowHeight;
-  final remaining = tableHeight - used;
-  final extra =
-      remaining > 0 ? (remaining / _itemRowHeight).floor().clamp(0, 48) : 0;
-  return minFiller + extra;
+class _ItemsGridColumn {
+  final String header;
+  final double? width;
+  final int flex;
+  final pw.TextAlign align;
+  const _ItemsGridColumn({
+    required this.header,
+    this.width,
+    this.flex = 1,
+    this.align = pw.TextAlign.left,
+  });
 }
 
 /// Shared terms & conditions footer used on all ULTRA document PDFs.
@@ -363,14 +356,12 @@ pw.Widget _documentShell(List<pw.Widget> children) {
 }
 
 /// Expands the line-items grid to consume remaining page height (matches paper form).
-pw.Widget _expandableItemsSection(
-    InvoiceData d, pw.Widget Function(int fillerRows) buildTable) {
+pw.Widget _expandableItemsSection(pw.Widget Function(double height) buildTable) {
   return pw.Expanded(
     child: pw.LayoutBuilder(
       builder: (context, constraints) {
-        final height = constraints?.maxHeight ?? PdfPageFormat.a4.height;
-        final fillerRows = _computeFillerRows(height, d);
-        return pw.SizedBox(height: height, child: buildTable(fillerRows));
+        final height = constraints?.maxHeight ?? PdfPageFormat.a4.height * 0.45;
+        return pw.SizedBox(height: height, child: buildTable(height));
       },
     ),
   );
@@ -402,8 +393,7 @@ pw.Widget _taxInvoicePage(
     _topBar(d.documentTitle, copyLabel),
     _taxCompanyHeaderWithMeta(d, logo),
     _taxConsigneeAndShipping(d),
-    _expandableItemsSection(
-        d, (f) => _taxInvoiceItemsTable(d, fillerRows: f)),
+    _expandableItemsSection((h) => _taxInvoiceItemsTable(d, height: h)),
     _taxInvoiceTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -415,8 +405,7 @@ pw.Widget _purchaseOrderPage(
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _expandableItemsSection(
-        d, (f) => _purchaseOrderItemsTable(d, fillerRows: f)),
+    _expandableItemsSection((h) => _purchaseOrderItemsTable(d, height: h)),
     _purchaseOrderTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -428,8 +417,7 @@ pw.Widget _purchaseVoucherPage(
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _expandableItemsSection(
-        d, (f) => _purchaseVoucherItemsTable(d, fillerRows: f)),
+    _expandableItemsSection((h) => _purchaseVoucherItemsTable(d, height: h)),
     _noteTaxTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -440,7 +428,7 @@ pw.Widget _quotationPage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _expandableItemsSection(d, (f) => _quotationItemsTable(d, fillerRows: f)),
+    _expandableItemsSection((h) => _quotationItemsTable(d, height: h)),
     _forwardingTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -459,8 +447,7 @@ pw.Widget _deliveryChallanPage(
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _expandableItemsSection(
-        d, (f) => _deliveryChallanItemsTable(d, fillerRows: f)),
+    _expandableItemsSection((h) => _deliveryChallanItemsTable(d, height: h)),
     totals,
     _termsAndSignature(d),
   ]);
@@ -472,8 +459,7 @@ pw.Widget _creditNotePage(
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _expandableItemsSection(
-        d, (f) => _adjustmentNoteItemsTable(d, fillerRows: f)),
+    _expandableItemsSection((h) => _adjustmentNoteItemsTable(d, height: h)),
     _noteTaxTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -484,8 +470,7 @@ pw.Widget _debitNotePage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _expandableItemsSection(
-        d, (f) => _adjustmentNoteItemsTable(d, fillerRows: f)),
+    _expandableItemsSection((h) => _adjustmentNoteItemsTable(d, height: h)),
     _noteTaxTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -1080,127 +1065,170 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
   );
 }
 
-/// Outer border + vertical column lines only (no row dividers in product body).
-const _itemsTableBorder = pw.TableBorder(
-  left: pw.BorderSide(color: _black, width: 1),
-  right: pw.BorderSide(color: _black, width: 1),
-  top: pw.BorderSide(color: _black, width: 1),
-  bottom: pw.BorderSide(color: _black, width: 1),
-  verticalInside: pw.BorderSide(color: _black, width: 1),
-);
+pw.CrossAxisAlignment _gridCrossAlign(pw.TextAlign align) {
+  switch (align) {
+    case pw.TextAlign.center:
+      return pw.CrossAxisAlignment.center;
+    case pw.TextAlign.right:
+      return pw.CrossAxisAlignment.end;
+    default:
+      return pw.CrossAxisAlignment.start;
+  }
+}
 
-pw.Widget _itemsTableCell(String text,
-    {pw.TextAlign align = pw.TextAlign.left, bool header = false}) {
-  final child = pw.Padding(
-    padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
-    child: pw.Text(
-      text,
-      style: _ts(
-          size: header ? 9 : 9.5,
-          weight: header ? pw.FontWeight.bold : pw.FontWeight.normal),
-      textAlign: align,
-    ),
-  );
-  if (!header) return child;
+/// Full-height column grid: vertical lines run top-to-bottom; no row dividers.
+pw.Widget _fullHeightItemsGrid({
+  required List<_ItemsGridColumn> columns,
+  required List<List<String>> rows,
+}) {
   return pw.Container(
-    decoration: const pw.BoxDecoration(
-      border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1)),
+    decoration: pw.BoxDecoration(border: pw.Border.all(color: _black, width: 1)),
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < columns.length; i++)
+          _itemsGridColumn(
+            column: columns[i],
+            values: rows.map((r) => r[i]).toList(),
+            showRightBorder: i < columns.length - 1,
+          ),
+      ],
     ),
-    child: child,
   );
 }
 
-pw.TableRow _itemsEmptyRow(int cols) => pw.TableRow(
-      children: List.generate(cols, (_) => pw.SizedBox(height: _itemRowHeight)),
-    );
-
-pw.Widget _quotationItemsTable(InvoiceData d, {required int fillerRows}) {
-  pw.TableRow headerRow() => pw.TableRow(
-        children: [
-          _itemsTableCell('SL', align: pw.TextAlign.center, header: true),
-          _itemsTableCell('ITEM SPECIFICATION PARTICULARS', header: true),
-          _itemsTableCell('QTY', align: pw.TextAlign.center, header: true),
-          _itemsTableCell('RATE', align: pw.TextAlign.right, header: true),
-          _itemsTableCell('NET TOTAL', align: pw.TextAlign.right, header: true),
-        ],
-      );
-  pw.TableRow itemRow(int index) {
-    final it = d.items[index];
-    return pw.TableRow(
-      children: [
-        _itemsTableCell('${index + 1}', align: pw.TextAlign.center),
-        _itemsTableCell(it.description),
-        _itemsTableCell(it.qty.toStringAsFixed(2), align: pw.TextAlign.center),
-        _itemsTableCell(_money(it.price), align: pw.TextAlign.right),
-        _itemsTableCell(_money(it.amount), align: pw.TextAlign.right),
-      ],
-    );
-  }
-
-  return pw.Table(
-    border: _itemsTableBorder,
-    columnWidths: const {
-      0: pw.FixedColumnWidth(24),
-      1: pw.FlexColumnWidth(3.4),
-      2: pw.FixedColumnWidth(42),
-      3: pw.FixedColumnWidth(48),
-      4: pw.FixedColumnWidth(52),
-    },
-    defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+pw.Widget _itemsGridColumn({
+  required _ItemsGridColumn column,
+  required List<String> values,
+  required bool showRightBorder,
+}) {
+  final body = pw.Column(
+    crossAxisAlignment: _gridCrossAlign(column.align),
     children: [
-      headerRow(),
-      ...List.generate(d.items.length, itemRow),
-      ...List.generate(fillerRows, (_) => _itemsEmptyRow(5)),
+      pw.Container(
+        width: double.infinity,
+        decoration: const pw.BoxDecoration(
+          border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1)),
+        ),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: pw.Text(
+          column.header,
+          style: _ts(size: 8.5, weight: pw.FontWeight.bold),
+          textAlign: column.align,
+        ),
+      ),
+      ...values.map(
+        (v) => pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: pw.Text(v, style: _ts(size: 9.5), textAlign: column.align),
+        ),
+      ),
+      pw.Expanded(child: pw.SizedBox()),
     ],
   );
+
+  final decorated = pw.Container(
+    decoration: showRightBorder
+        ? const pw.BoxDecoration(
+            border: pw.Border(right: pw.BorderSide(color: _black, width: 1)),
+          )
+        : null,
+    child: body,
+  );
+
+  if (column.width != null) {
+    return pw.SizedBox(width: column.width, child: decorated);
+  }
+  return pw.Expanded(flex: column.flex, child: decorated);
 }
 
-pw.Widget _deliveryChallanItemsTable(InvoiceData d,
-        {required int fillerRows}) =>
+List<List<String>> _hsnItemRows(InvoiceData d, {bool withRemarks = false}) {
+  return List.generate(d.items.length, (index) {
+    final it = d.items[index];
+    final row = <String>[
+      '${index + 1}',
+      it.description,
+      it.hsnCode,
+      it.qty.toStringAsFixed(2),
+      _money(it.price),
+      _money(it.amount),
+    ];
+    if (withRemarks) row.add(it.remarks);
+    return row;
+  });
+}
+
+pw.Widget _quotationItemsTable(InvoiceData d, {required double height}) {
+  return pw.SizedBox(
+    height: height,
+    child: _fullHeightItemsGrid(
+      columns: const [
+        _ItemsGridColumn(header: 'SL', width: 26, align: pw.TextAlign.center),
+        _ItemsGridColumn(
+            header: 'ITEM SPECIFICATION PARTICULARS', flex: 4),
+        _ItemsGridColumn(header: 'QTY', width: 44, align: pw.TextAlign.center),
+        _ItemsGridColumn(header: 'RATE', width: 50, align: pw.TextAlign.right),
+        _ItemsGridColumn(
+            header: 'NET TOTAL', width: 56, align: pw.TextAlign.right),
+      ],
+      rows: List.generate(d.items.length, (index) {
+        final it = d.items[index];
+        return [
+          '${index + 1}',
+          it.description,
+          it.qty.toStringAsFixed(2),
+          _money(it.price),
+          _money(it.amount),
+        ];
+      }),
+    ),
+  );
+}
+
+pw.Widget _deliveryChallanItemsTable(InvoiceData d, {required double height}) =>
     _hsnItemsTable(
       d,
-      fillerRows: fillerRows,
+      height: height,
       slHeader: 'SL',
       hsnHeader: 'HSN CODE',
       priceHeader: 'PRICE/QTY',
       withRemarks: true,
     );
 
-pw.Widget _taxInvoiceItemsTable(InvoiceData d, {required int fillerRows}) =>
+pw.Widget _taxInvoiceItemsTable(InvoiceData d, {required double height}) =>
     _hsnItemsTable(
       d,
-      fillerRows: fillerRows,
+      height: height,
       slHeader: 'SL.NO',
       hsnHeader: 'HSN/SAC',
       priceHeader: 'PRICE/UNIT',
       withRemarks: false,
     );
 
-pw.Widget _purchaseOrderItemsTable(InvoiceData d, {required int fillerRows}) =>
+pw.Widget _purchaseOrderItemsTable(InvoiceData d, {required double height}) =>
     _hsnItemsTable(
       d,
-      fillerRows: fillerRows,
+      height: height,
       slHeader: 'SL',
       hsnHeader: 'HSN CODE',
       priceHeader: 'PRICE',
       withRemarks: false,
     );
 
-pw.Widget _purchaseVoucherItemsTable(InvoiceData d,
-        {required int fillerRows}) =>
+pw.Widget _purchaseVoucherItemsTable(InvoiceData d, {required double height}) =>
     _hsnItemsTable(
       d,
-      fillerRows: fillerRows,
+      height: height,
       slHeader: 'SL',
       hsnHeader: 'HSN CODE',
       priceHeader: 'PRICE',
       withRemarks: false,
     );
 
-pw.Widget _adjustmentNoteItemsTable(InvoiceData d, {required int fillerRows}) =>
+pw.Widget _adjustmentNoteItemsTable(InvoiceData d, {required double height}) =>
     _hsnItemsTable(
       d,
-      fillerRows: fillerRows,
+      height: height,
       slHeader: 'SL',
       hsnHeader: 'HSN CODE',
       priceHeader: 'PRICE/QTY',
@@ -1209,68 +1237,32 @@ pw.Widget _adjustmentNoteItemsTable(InvoiceData d, {required int fillerRows}) =>
 
 pw.Widget _hsnItemsTable(
   InvoiceData d, {
-  required int fillerRows,
+  required double height,
   required String slHeader,
   required String hsnHeader,
   required String priceHeader,
   required bool withRemarks,
 }) {
-  final colCount = withRemarks ? 7 : 6;
-  pw.TableRow headerRow() => pw.TableRow(
-        children: [
-          _itemsTableCell(slHeader, align: pw.TextAlign.center, header: true),
-          _itemsTableCell('DESCRIPTION', header: true),
-          _itemsTableCell(hsnHeader, align: pw.TextAlign.center, header: true),
-          _itemsTableCell('QTY', align: pw.TextAlign.center, header: true),
-          _itemsTableCell(priceHeader, align: pw.TextAlign.right, header: true),
-          _itemsTableCell('AMOUNT', align: pw.TextAlign.right, header: true),
-          if (withRemarks)
-            _itemsTableCell('REMARKS', header: true),
-        ],
-      );
-  pw.TableRow itemRow(int index) {
-    final it = d.items[index];
-    return pw.TableRow(
-      children: [
-        _itemsTableCell('${index + 1}', align: pw.TextAlign.center),
-        _itemsTableCell(it.description),
-        _itemsTableCell(it.hsnCode, align: pw.TextAlign.center),
-        _itemsTableCell(it.qty.toStringAsFixed(2), align: pw.TextAlign.center),
-        _itemsTableCell(_money(it.price), align: pw.TextAlign.right),
-        _itemsTableCell(_money(it.amount), align: pw.TextAlign.right),
-        if (withRemarks) _itemsTableCell(it.remarks),
-      ],
-    );
-  }
+  final columns = <_ItemsGridColumn>[
+    _ItemsGridColumn(header: slHeader, width: 28, align: pw.TextAlign.center),
+    const _ItemsGridColumn(header: 'DESCRIPTION', flex: 3),
+    _ItemsGridColumn(
+        header: hsnHeader, width: 54, align: pw.TextAlign.center),
+    _ItemsGridColumn(header: 'QTY', width: 42, align: pw.TextAlign.center),
+    _ItemsGridColumn(
+        header: priceHeader, width: 50, align: pw.TextAlign.right),
+    _ItemsGridColumn(
+        header: 'AMOUNT', width: 54, align: pw.TextAlign.right),
+    if (withRemarks)
+      const _ItemsGridColumn(header: 'REMARKS', flex: 2),
+  ];
 
-  final widths = withRemarks
-      ? const {
-          0: pw.FixedColumnWidth(22),
-          1: pw.FlexColumnWidth(2.6),
-          2: pw.FixedColumnWidth(52),
-          3: pw.FixedColumnWidth(38),
-          4: pw.FixedColumnWidth(44),
-          5: pw.FixedColumnWidth(48),
-          6: pw.FixedColumnWidth(52),
-        }
-      : const {
-          0: pw.FixedColumnWidth(24),
-          1: pw.FlexColumnWidth(3.2),
-          2: pw.FixedColumnWidth(58),
-          3: pw.FixedColumnWidth(42),
-          4: pw.FixedColumnWidth(48),
-          5: pw.FixedColumnWidth(52),
-        };
-
-  return pw.Table(
-    border: _itemsTableBorder,
-    columnWidths: widths,
-    defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-    children: [
-      headerRow(),
-      ...List.generate(d.items.length, itemRow),
-      ...List.generate(fillerRows, (_) => _itemsEmptyRow(colCount)),
-    ],
+  return pw.SizedBox(
+    height: height,
+    child: _fullHeightItemsGrid(
+      columns: columns,
+      rows: _hsnItemRows(d, withRemarks: withRemarks),
+    ),
   );
 }
 
