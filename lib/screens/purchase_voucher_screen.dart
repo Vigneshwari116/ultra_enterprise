@@ -253,66 +253,30 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
           width: double.infinity,
           color: const Color(0xFF19232C),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('COMMERCIAL PURCHASE TERMINAL',
-                      style: TextStyle(
-                          color: Color(0xFF2FE6E0),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .4)),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    _statMini(
-                        'TOTAL PCS',
-                        rows
-                            .fold<double>(0, (s, r) => s + r.qty)
-                            .toStringAsFixed(0)),
-                    const SizedBox(width: 22),
-                    _statMini('TAXABLE NET', taxable.toStringAsFixed(2)),
-                    const SizedBox(width: 22),
-                    _statMini('COMPOUND GST',
-                        (cgst + sgst + igst).toStringAsFixed(2)),
-                  ]),
-                ],
-              ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('₹${total.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          color: Color(0xFFF4D53A),
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  const Text('NET PAYABLE VALUE',
-                      style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: .4)),
-                ],
-              ),
+          child: enterpriseTerminalHeader(
+            title: 'COMMERCIAL PURCHASE TERMINAL',
+            stats: [
+              enterpriseStatMini(
+                  'TOTAL PCS',
+                  rows.fold<double>(0, (s, r) => s + r.qty).toStringAsFixed(0)),
+              enterpriseStatMini('TAXABLE NET', taxable.toStringAsFixed(2)),
+              enterpriseStatMini('COMPOUND GST', (cgst + sgst + igst).toStringAsFixed(2)),
             ],
+            totalAmount: '₹${total.toStringAsFixed(2)}',
+            totalLabel: 'NET PAYABLE VALUE',
           ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _plainSection(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final stacked = AppBreakpoints.shouldStackFormSections(constraints);
+                final section1 = enterprisePlainSection(
                     title: 'SECTION 1: TRANSACTION METADATA',
                     children: [
-                      _pair(
+                      enterpriseFormPair(
                         _outline('VOUCHER NO',
                             controller: voucherNoController,
                             readOnly: true,
@@ -324,7 +288,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                               (v) => setState(() => voucherDate = v)),
                         ),
                       ),
-                      _pair(
+                      enterpriseFormPair(
                         _outline('SUPPLIER INVOICE NO',
                             controller: supplierInvoiceNo, autofocus: true),
                         enterpriseInsetDateField(
@@ -366,11 +330,8 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                             label: 'REMARKS', controller: remarks, maxLines: 2),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: _plainSection(
+                  );
+                final section2 = enterprisePlainSection(
                     title: 'SECTION 2: ACCOUNT / PARTY CONFIGURATION',
                     children: [
                       Padding(
@@ -398,20 +359,37 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                           },
                         ),
                       ),
-                      _pair(
+                      enterpriseFormPair(
                           _outline('ADDRESS',
                               controller: supplierAddress, filled: true),
                           _outline('CITY', controller: city, filled: true)),
-                      _pair(_outline('PINCODE', controller: pin, filled: true),
+                      enterpriseFormPair(_outline('PINCODE', controller: pin, filled: true),
                           _outline('GSTIN', controller: gstin, filled: true)),
-                      _pair(
+                      enterpriseFormPair(
                           _outline('BANK NAME', controller: bank, filled: true),
                           _outline('ACCOUNT NO',
                               controller: account, filled: true)),
                     ],
-                  ),
-                ),
-              ],
+                  );
+                if (stacked) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      section1,
+                      const SizedBox(height: 16),
+                      section2,
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: section1),
+                    const SizedBox(width: 24),
+                    Expanded(child: section2),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 22),
             const Text('SECTION 3: QUANTITY MATRIX PRODUCT ENTRY',
@@ -516,47 +494,6 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
     );
   }
 
-  Widget _statMini(String label, String value) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800)),
-        ],
-      );
-  Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: a),
-          const SizedBox(width: 14),
-          Expanded(child: b),
-        ]),
-      );
-  Widget _plainSection(
-          {required String title, required List<Widget> children}) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: navy,
-                  letterSpacing: .3)),
-          const SizedBox(height: 4),
-          Container(height: 1, color: border),
-          const SizedBox(height: 8),
-          ...children,
-        ],
-      );
   Table _productMatrixTable(BuildContext context) {
     return Table(
       columnWidths: enterpriseProductMatrixColumns,
@@ -594,7 +531,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                   isExpanded: true,
                   isDense: true,
                   hint: const Text('Item Description',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
+                      style: enterpriseMatrixHintStyle),
                   value: catalogIdInList(rows[i].productId, products),
                   items: products
                       .map((p) {
@@ -603,7 +540,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                         return DropdownMenuItem<int>(
                           value: id,
                           child: Text('${p['product_name']}',
-                              style: const TextStyle(fontSize: 9),
+                              style: enterpriseMatrixCellStyle,
                               overflow: TextOverflow.ellipsis),
                         );
                       })
@@ -623,7 +560,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                   isDense: true,
                   underline: const SizedBox(),
                   value: catalogIdInList(rows[i].unitId, units),
-                  hint: const Text('UOM', style: TextStyle(fontSize: 9)),
+                  hint: const Text('UOM', style: enterpriseMatrixHintStyle),
                   items: units
                       .map((u) {
                         final id = coerceCatalogId(u['id']);

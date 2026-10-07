@@ -225,6 +225,7 @@ class UltraRepository {
     out['product_name'] ??= out['name'];
     out['hsn'] ??= out['hsn_code'];
     out['purchase_rate'] ??= out['cost_price'];
+    out['gst_percent'] ??= out['gst_rate'];
     // Do not mirror purchase_rate into sales_rate (or vice versa).
     if (out['sales_rate'] == null && out['rate'] != null && out['purchase_rate'] == null) {
       out['sales_rate'] = out['rate'];
@@ -532,10 +533,37 @@ class UltraRepository {
 
   Future<int> createDeliveryChallan(Map<String, dynamic> body) async {
     if (UltraConfig.persistLocally) {
-      return _createWithItems('delivery_challans', 'delivery_challan_items', body, 'challan_id');
+      final dcType = '${body['dc_type']}';
+      final items =
+          (body['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final id = await _createWithItems(
+        'delivery_challans',
+        'delivery_challan_items',
+        body,
+        'challan_id',
+      );
+      await _applyDeliveryChallanStock(dcType, items);
+      return id;
     }
     return _idFromResponse(await _api.post('/api/delivery-challans', body));
   }
+
+  Future<void> _applyDeliveryChallanStock(
+    String dcType,
+    List<Map<String, dynamic>> items,
+  ) async {
+    if (dcType == 'PROFORMA') return;
+    final inward = dcType == 'INWARD';
+    for (final it in items) {
+      final productId = coerceCatalogId(it['product_id']);
+      final qty = coerceCatalogDouble(it['quantity']);
+      if (productId == null || qty <= 0) continue;
+      await incrementStock(productId, inward ? qty : -qty);
+    }
+  }
+
+  double productStockOnHand(Map<String, dynamic> product) =>
+      coerceCatalogDouble(product['current_stock']);
 
   Future<Map<String, dynamic>?> deliveryChallanPrintBundle(int id) async {
     if (UltraConfig.persistLocally) return _db.deliveryChallanPrintBundle(id);

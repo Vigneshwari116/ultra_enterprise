@@ -6,7 +6,7 @@
     "background_color": "#FFFFFF",
     "theme_color": "#10233F",
     "description": "Commercial Enterprise Platform - Ultra Engineering Works",
-    "orientation": "portrait-primary",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

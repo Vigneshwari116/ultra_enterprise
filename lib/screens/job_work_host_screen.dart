@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../widgets/master_form_helpers.dart';
 import 'product_catalog_refresh.dart';
 import 'sales_invoice_screen.dart';
 
@@ -166,12 +167,12 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          width: 280,
-          child: Container(
+    return masterSplitLayout(
+      context: context,
+      stackedDirectoryHeight: 340,
+      directory: SizedBox(
+        width: AppBreakpoints.isNarrow(context) ? double.infinity : 280,
+        child: Container(
             color: const Color(0xFF1D2739),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -240,46 +241,62 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
             ),
           ),
         ),
-        Expanded(
-          child: Container(
-            color: pageBg,
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(editingId == null ? 'NEW TYPE PARAMETER' : 'MODIFY TYPE PARAMETER',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
-                    const Spacer(),
-                    ElevatedButton.icon(
-                      onPressed: _save,
-                      icon: const Icon(Icons.save_outlined, size: 16),
-                      label: const Text('SAVE TYPE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
-                      style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _sectionTitle('1. MATERIAL CLASSIFICATION TOKENS'),
-                TextField(
-                  controller: typeCode,
-                  decoration: _fieldDec('MATERIAL TYPE KEY CODE (E.G. COPPER, BRASS) *'),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 18),
-                _sectionTitle('2. CATEGORY SPECIFICATION SPEC SHEET REMARKS'),
-                TextField(
-                  controller: description,
-                  maxLines: 5,
-                  decoration: _fieldDec('CATEGORY DESCRIPTION REGISTERED'),
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
+      form: Container(
+        color: pageBg,
+        padding: EdgeInsets.all(AppBreakpoints.pagePadding(context)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppBreakpoints.isNarrow(context)
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        editingId == null ? 'NEW TYPE PARAMETER' : 'MODIFY TYPE PARAMETER',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton.icon(
+                        onPressed: _save,
+                        icon: const Icon(Icons.save_outlined, size: 16),
+                        label: const Text('SAVE TYPE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                        style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Text(
+                        editingId == null ? 'NEW TYPE PARAMETER' : 'MODIFY TYPE PARAMETER',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                      ),
+                      const Spacer(),
+                      ElevatedButton.icon(
+                        onPressed: _save,
+                        icon: const Icon(Icons.save_outlined, size: 16),
+                        label: const Text('SAVE TYPE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                        style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
+                      ),
+                    ],
+                  ),
+            const SizedBox(height: 20),
+            _sectionTitle('1. MATERIAL CLASSIFICATION TOKENS'),
+            TextField(
+              controller: typeCode,
+              decoration: _fieldDec('MATERIAL TYPE KEY CODE (E.G. COPPER, BRASS) *'),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
-          ),
+            const SizedBox(height: 18),
+            _sectionTitle('2. CATEGORY SPECIFICATION SPEC SHEET REMARKS'),
+            TextField(
+              controller: description,
+              maxLines: 5,
+              decoration: _fieldDec('CATEGORY DESCRIPTION REGISTERED'),
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -460,12 +477,12 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          width: 260,
-          child: Container(
+    return masterSplitLayout(
+      context: context,
+      stackedDirectoryHeight: 360,
+      directory: SizedBox(
+        width: AppBreakpoints.isNarrow(context) ? double.infinity : 260,
+        child: Container(
             color: const Color(0xFF1D2739),
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -526,38 +543,67 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
             ),
           ),
         ),
-        Expanded(
-          child: LayoutBuilder(
+      form: LayoutBuilder(
             builder: (context, formConstraints) {
               final formWidth = formConstraints.maxWidth;
+              final narrow = AppBreakpoints.isNarrow(context);
               return SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(AppBreakpoints.pagePadding(context)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Row(
-                  children: [
-                    Text(editingId == null ? 'NEW PRODUCT DATA MASTER' : 'MODIFY MASTER REGISTRY',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
-                    if (editingId != null) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        color: const Color(0xFFFFE4CC),
-                        child: Text('EDITING ID: $editingId', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFFE67E22))),
+                narrow
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            editingId == null ? 'NEW PRODUCT DATA MASTER' : 'MODIFY MASTER REGISTRY',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                          ),
+                          if (editingId != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              color: const Color(0xFFFFE4CC),
+                              child: Text('EDITING ID: $editingId', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFFE67E22))),
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          TextButton(onPressed: _reset, child: const Text('X RESET FIELDS', style: TextStyle(color: red, fontWeight: FontWeight.w800, fontSize: 10))),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: _save,
+                            icon: Icon(editingId == null ? Icons.save_outlined : Icons.check, size: 16),
+                            label: Text(editingId == null ? 'SAVE MASTER' : 'UPDATE SNAPS', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                            style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Text(
+                            editingId == null ? 'NEW PRODUCT DATA MASTER' : 'MODIFY MASTER REGISTRY',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                          ),
+                          if (editingId != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              color: const Color(0xFFFFE4CC),
+                              child: Text('EDITING ID: $editingId', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFFE67E22))),
+                            ),
+                          ],
+                          const Spacer(),
+                          TextButton(onPressed: _reset, child: const Text('X RESET FIELDS', style: TextStyle(color: red, fontWeight: FontWeight.w800, fontSize: 10))),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: _save,
+                            icon: Icon(editingId == null ? Icons.save_outlined : Icons.check, size: 16),
+                            label: Text(editingId == null ? 'SAVE MASTER' : 'UPDATE SNAPS', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                            style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
+                          ),
+                        ],
                       ),
-                    ],
-                    const Spacer(),
-                    TextButton(onPressed: _reset, child: const Text('X RESET FIELDS', style: TextStyle(color: red, fontWeight: FontWeight.w800, fontSize: 10))),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: _save,
-                      icon: Icon(editingId == null ? Icons.save_outlined : Icons.check, size: 16),
-                      label: Text(editingId == null ? 'SAVE MASTER' : 'UPDATE SNAPS', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
-                      style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 16),
                 _sectionTitle('1. SYSTEM IDENTIFICATION PARAMETERS'),
                 Align(alignment: Alignment.centerRight, child: Text('Log Compilation System Date: $logDate', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF748094)))),
@@ -652,8 +698,6 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
               );
             },
           ),
-        ),
-      ],
     );
   }
 

@@ -21,20 +21,31 @@ class MasterPage extends StatefulWidget {
 class _MasterPageState extends State<MasterPage> {
   @override
   Widget build(BuildContext context) {
+    final narrow = AppBreakpoints.isNarrow(context);
+    final pad = AppBreakpoints.pagePadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(widget.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: navy)),
+        Text(widget.title, style: TextStyle(fontSize: narrow ? 18 : 22, fontWeight: FontWeight.w900, color: navy)),
         const SizedBox(height: 4),
         const Text('COMMERCIAL MASTER CONFIGURATION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
         const SizedBox(height: 18),
         SectionHeader(number: widget.section, title: widget.tableTitle),
         const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search, size: 18), hintText: 'Search records...'))),
-          const SizedBox(width: 10),
-          PrimaryButton(label: 'ADD NEW', onPressed: widget.onAdd ?? () {}),
-        ]),
+        narrow
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search, size: 18), hintText: 'Search records...')),
+                  const SizedBox(height: 10),
+                  PrimaryButton(label: 'ADD NEW', onPressed: widget.onAdd ?? () {}),
+                ],
+              )
+            : Row(children: [
+                Expanded(child: TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search, size: 18), hintText: 'Search records...'))),
+                const SizedBox(width: 10),
+                PrimaryButton(label: 'ADD NEW', onPressed: widget.onAdd ?? () {}),
+              ]),
         const SizedBox(height: 12),
         EnterpriseTable(columns: widget.columns, rows: widget.rows),
       ]),
@@ -185,14 +196,10 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
     '${u['code']}'.toLowerCase().contains(q) ||
         '${u['name']}'.toLowerCase().contains(q)).toList();
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // LEFT: UOM REGISTRY TOKENS list
-        Container(
-          width: masterDirectoryWidth(context),
+    return masterSplitLayout(
+      context: context,
+      directory: Container(
           color: sidebarBg,
-          height: double.infinity,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -275,9 +282,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
             ],
           ),
         ),
-        // RIGHT: NEW UNIT PARAMETER form
-        Expanded(
-          child: Column(
+      form: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
@@ -290,9 +295,12 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
                   children: [
                     Container(width: 3, height: 18, color: navy),
                     const SizedBox(width: 10),
-                    Text(
+                    Flexible(
+                      child: Text(
                       selectedId == null ? 'NEW UNIT PARAMETER' : 'EDIT UNIT PARAMETER',
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     ),
                     const Spacer(),
                     if (selectedId != null) ...[
@@ -340,8 +348,6 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
               ),
             ],
           ),
-        ),
-      ],
     );
   }
 }
@@ -475,151 +481,169 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
               style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
           const SizedBox(height: 18),
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: masterDirectoryWidth(context),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _editingId == null ? 'NEW ENTRY' : 'EDIT ENTRY',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: navy),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(height: 2, width: 40, color: teal),
-                      const SizedBox(height: 12),
+            child: masterSplitLayout(
+              context: context,
+              stackedDirectoryHeight: 420,
+              directory: SizedBox(
+                width: masterDirectoryWidth(context),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _editingId == null ? 'NEW ENTRY' : 'EDIT ENTRY',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: navy),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(height: 2, width: 40, color: teal),
+                    const SizedBox(height: 12),
+                    MasterTextField(
+                      controller: nameCtrl,
+                      focusNode: nameFocus,
+                      nextFocus: crFocus,
+                      hintText: 'NAME',
+                    ),
+                    const SizedBox(height: 8),
+                    masterRow2(
+                      context,
                       MasterTextField(
-                        controller: nameCtrl,
-                        focusNode: nameFocus,
-                        nextFocus: crFocus,
-                        hintText: 'NAME',
+                        controller: crCtrl,
+                        focusNode: crFocus,
+                        nextFocus: drFocus,
+                        hintText: 'CR AMT',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       ),
-                      const SizedBox(height: 8),
-                      Row(children: [
-                        Expanded(
-                          child: MasterTextField(
-                            controller: crCtrl,
-                            focusNode: crFocus,
-                            nextFocus: drFocus,
-                            hintText: 'CR AMT',
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          ),
+                      MasterTextField(
+                        controller: drCtrl,
+                        focusNode: drFocus,
+                        hintText: 'DR AMT',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onDone: _save,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    MasterDropdown(
+                      value: group,
+                      hintText: 'GROUP',
+                      items: masterLedgerGroupOptions,
+                      onChanged: (v) => setState(() => group = v),
+                    ),
+                    const SizedBox(height: 8),
+                    MasterDropdown(
+                      value: head,
+                      hintText: 'HEAD',
+                      items: masterLedgerGroupOptions,
+                      onChanged: (v) => setState(() => head = v),
+                    ),
+                    const SizedBox(height: 8),
+                    MasterDropdown(
+                      value: groupWise,
+                      hintText: 'GROUP WISE',
+                      items: masterLedgerGroupOptions,
+                      onChanged: (v) => setState(() => groupWise = v),
+                    ),
+                    const SizedBox(height: 12),
+                    masterRow2(
+                      context,
+                      OutlinedButton(
+                        onPressed: _reset,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          side: const BorderSide(color: border),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: MasterTextField(
-                            controller: drCtrl,
-                            focusNode: drFocus,
-                            hintText: 'DR AMT',
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            onDone: _save,
-                          ),
+                        child: const Text('RESET', style: TextStyle(color: navy, fontWeight: FontWeight.w800, fontSize: 11)),
+                      ),
+                      ElevatedButton(
+                        onPressed: _save,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: navy,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
                         ),
-                      ]),
-                      const SizedBox(height: 8),
-                      MasterDropdown(
-                        value: group,
-                        hintText: 'GROUP',
-                        items: masterLedgerGroupOptions,
-                        onChanged: (v) => setState(() => group = v),
+                        child: Text(
+                          _editingId == null ? 'SAVE' : 'UPDATE',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      MasterDropdown(
-                        value: head,
-                        hintText: 'HEAD',
-                        items: masterLedgerGroupOptions,
-                        onChanged: (v) => setState(() => head = v),
-                      ),
-                      const SizedBox(height: 8),
-                      MasterDropdown(
-                        value: groupWise,
-                        hintText: 'GROUP WISE',
-                        items: masterLedgerGroupOptions,
-                        onChanged: (v) => setState(() => groupWise = v),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _reset,
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              side: const BorderSide(color: border),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+                    ),
+                  ],
+                ),
+              ),
+              form: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppBreakpoints.isNarrow(context)
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TextField(
+                              controller: searchCtrl,
+                              style: const TextStyle(fontSize: 12),
+                              decoration: masterCompactDecoration(hintText: 'Search Ledger Accounts Registry...').copyWith(
+                                prefixIcon: const Icon(Icons.search, size: 16),
+                              ),
                             ),
-                            child: const Text('RESET', style: TextStyle(color: navy, fontWeight: FontWeight.w800, fontSize: 11)),
+                            const SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              onPressed: _pickPrintRange,
+                              icon: const Icon(Icons.calendar_today_outlined, size: 15),
+                              label: Text(
+                                printRange == null
+                                    ? 'PRINT RANGE'
+                                    : '${_fmtDate(printRange!.start)} - ${_fmtDate(printRange!.end)}',
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: navy,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(children: [
+                          Expanded(
+                            child: TextField(
+                              controller: searchCtrl,
+                              style: const TextStyle(fontSize: 12),
+                              decoration: masterCompactDecoration(hintText: 'Search Ledger Accounts Registry...').copyWith(
+                                prefixIcon: const Icon(Icons.search, size: 16),
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _save,
+                          const SizedBox(width: 10),
+                          ElevatedButton.icon(
+                            onPressed: _pickPrintRange,
+                            icon: const Icon(Icons.calendar_today_outlined, size: 15),
+                            label: Text(
+                              printRange == null
+                                  ? 'PRINT RANGE'
+                                  : '${_fmtDate(printRange!.start)} - ${_fmtDate(printRange!.end)}',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5),
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: navy,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
                             ),
+                          ),
+                        ]),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? const Center(
                             child: Text(
-                              _editingId == null ? 'SAVE' : 'UPDATE',
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
+                              'No ledger accounts yet. Save a new entry to list it here.',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF748094), fontWeight: FontWeight.w600),
                             ),
-                          ),
-                        ),
-                      ]),
-                    ],
+                          )
+                        : _LedgerTable(rows: filtered, onEdit: _loadForEdit),
                   ),
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Expanded(
-                          child: TextField(
-                            controller: searchCtrl,
-                            style: const TextStyle(fontSize: 12),
-                            decoration: masterCompactDecoration(hintText: 'Search Ledger Accounts Registry...').copyWith(
-                              prefixIcon: const Icon(Icons.search, size: 16),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        ElevatedButton.icon(
-                          onPressed: _pickPrintRange,
-                          icon: const Icon(Icons.calendar_today_outlined, size: 15),
-                          label: Text(
-                            printRange == null
-                                ? 'PRINT RANGE'
-                                : '${_fmtDate(printRange!.start)} - ${_fmtDate(printRange!.end)}',
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: navy,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
-                          ),
-                        ),
-                      ]),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: filtered.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'No ledger accounts yet. Save a new entry to list it here.',
-                                  style: TextStyle(fontSize: 11, color: Color(0xFF748094), fontWeight: FontWeight.w600),
-                                ),
-                              )
-                            : _LedgerTable(rows: filtered, onEdit: _loadForEdit),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -922,12 +946,9 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
     final batch = 'CUST-${DateTime.now().toString().substring(0, 10).replaceAll('-', '').substring(2)}';
     final editing = selectedId != null;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left: dark customer directory panel
-        Container(
-          width: masterDirectoryWidth(context),
+    return masterSplitLayout(
+      context: context,
+      directory: Container(
           color: sidebarBg,
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -989,9 +1010,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
             ],
           ),
         ),
-        // Right: form
-        Expanded(
-          child: SingleChildScrollView(
+      form: SingleChildScrollView(
             padding: masterFormPadding(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -999,8 +1018,11 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
                 Row(children: [
                   Container(width: 4, height: 18, color: navy),
                   const SizedBox(width: 10),
-                  Text(editing ? 'MODIFY CUSTOMER RECORD' : 'CUSTOMER MASTER SETUP',
+                  Flexible(
+                    child: Text(editing ? 'MODIFY CUSTOMER RECORD' : 'CUSTOMER MASTER SETUP',
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
+                  ),
                   if (editing) ...[
                     const SizedBox(width: 10),
                     Container(
@@ -1101,8 +1123,6 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
               ],
             ),
           ),
-        ),
-      ],
     );
   }
 
@@ -1374,12 +1394,9 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     final batch = 'SUPP-${DateTime.now().toString().substring(0, 10).replaceAll('-', '')}';
     final editing = selectedId != null;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left: dark supplier directory panel
-        Container(
-          width: masterDirectoryWidth(context),
+    return masterSplitLayout(
+      context: context,
+      directory: Container(
           color: sidebarBg,
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -1440,9 +1457,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
             ],
           ),
         ),
-        // Right: form
-        Expanded(
-          child: SingleChildScrollView(
+      form: SingleChildScrollView(
             padding: masterFormPadding(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1450,8 +1465,11 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
                 Row(children: [
                   Container(width: 4, height: 18, color: navy),
                   const SizedBox(width: 10),
-                  Text(editing ? 'MODIFY SUPPLIER RECORD' : 'SUPPLIER SETUP MATRIX',
+                  Flexible(
+                    child: Text(editing ? 'MODIFY SUPPLIER RECORD' : 'SUPPLIER SETUP MATRIX',
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
+                  ),
                   if (editing) ...[
                     const SizedBox(width: 10),
                     Container(
@@ -1567,8 +1585,6 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
               ],
             ),
           ),
-        ),
-      ],
     );
   }
 }

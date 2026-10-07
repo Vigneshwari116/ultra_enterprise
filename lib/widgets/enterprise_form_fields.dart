@@ -3,18 +3,44 @@ import 'package:intl/intl.dart';
 
 import 'enterprise_widgets.dart';
 
+/// Shared transaction-form typography (all commercial entry screens).
 const enterpriseInsetLabelStyle = TextStyle(
-  fontSize: 9,
+  fontSize: 12,
   fontWeight: FontWeight.w700,
   color: Color(0xFF748094),
   letterSpacing: 0.2,
 );
 
 const enterpriseInsetValueStyle = TextStyle(
-  fontSize: 11.5,
+  fontSize: 15,
   fontWeight: FontWeight.w600,
   color: navy,
 );
+
+const enterpriseSectionTitleStyle = TextStyle(
+  fontSize: 14,
+  fontWeight: FontWeight.w800,
+  color: navy,
+  letterSpacing: 0.3,
+);
+
+const enterpriseTerminalStatLabelStyle = TextStyle(
+  color: Colors.white54,
+  fontSize: 10.5,
+  fontWeight: FontWeight.w700,
+);
+
+const enterpriseTerminalStatValueStyle = TextStyle(
+  color: Colors.white,
+  fontSize: 14,
+  fontWeight: FontWeight.w800,
+);
+
+/// Tighter inset boxes for metadata sections (sections 1 & 2).
+const enterpriseCompactFieldPadding = EdgeInsets.fromLTRB(8, 4, 8, 5);
+
+const double enterpriseFormRowGap = 3;
+const double enterpriseFormColumnGap = 8;
 
 InputDecoration enterpriseInsetInputDecoration({
   Widget? suffixIcon,
@@ -56,7 +82,7 @@ Widget enterpriseInsetFieldShell({
   required Widget child,
   bool filled = false,
   Color? borderColor,
-  EdgeInsets padding = const EdgeInsets.fromLTRB(8, 5, 8, 5),
+  EdgeInsets padding = enterpriseCompactFieldPadding,
 }) {
   return Container(
     decoration: enterpriseInsetBoxDecoration(filled: filled, borderColor: borderColor),
@@ -66,10 +92,61 @@ Widget enterpriseInsetFieldShell({
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label, style: enterpriseInsetLabelStyle),
-        const SizedBox(height: 2),
+        const SizedBox(height: 1),
         child,
       ],
     ),
+  );
+}
+
+/// Section 1 / 2 block title with divider (compact spacing).
+Widget enterprisePlainSection({
+  required String title,
+  required List<Widget> children,
+}) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: enterpriseSectionTitleStyle),
+      const SizedBox(height: 3),
+      Container(height: 1, color: border),
+      const SizedBox(height: 6),
+      ...children,
+    ],
+  );
+}
+
+/// Two fields on one row with reduced gap.
+Widget enterpriseFormPair(Widget left, Widget right) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: enterpriseFormRowGap),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: left),
+        const SizedBox(width: enterpriseFormColumnGap),
+        Expanded(child: right),
+      ],
+    ),
+  );
+}
+
+/// Wraps a single inset field with compact row spacing.
+Widget enterpriseFormField(Widget field) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: enterpriseFormRowGap),
+    child: field,
+  );
+}
+
+Widget enterpriseStatMini(String label, String value) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: enterpriseTerminalStatLabelStyle),
+      const SizedBox(height: 2),
+      Text(value, style: enterpriseTerminalStatValueStyle),
+    ],
   );
 }
 
@@ -134,12 +211,12 @@ Widget enterpriseInsetDateField({
     child: InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+        padding: EdgeInsets.zero,
         child: Row(
           children: [
             Text(display, style: enterpriseInsetValueStyle),
             const Spacer(),
-            const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF748094)),
+            const Icon(Icons.calendar_today_outlined, size: 18, color: Color(0xFF748094)),
           ],
         ),
       ),
@@ -147,22 +224,13 @@ Widget enterpriseInsetDateField({
   );
 }
 
-/// [SingleChildScrollView] child: forces full viewport width for matrices/footers.
+/// Vertical stack for transaction pages. Avoids forcing [minWidth] so web layouts
+/// do not overflow horizontally; wide tables use [enterpriseMatrixScroller].
 Widget enterpriseScrollColumn({required List<Widget> children}) {
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      final minW = constraints.maxWidth.isFinite && constraints.maxWidth > 0
-          ? constraints.maxWidth
-          : MediaQuery.sizeOf(context).width;
-      return ConstrainedBox(
-        constraints: BoxConstraints(minWidth: minW),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: children,
-        ),
-      );
-    },
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: children,
   );
 }
 
@@ -175,7 +243,7 @@ Widget enterpriseInsetDropdown<T>({
   Color? borderColor,
 }) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 4),
+    padding: const EdgeInsets.only(bottom: enterpriseFormRowGap),
     child: enterpriseInsetFieldShell(
       label: label,
       borderColor: borderColor,
@@ -187,6 +255,7 @@ Widget enterpriseInsetDropdown<T>({
           hint: hint,
           items: items,
           onChanged: onChanged,
+          style: enterpriseInsetValueStyle,
         ),
       ),
     ),
@@ -194,7 +263,7 @@ Widget enterpriseInsetDropdown<T>({
 }
 
 /// Horizontally scrollable line-item matrix; stretches to full row width on wide layouts.
-Widget enterpriseMatrixScroller({required Table table, double minWidth = 640}) {
+Widget enterpriseMatrixScroller({required Table table, double minWidth = 960}) {
   return LayoutBuilder(
     builder: (context, constraints) {
       var width = constraints.maxWidth;
@@ -232,7 +301,7 @@ Widget enterpriseValueWordsFooter({
     ),
     child: Text(
       '$wordsLabel: $valueInWords',
-      style: TextStyle(color: wordsColor, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3),
+      style: TextStyle(color: wordsColor, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.3),
     ),
   );
 
@@ -240,44 +309,150 @@ Widget enterpriseValueWordsFooter({
     return wordsBar;
   }
 
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(child: wordsBar),
-      const SizedBox(width: 10),
-      SizedBox(
-        width: 200,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF19232C),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                chargeLabel,
-                style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              TextField(
-                controller: chargeController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                onChanged: onChargeChanged,
-                textAlign: TextAlign.right,
-                textInputAction: TextInputAction.done,
-                minLines: 1,
-                maxLines: 1,
-                style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.2),
-                decoration: enterpriseInsetInputDecoration(onDarkPanel: true, multiline: true),
-              ),
-            ],
-          ),
+  final chargePanel = Container(
+    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+    decoration: BoxDecoration(
+      color: const Color(0xFF19232C),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          chargeLabel,
+          style: const TextStyle(color: Colors.white54, fontSize: 10.5, fontWeight: FontWeight.w700),
         ),
-      ),
-    ],
+        const SizedBox(height: 4),
+        TextField(
+          controller: chargeController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: onChargeChanged,
+          textAlign: TextAlign.right,
+          textInputAction: TextInputAction.done,
+          minLines: 1,
+          maxLines: 1,
+          style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.2),
+          decoration: enterpriseInsetInputDecoration(onDarkPanel: true, multiline: true),
+        ),
+      ],
+    ),
+  );
+
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final stack = constraints.maxWidth < AppBreakpoints.narrow;
+      if (stack) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            wordsBar,
+            const SizedBox(height: 10),
+            chargePanel,
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: wordsBar),
+          const SizedBox(width: 10),
+          SizedBox(width: 200, child: chargePanel),
+        ],
+      );
+    },
+  );
+}
+
+/// Dark transaction header used on sales/purchase/PO screens — stacks on narrow web.
+Widget enterpriseTerminalHeader({
+  required String title,
+  required List<Widget> stats,
+  required String totalAmount,
+  required String totalLabel,
+  List<Widget> actions = const [],
+  Color titleColor = const Color(0xFF2FE6E0),
+}) {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final narrow = constraints.maxWidth < AppBreakpoints.narrow;
+      final statsWrap = Wrap(spacing: 18, runSpacing: 6, children: stats);
+      final totalBlock = Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            totalAmount,
+            style: const TextStyle(
+              color: Color(0xFFF4D53A),
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            totalLabel,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: .4,
+            ),
+          ),
+        ],
+      );
+
+      if (narrow) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: titleColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .4,
+              ),
+            ),
+            const SizedBox(height: 10),
+            statsWrap,
+            if (actions.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(spacing: 8, runSpacing: 8, children: actions),
+            ],
+            const SizedBox(height: 10),
+            Align(alignment: Alignment.centerLeft, child: totalBlock),
+          ],
+        );
+      }
+
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: titleColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                statsWrap,
+              ],
+            ),
+          ),
+          ...actions.expand((w) => [w, const SizedBox(width: 8)]),
+          if (actions.isNotEmpty) const SizedBox(width: 8),
+          totalBlock,
+        ],
+      );
+    },
   );
 }
 
@@ -297,7 +472,10 @@ const Map<int, TableColumnWidth> enterpriseProductMatrixColumns = {
 };
 
 /// Delivery challan material matrix (non-proforma base columns).
-Map<int, TableColumnWidth> deliveryChallanMatrixColumns({required bool proforma, required bool includeRemarks}) {
+Map<int, TableColumnWidth> deliveryChallanMatrixColumns({
+  required bool proforma,
+  required bool includeRemarks,
+}) {
   final flex = <double>[0.55, 2.65, 0.9, 1.0, 0.85, 0.95];
   if (proforma) {
     flex.addAll([0.75, 0.75, 0.75]);
@@ -336,22 +514,83 @@ const Map<int, TableColumnWidth> adjustmentNoteMatrixColumns = {
 const TextStyle enterpriseMatrixHeadStyle = TextStyle(
   color: Colors.white,
   fontWeight: FontWeight.w800,
-  fontSize: 7.5,
-  height: 1.15,
+  fontSize: 10,
+  height: 1.2,
 );
 
 const TextStyle enterpriseMatrixCellStyle = TextStyle(
-  fontSize: 9.5,
+  fontSize: 13.5,
   fontWeight: FontWeight.w600,
   color: navy,
 );
 
+const TextStyle enterpriseMatrixHintStyle = TextStyle(
+  fontSize: 13.5,
+  color: Color(0xFF9AA5B4),
+);
+
 final InputDecoration enterpriseMatrixInputDecoration = InputDecoration(
   isDense: true,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+  contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
   border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
 );
+
+/// Bordered shell for matrix dropdowns (product, UOM).
+Widget enterpriseMatrixDropdownShell({required Widget child}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+    child: Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(3),
+        color: Colors.white,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: child,
+    ),
+  );
+}
+
+/// Bordered read-only matrix cell (SL, HSN, totals).
+Widget enterpriseMatrixBoxedCell({
+  required Widget child,
+  EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+  bool alignRight = false,
+}) {
+  return Padding(
+    padding: padding,
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+      decoration: BoxDecoration(
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(3),
+        color: Colors.white,
+      ),
+      alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
+      child: child,
+    ),
+  );
+}
+
+Widget enterpriseMatrixBoxedText(
+  String text, {
+  TextStyle? style,
+  bool alignRight = false,
+  FontWeight? fontWeight,
+}) {
+  return enterpriseMatrixBoxedCell(
+    alignRight: alignRight,
+    child: Text(
+      text,
+      style: (style ?? enterpriseMatrixCellStyle).copyWith(fontWeight: fontWeight),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    ),
+  );
+}
 
 Widget enterpriseMatrixTextField({
   required BuildContext context,

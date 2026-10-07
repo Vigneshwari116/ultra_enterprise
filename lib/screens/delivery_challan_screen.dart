@@ -5,6 +5,8 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/delivery_challan_document.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../widgets/invoice.dart';
+import '../widgets/transaction_line_math.dart';
 import 'product_catalog_refresh.dart';
 
 final deliveryChallanScreenKey = GlobalKey<DeliveryChallanScreenState>();
@@ -118,8 +120,15 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     suppliers = await repo.suppliers();
     products = await repo.products();
     units = await repo.units();
+    _reconcilePartySelection();
     await refreshSerial();
     if (mounted) setState(() {});
+  }
+
+  void _reconcilePartySelection() {
+    if (partyKey == null) return;
+    final valid = _partyItems.any((item) => item.value == partyKey);
+    if (!valid) partyKey = null;
   }
 
   Future<void> refreshSerial() async {
@@ -163,32 +172,66 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     deliverySite.text = p['shipping_address'] ?? p['address'] ?? '';
   }
 
-  double get baseValue => rows.fold(0, (s, r) => s + r.extended);
-  double get taxTotal => kind == DcKind.proforma ? rows.fold(0, (s, r) => s + r.taxAmount) : 0;
-  double get fwdVal => double.tryParse(fwd.text) ?? 0;
+  TransactionLineTotals _lineTotals(_DcRow r) => TransactionLineTotals.compute(
+        qty: r.qty,
+        rate: r.rate,
+        cgstPct: r.cgstPct,
+        sgstPct: r.sgstPct,
+        igstPct: r.igstPct,
+      );
+
+  double get baseValue => rows.fold(0, (s, r) => s + _lineTotals(r).taxable);
+  double get cgstTotal => rows.fold(0, (s, r) => s + _lineTotals(r).cgst);
+  double get sgstTotal => rows.fold(0, (s, r) => s + _lineTotals(r).sgst);
+  double get igstTotal => rows.fold(0, (s, r) => s + _lineTotals(r).igst);
+  double get taxTotal => cgstTotal + sgstTotal + igstTotal;
+  double get fwdVal => double.tryParse(fwd.text.trim()) ?? 0;
   double get grandTotal => baseValue + taxTotal + fwdVal;
   double get totalPcs => rows.fold<double>(0, (s, r) => s + r.qty);
+
+  double _availableStock(int? productId) {
+    if (productId == null) return 0;
+    for (final p in products) {
+      if (coerceCatalogId(p['id']) == productId) {
+        return repo.productStockOnHand(p);
+      }
+    }
+    return 0;
+  }
 
   List<DropdownMenuItem<String>> get _partyItems {
     final items = <DropdownMenuItem<String>>[];
     for (final s in suppliers) {
+      final id = coerceCatalogId(s['id']);
+      if (id == null) continue;
       items.add(DropdownMenuItem(
-        value: 'SUPPLIER:${s['id']}',
-        child: Text('[SUPPLIER] ${s['supplier_name']}', style: const TextStyle(color: red, fontSize: 11)),
+        value: 'SUPPLIER:$id',
+        child: Text('[SUPPLIER] ${s['supplier_name']}',
+            style: const TextStyle(color: red, fontSize: 15, fontWeight: FontWeight.w600)),
       ));
     }
     for (final c in customers) {
+      final id = coerceCatalogId(c['id']);
+      if (id == null) continue;
       items.add(DropdownMenuItem(
-        value: 'CUSTOMER:${c['id']}',
-        child: Text('[CUSTOMER] ${c['customer_name']}', style: const TextStyle(color: Color(0xFF1A5FB4), fontSize: 11)),
+        value: 'CUSTOMER:$id',
+        child: Text('[CUSTOMER] ${c['customer_name']}',
+            style: const TextStyle(color: Color(0xFF1A5FB4), fontSize: 15, fontWeight: FontWeight.w600)),
       ));
     }
     return items;
   }
 
+  void _disposeAllRows() {
+    for (final r in rows) {
+      r.dispose();
+    }
+  }
+
   @override
   void dispose() {
     unregisterProductCatalogRefresh(_productCatalogRefreshHandler);
+    _disposeAllRows();
     for (final c in [poRef, packages, vehicle, creditDays, validityDays, eway, fwd, billingAddress, city, pin, gstin, accountRef, deliverySite, historySearch]) {
       c.dispose();
     }
@@ -205,34 +248,64 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
-  Future<void> _saveAndPrint() async {
+  String? _validateBeforeSave() {
     if (partyKey == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select trans-party profile (supplier / customer).')));
-      return;
+      return 'Select trans-party profile (supplier / customer).';
+    }
+    final parts = partyKey!.split(':');
+    if (parts.length != 2) return 'Invalid party selection.';
+    if (docDate.trim().isEmpty) return 'Document date is required.';
+    final validRows = rows.where((r) => r.productId != null).toList();
+    if (validRows.isEmpty) return 'Add at least one product line.';
+    for (final r in validRows) {
+      if (r.qty <= 0) return 'Quantity must be greater than zero for ${r.description}.';
+      if (r.rate <= 0) return 'Rate must be greater than zero for ${r.description}.';
+      if (kind == DcKind.outward) {
+        final avail = _availableStock(r.productId);
+        if (r.qty > avail) {
+          return 'Insufficient stock for ${r.description}: available ${avail.toStringAsFixed(0)}, requested ${r.qty.toStringAsFixed(0)}.';
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<int?> _persistChallan() async {
+    final validation = _validateBeforeSave();
+    if (validation != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(validation)));
+      }
+      return null;
     }
     final parts = partyKey!.split(':');
     final uuid = repo.newUuid();
-    final docId = 'DC-${DateTime.now().year}-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
+    final docPrefix = kind == DcKind.proforma ? 'PI' : 'DC';
+    final docId =
+        '$docPrefix-${DateTime.now().year}-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
     final items = rows
+        .where((r) => r.productId != null)
         .map(
-          (r) => {
-            'product_id': r.productId,
-            'description': r.description,
-            'uom': r.uom,
-            'hsn': r.hsn,
-            'quantity': r.qty,
-            'rate': r.rate,
-            'cgst_percent': r.cgstPct,
-            'sgst_percent': r.sgstPct,
-            'igst_percent': r.igstPct,
-            'extended_value': r.extended + (kind == DcKind.proforma ? r.taxAmount : 0),
-            'remarks': r.remarks,
+          (r) {
+            final t = _lineTotals(r);
+            return {
+              'product_id': r.productId,
+              'description': r.description,
+              'uom': r.uom,
+              'hsn': r.hsn,
+              'quantity': r.qty,
+              'rate': r.rate,
+              'cgst_percent': r.cgstPct,
+              'sgst_percent': r.sgstPct,
+              'igst_percent': r.igstPct,
+              'extended_value': t.total,
+              'remarks': r.remarks,
+            };
           },
         )
         .toList();
-    int id;
     try {
-      id = await repo.createDeliveryChallan({
+      return await repo.createDeliveryChallan({
         'uuid': uuid,
         'dc_type': kind.dbType,
         'serial_no': int.tryParse(serialNo),
@@ -264,24 +337,57 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Server save failed: $e')),
+          SnackBar(content: Text('Failed to save Delivery Challan: $e')),
         );
       }
-      return;
+      return null;
     }
-    await reprintDeliveryChallan(id);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('DELIVERY CHALLAN SAVED — PRINT OPENED')));
-    }
-    await load();
+  }
+
+  void _resetForm() {
+    _disposeAllRows();
     setState(() {
-      rows..clear()..add(_DcRow());
+      rows
+        ..clear()
+        ..add(_DcRow());
+      partyKey = null;
       poRef.clear();
       packages.clear();
       vehicle.clear();
+      creditDays.text = '0';
+      validityDays.text = '0';
       eway.clear();
-      partyKey = null;
+      fwd.text = '0';
+      billingAddress.clear();
+      city.clear();
+      pin.clear();
+      gstin.clear();
+      accountRef.clear();
+      deliverySite.clear();
     });
+  }
+
+  Future<void> _saveAndPrint() async {
+    final id = await _persistChallan();
+    if (id == null) return;
+    try {
+      await reprintDeliveryChallan(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('DOCUMENT SAVED — PRINT DIALOG OPENED')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Document saved, but printing failed: $e')),
+        );
+      }
+    }
+    await load();
+    historyRegister = kind.dbType;
+    await refreshHistory();
+    _resetForm();
   }
 
   List<Map<String, dynamic>> get _filteredHistory {
@@ -302,25 +408,9 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
 
   Widget _historyView() {
     final list = _filteredHistory;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              IconButton(onPressed: () => setState(() => showHistory = false), icon: const Icon(Icons.arrow_back)),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('INVENTORY VOUCHERS DIRECTORY', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
-                    Text('LOGISTICS DISPATCH MATERIAL MOVEMENT RUNNING AUDIT TRAILS',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF748094))),
-                  ],
-                ),
-              ),
-              PopupMenuButton<String>(
+    final narrow = AppBreakpoints.isNarrow(context);
+    final pad = AppBreakpoints.pagePadding(context);
+    final registerMenu = PopupMenuButton<String>(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4)),
@@ -346,9 +436,37 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                   PopupMenuItem(value: 'OUTWARD', child: Text('DC OUTWARD REGISTER')),
                   PopupMenuItem(value: 'PROFORMA', child: Text('PROFORMA ESTIMATES')),
                 ],
+              );
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(pad),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(onPressed: () => setState(() => showHistory = false), icon: const Icon(Icons.arrow_back)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'INVENTORY VOUCHERS DIRECTORY',
+                      style: TextStyle(fontSize: narrow ? 16 : 20, fontWeight: FontWeight.w900, color: navy),
+                    ),
+                    const Text(
+                      'LOGISTICS DISPATCH MATERIAL MOVEMENT RUNNING AUDIT TRAILS',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF748094)),
+                    ),
+                  ],
+                ),
               ),
+              if (!narrow) registerMenu,
             ],
           ),
+          if (narrow) ...[
+            const SizedBox(height: 8),
+            registerMenu,
+          ],
           const SizedBox(height: 14),
           TextField(
             controller: historySearch,
@@ -373,49 +491,79 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     final type = '${row['dc_type']}';
     final amt = (row['grand_total'] as num?)?.toDouble() ?? 0;
     final pcs = (row['total_pcs'] as num?)?.toDouble() ?? 0;
+    final narrow = AppBreakpoints.isNarrow(context);
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('${row['party_name']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              color: const Color(0xFFE8ECF0),
+              child: Text(type, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'SERIAL NO: ${row['serial_no']}  ·  DOC ID: ${row['doc_id']}  ·  DATE: ${_display('${row['document_date']}')}  ·  PO REF: ${row['po_ref_no']}',
+          style: const TextStyle(fontSize: 10, color: teal, fontWeight: FontWeight.w600),
+        ),
+        if ('${row['vehicle_dispatch']}'.isNotEmpty)
+          Text(
+            'DISPATCH LOGISTICS VEHICLE: ${row['vehicle_dispatch']}',
+            style: const TextStyle(fontSize: 9.5, color: Color(0xFF748094)),
+          ),
+      ],
+    );
+    final amounts = Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+        Text('${pcs.toStringAsFixed(0)} PCS TOTAL', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
+      ],
+    );
+    final reprintBtn = OutlinedButton(
+      onPressed: () async {
+        try {
+          await reprintDeliveryChallan(id);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to load Delivery Challan for reprint: $e')),
+            );
+          }
+        }
+      },
+      child: const Icon(Icons.print_outlined, size: 18),
+    );
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border), borderRadius: BorderRadius.circular(6)),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      child: narrow
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text('${row['party_name']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      color: const Color(0xFFE8ECF0),
-                      child: Text(type, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'SERIAL NO: ${row['serial_no']}  ·  DOC ID: ${row['doc_id']}  ·  DATE: ${_display('${row['document_date']}')}  ·  PO REF: ${row['po_ref_no']}',
-                  style: const TextStyle(fontSize: 10, color: teal, fontWeight: FontWeight.w600),
-                ),
-                if ('${row['vehicle_dispatch']}'.isNotEmpty)
-                  Text('DISPATCH LOGISTICS VEHICLE: ${row['vehicle_dispatch']}',
-                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF748094))),
+                details,
+                const SizedBox(height: 8),
+                amounts,
+                const SizedBox(height: 8),
+                reprintBtn,
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: details),
+                amounts,
+                const SizedBox(width: 10),
+                reprintBtn,
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-              Text('${pcs.toStringAsFixed(0)} PCS TOTAL', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
-            ],
-          ),
-          const SizedBox(width: 10),
-          OutlinedButton(onPressed: () => reprintDeliveryChallan(id), child: const Icon(Icons.print_outlined, size: 18)),
-        ],
-      ),
     );
   }
 
@@ -428,94 +576,75 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
             width: double.infinity,
             color: const Color(0xFF19232C),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(kind.headerTitle, style: TextStyle(color: accent, fontSize: 14, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 18,
-                        children: [
-                          _mini('TOTAL PCS', totalPcs.toStringAsFixed(0)),
-                          _mini('BASE VALUE', baseValue.toStringAsFixed(2)),
-                          if (kind == DcKind.proforma) _mini('TOTAL TAX', taxTotal.toStringAsFixed(2)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                _typeBtn('DC INWARD', DcKind.inward, accent),
-                const SizedBox(width: 6),
-                _typeBtn('DC OUTWARD', DcKind.outward, accent),
-                const SizedBox(width: 6),
-                _typeBtn('PROFORMA', DcKind.proforma, accent),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('₹ ${grandTotal.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
-                    const Text('NET GRAND VALUE', style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
-                  ],
-                ),
+            child: enterpriseTerminalHeader(
+              title: kind.headerTitle,
+              titleColor: accent,
+              stats: [
+                enterpriseStatMini('TOTAL PCS', totalPcs.toStringAsFixed(0)),
+                enterpriseStatMini('TAXABLE', baseValue.toStringAsFixed(2)),
+                enterpriseStatMini('TOTAL TAX', taxTotal.toStringAsFixed(2)),
               ],
+              actions: [
+                _typeBtn('DC INWARD', DcKind.inward, accent),
+                _typeBtn('DC OUTWARD', DcKind.outward, accent),
+                _typeBtn('PROFORMA', DcKind.proforma, accent),
+              ],
+              totalAmount: '₹ ${grandTotal.toStringAsFixed(2)}',
+              totalLabel: 'NET GRAND VALUE',
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 LayoutBuilder(
                   builder: (context, c) {
-                    final stacked = c.maxWidth < formTwoColumnMinWidth;
-                    final s1 = _section(
-                      'SECTION 1: CONSIGNMENT METADATA',
-                      [
-                        _pair(
+                    final stacked = AppBreakpoints.shouldStackFormSections(c);
+                    final s1 = enterprisePlainSection(
+                      title: 'SECTION 1: CONSIGNMENT METADATA',
+                      children: [
+                        enterpriseFormPair(
                           _ro(kind == DcKind.proforma ? 'PROFORMA SERIAL NO (AUTO)' : 'CHALLAN / DC NUMERIC NO *', serialNo),
                           _date('DOCUMENT DATE', docDate, (v) => setState(() => docDate = v)),
                         ),
-                        _pair(
+                        enterpriseFormPair(
                           _field('PO REFERENCE NO', poRef, autofocus: true),
                           _date('PO REFERENCE DATE', poRefDate, (v) => setState(() => poRefDate = v)),
                         ),
-                        _pair(
+                        enterpriseFormPair(
                           _field('TOTAL NO OF PACKAGES', packages),
                           _field('VEHICLE NO / DISPATCH MODE', vehicle),
                         ),
                         if (kind == DcKind.proforma)
                           _field('VALIDITY DAYS', validityDays)
                         else
-                          _pair(_field('CREDIT DUE DAYS', creditDays), _field('E-WAY BILL NO (EWB)', eway)),
+                          enterpriseFormPair(_field('CREDIT DUE DAYS', creditDays), _field('E-WAY BILL NO (EWB)', eway)),
                       ],
                     );
-                    final s2 = _section(
-                      'SECTION 2: ACCOUNT / PARTY INFORMATION',
-                      [
+                    final s2 = enterprisePlainSection(
+                      title: 'SECTION 2: ACCOUNT / PARTY INFORMATION',
+                      children: [
                         enterpriseInsetDropdown<String>(
                           label: 'SELECT TRANS-PARTY PROFILE (SUPPLIER / CUSTOMER) *',
                           value: partyKey,
-                          hint: const Text('Choose supplier or customer', style: TextStyle(fontSize: 11)),
+                          hint: const Text('Choose supplier or customer', style: enterpriseInsetValueStyle),
                           items: _partyItems,
                           onChanged: (v) => setState(() => _fillParty(v!)),
                         ),
-                        const SizedBox(height: 10),
                         _field('OFFICIAL BILLING ADDRESS', billingAddress, maxLines: 2),
-                        _pair(_field('CITY', city), _field('POSTAL PINCODE', pin)),
-                        _pair(_field('PARTY GSTIN REFERENCE', gstin), _field('ACCOUNT REFERENCE NO', accountRef)),
+                        enterpriseFormPair(_field('CITY', city), _field('POSTAL PINCODE', pin)),
+                        enterpriseFormPair(_field('PARTY GSTIN REFERENCE', gstin), _field('ACCOUNT REFERENCE NO', accountRef)),
                         _field('DELIVERY SITE DESTINATION ADDRESS', deliverySite, maxLines: 2),
                       ],
                     );
-                    if (stacked) return Column(children: [s1, const SizedBox(height: 14), s2]);
-                    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: s1), const SizedBox(width: 14), Expanded(child: s2)]);
+                    if (stacked) return Column(children: [s1, const SizedBox(height: 8), s2]);
+                    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: s1), const SizedBox(width: 8), Expanded(child: s2)]);
                   },
                 ),
-                const SizedBox(height: 18),
-                const Text('SECTION 3: MATERIAL MATRIX GRID ENTRY', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy)),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
+                const Text('SECTION 3: MATERIAL MATRIX GRID ENTRY', style: enterpriseSectionTitleStyle),
+                const SizedBox(height: 6),
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4), color: Colors.white),
@@ -557,6 +686,13 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     return OutlinedButton(
       onPressed: () async {
         kind = k;
+        partyKey = null;
+        billingAddress.clear();
+        city.clear();
+        pin.clear();
+        gstin.clear();
+        accountRef.clear();
+        deliverySite.clear();
         await refreshSerial();
         setState(() {});
       },
@@ -566,60 +702,78 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
         side: BorderSide(color: active ? accent : Colors.white24),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+      child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
     );
   }
 
   Table _matrix(BuildContext context) {
     final proforma = kind == DcKind.proforma;
     return Table(
-      columnWidths: deliveryChallanMatrixColumns(proforma: proforma, includeRemarks: !proforma),
+      columnWidths: deliveryChallanMatrixColumns(
+        proforma: proforma,
+        includeRemarks: !proforma,
+      ),
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(
           decoration: const BoxDecoration(color: navy2),
           children: [
-            _h('SL'),
-            _h('MATERIAL DESCRIPTION'),
-            _h('UOM'),
-            _h('HSN'),
-            _h('QTY'),
-            _h('RATE/VAL'),
-            if (proforma) _h('CGST%'),
-            if (proforma) _h('SGST%'),
-            if (proforma) _h('IGST%'),
-            _h('EXTENDED VAL'),
-            if (!proforma) _h('REMARKS / DELIVERY PURPOSE'),
+            enterpriseMatrixHeadCell('SL'),
+            enterpriseMatrixHeadCell('MATERIAL DESCRIPTION'),
+            enterpriseMatrixHeadCell('UOM'),
+            enterpriseMatrixHeadCell('HSN'),
+            enterpriseMatrixHeadCell('QTY'),
+            enterpriseMatrixHeadCell('RATE/VAL'),
+            if (proforma) enterpriseMatrixHeadCell('CGST%'),
+            if (proforma) enterpriseMatrixHeadCell('SGST%'),
+            if (proforma) enterpriseMatrixHeadCell('IGST%'),
+            enterpriseMatrixHeadCell(proforma ? 'EXTENDED VAL' : 'LINE TOTAL'),
+            if (!proforma) enterpriseMatrixHeadCell('REMARKS / DELIVERY PURPOSE'),
             const SizedBox.shrink(),
           ],
         ),
         ...List.generate(rows.length, (i) {
           final r = rows[i];
+          final lineTotal = _lineTotals(r).total;
           return TableRow(
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: border.withValues(alpha: 0.6)))),
             children: [
-              Text('${i + 1}', style: const TextStyle(fontSize: 9)),
+              enterpriseMatrixBoxedText('${i + 1}'),
               _prodDrop(i),
               _uomDrop(i),
-              Text(r.hsn, style: const TextStyle(fontSize: 9)),
-              _num(context, i, (v) => r.qty = v),
-              _num(context, i, (v) => r.rate = v, rate: true),
-              if (proforma) _num(context, i, (v) => r.cgstPct = v, pct: true, val: r.cgstPct),
-              if (proforma) _num(context, i, (v) => r.sgstPct = v, pct: true, val: r.sgstPct),
-              if (proforma) _num(context, i, (v) => r.igstPct = v, pct: true, val: r.igstPct),
-              Text((proforma ? r.displayExtended : r.extended).toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+              enterpriseMatrixBoxedText(r.hsn.isEmpty ? '-' : r.hsn),
+              _num(context, i, r.qtyController, (v) => r.qty = v),
+              _num(context, i, r.rateController, (v) => r.rate = v),
+              if (proforma) _num(context, i, r.cgstController, (v) => r.cgstPct = v),
+              if (proforma) _num(context, i, r.sgstController, (v) => r.sgstPct = v),
+              if (proforma) _num(context, i, r.igstController, (v) => r.igstPct = v),
+              enterpriseMatrixBoxedText(
+                lineTotal.toStringAsFixed(2),
+                alignRight: true,
+                fontWeight: FontWeight.w800,
+              ),
               if (!proforma)
                 Padding(
-                  padding: const EdgeInsets.all(2),
-                  child: Builder(
-                    builder: (ctx) => enterpriseMatrixTextField(
-                      context: ctx,
-                      onChanged: (v) => r.remarks = v,
-                    ),
+                  padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                  child: enterpriseMatrixTextField(
+                    context: context,
+                    controller: r.remarksController,
+                    onChanged: (v) => r.remarks = v,
                   ),
                 ),
-              IconButton(
-                onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
-                icon: const Icon(Icons.delete_outline, color: red, size: 17),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+                child: IconButton(
+                  onPressed: rows.length == 1
+                      ? null
+                      : () => setState(() {
+                            rows[i].dispose();
+                            rows.removeAt(i);
+                          }),
+                  icon: const Icon(Icons.delete_outline, color: red, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                ),
               ),
             ],
           );
@@ -628,75 +782,83 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     );
   }
 
-  Widget _prodDrop(int i) => DropdownButton<int>(
-        isExpanded: true,
-        isDense: true,
-        hint: const Text('Item Description', style: TextStyle(fontSize: 9)),
-        value: rows[i].productId,
-        items: products.map((p) => DropdownMenuItem(value: p['id'] as int, child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9)))).toList(),
-        onChanged: (v) {
-          final p = products.firstWhere((x) => x['id'] == v);
-          setState(() => rows[i].setProduct(p));
-        },
-      );
-
-  Widget _uomDrop(int i) => DropdownButton<int>(
-        isExpanded: true,
-        isDense: true,
-        value: rows[i].unitId,
-        hint: const Text('UOM', style: TextStyle(fontSize: 9)),
-        items: units.map((u) => DropdownMenuItem(value: u['id'] as int, child: Text('${u['code']}', style: const TextStyle(fontSize: 9)))).toList(),
-        onChanged: (v) {
-          final u = units.firstWhere((x) => x['id'] == v);
-          setState(() {
-            rows[i].unitId = v;
-            rows[i].uom = '${u['code']}';
-          });
-        },
-      );
-
-  Widget _num(BuildContext context, int i, ValueChanged<double> on, {bool rate = false, bool pct = false, double? val}) => Padding(
-        padding: const EdgeInsets.all(2),
-        child: enterpriseMatrixTextField(
-          context: context,
-          keyboardType: TextInputType.number,
-          controller: pct ? TextEditingController(text: '${val ?? 0}') : null,
-          onChanged: (v) => setState(() => on(double.tryParse(v) ?? 0)),
+  Widget _prodDrop(int i) => enterpriseMatrixDropdownShell(
+        child: DropdownButton<int>(
+          isExpanded: true,
+          isDense: true,
+          underline: const SizedBox.shrink(),
+          hint: const Text('Item Description', style: enterpriseMatrixHintStyle),
+          value: catalogIdInList(rows[i].productId, products),
+          items: products
+              .map((p) {
+                final id = coerceCatalogId(p['id']);
+                if (id == null) return null;
+                return DropdownMenuItem<int>(
+                  value: id,
+                  child: Text('${p['product_name']}',
+                      style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
+                );
+              })
+              .whereType<DropdownMenuItem<int>>()
+              .toList(),
+          onChanged: (v) {
+            final p = products.firstWhere((x) => coerceCatalogId(x['id']) == v);
+            setState(() => rows[i].setProduct(p, kind: kind));
+          },
         ),
       );
 
-  Widget _h(String t) => Padding(padding: const EdgeInsets.all(6), child: Text(t, style: const TextStyle(color: Colors.white, fontSize: 7.5, fontWeight: FontWeight.w800)));
-
-  Widget _mini(String l, String v) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l, style: const TextStyle(color: Colors.white54, fontSize: 8)),
-          Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11)),
-        ],
+  Widget _uomDrop(int i) => enterpriseMatrixDropdownShell(
+        child: DropdownButton<int>(
+          isExpanded: true,
+          isDense: true,
+          underline: const SizedBox.shrink(),
+          value: catalogIdInList(rows[i].unitId, units),
+          hint: const Text('UOM', style: enterpriseMatrixHintStyle),
+          items: units
+              .map((u) {
+                final id = coerceCatalogId(u['id']);
+                if (id == null) return null;
+                return DropdownMenuItem<int>(
+                  value: id,
+                  child: Text('${u['code']}', style: enterpriseMatrixCellStyle),
+                );
+              })
+              .whereType<DropdownMenuItem<int>>()
+              .toList(),
+          onChanged: (v) {
+            final u = units.firstWhere((x) => coerceCatalogId(x['id']) == v);
+            setState(() {
+              rows[i].unitId = v;
+              rows[i].uom = '${u['code']}';
+            });
+          },
+        ),
       );
 
-  Widget _section(String title, List<Widget> children) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: navy)),
-          const Divider(),
-          ...children,
-        ],
+  Widget _num(
+    BuildContext context,
+    int i,
+    TextEditingController controller,
+    ValueChanged<double> on,
+  ) =>
+      Padding(
+        padding: const EdgeInsets.all(2),
+        child: enterpriseMatrixTextField(
+          context: context,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          controller: controller,
+          onChanged: (v) => setState(() => on(double.tryParse(v.trim()) ?? 0)),
+        ),
       );
 
-  Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]),
+  Widget _field(String label, TextEditingController c, {int maxLines = 1, bool autofocus = false}) =>
+      enterpriseFormField(
+        enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines, autofocus: autofocus),
       );
 
-  Widget _field(String label, TextEditingController c, {int maxLines = 1, bool autofocus = false}) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines, autofocus: autofocus),
-      );
-
-  Widget _ro(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: enterpriseInsetTextField(
+  Widget _ro(String label, String value) => enterpriseFormField(
+        enterpriseInsetTextField(
           label: label,
           controller: TextEditingController(text: value),
           readOnly: true,
@@ -704,16 +866,21 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
         ),
       );
 
-  Widget _date(String label, String iso, ValueChanged<String> on) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: enterpriseInsetDateField(
+  Widget _date(String label, String iso, ValueChanged<String> on) => enterpriseFormField(
+        enterpriseInsetDateField(
           label: label,
           isoDate: iso,
           onTap: () => _pickDate(iso, (v) => setState(() => on(v))),
         ),
       );
 
-  String _words(double v) => v == 0 ? 'ZERO RUPEES ONLY' : '₹${v.toStringAsFixed(2)} ONLY';
+  String _words(double v) => formatUltraAmountInWords(v);
+}
+
+String _dcMatrixNum(double v) {
+  if (v == 0) return '';
+  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
+  return v.toStringAsFixed(2);
 }
 
 class _DcRow {
@@ -727,18 +894,55 @@ class _DcRow {
   double rate = 0;
   double cgstPct = 9;
   double sgstPct = 9;
-  double igstPct = 18;
+  double igstPct = 0;
 
-  void setProduct(Map<String, dynamic> p) {
-    productId = p['id'] as int?;
-    description = '${p['product_name']}';
-    unitId = p['unit_id'] as int?;
-    uom = '${p['uom_code'] ?? 'PCS'}';
-    hsn = '${p['hsn'] ?? ''}';
-    rate = (p['rate'] ?? 0).toDouble();
+  late final TextEditingController qtyController;
+  late final TextEditingController rateController;
+  late final TextEditingController cgstController;
+  late final TextEditingController sgstController;
+  late final TextEditingController igstController;
+  late final TextEditingController remarksController;
+
+  _DcRow() {
+    qtyController = TextEditingController();
+    rateController = TextEditingController();
+    cgstController = TextEditingController(text: _dcMatrixNum(cgstPct));
+    sgstController = TextEditingController(text: _dcMatrixNum(sgstPct));
+    igstController = TextEditingController(text: _dcMatrixNum(igstPct));
+    remarksController = TextEditingController();
   }
 
-  double get extended => qty * rate;
-  double get taxAmount => extended * (cgstPct + sgstPct + igstPct) / 100;
-  double get displayExtended => extended + taxAmount;
+  void dispose() {
+    qtyController.dispose();
+    rateController.dispose();
+    cgstController.dispose();
+    sgstController.dispose();
+    igstController.dispose();
+    remarksController.dispose();
+  }
+
+  void setProduct(Map<String, dynamic> p, {required DcKind kind}) {
+    productId = coerceCatalogId(p['id']);
+    description = '${p['product_name'] ?? ''}';
+    unitId = catalogUnitId(p);
+    uom = catalogUomCode(p);
+    hsn = catalogProductHsn(p);
+    rate = kind == DcKind.inward ? catalogPurchaseRate(p) : catalogSalesRate(p);
+    rateController.text = _dcMatrixNum(rate);
+    final productGst = catalogTotalGstPercent(p);
+    if (productGst != null && productGst > 0) {
+      applyZoneGstSplit(
+        interState: false,
+        totalGstPercent: productGst,
+        apply: (c, s, i) {
+          cgstPct = c;
+          sgstPct = s;
+          igstPct = i;
+        },
+      );
+    }
+    cgstController.text = _dcMatrixNum(cgstPct);
+    sgstController.text = _dcMatrixNum(sgstPct);
+    igstController.text = _dcMatrixNum(igstPct);
+  }
 }

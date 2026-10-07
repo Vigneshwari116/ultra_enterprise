@@ -327,52 +327,17 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
           width: double.infinity,
           color: const Color(0xFF19232C),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('COMMERCIAL SALES TERMINAL',
-                      style: TextStyle(
-                          color: Color(0xFF2FE6E0),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .4)),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    _statMini(
-                        'TOTAL PCS',
-                        rows
-                            .fold<double>(0, (s, r) => s + r.qty)
-                            .toStringAsFixed(0)),
-                    const SizedBox(width: 22),
-                    _statMini('TAXABLE NET', taxable.toStringAsFixed(2)),
-                    const SizedBox(width: 22),
-                    _statMini('COMPOUND GST',
-                        (cgst + sgst + igst).toStringAsFixed(2)),
-                  ]),
-                ],
-              ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('₹${netPayable.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          color: Color(0xFFF4D53A),
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  const Text('NET PAYABLE VALUE',
-                      style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: .4)),
-                ],
-              ),
+          child: enterpriseTerminalHeader(
+            title: 'COMMERCIAL SALES TERMINAL',
+            stats: [
+              enterpriseStatMini(
+                  'TOTAL PCS',
+                  rows.fold<double>(0, (s, r) => s + r.qty).toStringAsFixed(0)),
+              enterpriseStatMini('TAXABLE NET', taxable.toStringAsFixed(2)),
+              enterpriseStatMini('COMPOUND GST', (cgst + sgst + igst).toStringAsFixed(2)),
             ],
+            totalAmount: '₹${netPayable.toStringAsFixed(2)}',
+            totalLabel: 'NET PAYABLE VALUE',
           ),
         ),
         Padding(
@@ -382,10 +347,10 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
             LayoutBuilder(
               builder: (context, constraints) {
                 final stacked = constraints.maxWidth < formTwoColumnMinWidth;
-                final section1 = _plainSection(
+                final section1 = enterprisePlainSection(
                   title: 'SECTION 1: TRANSACTION METADATA',
                   children: [
-                    _pair(
+                    enterpriseFormPair(
                       _outline('SALES VOUCHER NO (AUTO)',
                           controller: TextEditingController(text: voucherNo),
                           readOnly: true,
@@ -397,7 +362,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                             _pickDate(date, (v) => setState(() => date = v)),
                       ),
                     ),
-                    _pair(
+                    enterpriseFormPair(
                       _outline('PO NO', controller: po, autofocus: true),
                       enterpriseInsetDateField(
                         label: 'PO DATE',
@@ -408,7 +373,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                     ),
                     _zoneField(),
                     const SizedBox(height: 8),
-                    _pair(
+                    enterpriseFormPair(
                       _outline('CHALLAN / DC NO', controller: challan),
                       enterpriseInsetDateField(
                         label: 'CHALLAN / DC DATE',
@@ -417,18 +382,18 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                             (v) => setState(() => challanDate = v)),
                       ),
                     ),
-                    _pair(
+                    enterpriseFormPair(
                       _outline('TOTAL NO OF PACKAGES', controller: packages),
                       _outline('VEHICLE NO / DISPATCH MODE',
                           controller: vehicle),
                     ),
-                    _pair(
+                    enterpriseFormPair(
                       _outline('DUE DAYS', controller: due),
                       _outline('E-WAY BILL NO (EWB NO)', controller: eway),
                     ),
                   ],
                 );
-                final section2 = _plainSection(
+                final section2 = enterprisePlainSection(
                   title: 'SECTION 2: ACCOUNT / PARTY CONFIGURATION',
                   children: [
                     enterpriseInsetDropdown<int>(
@@ -461,19 +426,19 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                         readOnly: true,
                         filled: true),
                     const SizedBox(height: 14),
-                    _pair(
+                    enterpriseFormPair(
                       _outline('CITY',
                           controller: city, readOnly: true, filled: true),
                       _outline('POSTAL PINCODE',
                           controller: pin, readOnly: true, filled: true),
                     ),
-                    _pair(
+                    enterpriseFormPair(
                       _outline('PARTY GSTIN NO',
                           controller: gstin, readOnly: true, filled: true),
                       _outline('BANK IDENTIFIER NAME',
                           controller: bank, readOnly: true, filled: true),
                     ),
-                    _pair(
+                    enterpriseFormPair(
                       _outline('BANK ACCOUNT NO',
                           controller: account, readOnly: true, filled: true),
                       _outline('SHIPPING ADDRESS',
@@ -607,74 +572,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     );
   }
 
-  Widget _statMini(String label, String value) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800)),
-        ],
-      );
-  Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: a),
-          const SizedBox(width: 14),
-          Expanded(child: b),
-        ]),
-      );
-  Widget _plainSection(
-          {required String title, required List<Widget> children}) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: navy,
-                  letterSpacing: .3)),
-          const SizedBox(height: 4),
-          Container(height: 1, color: border),
-          const SizedBox(height: 8),
-          ...children,
-        ],
-      );
   String _amountInWords(double v) => payableAmountInWords(v);
-
-  static const _matrixHeadStyle = TextStyle(
-      color: Colors.white,
-      fontWeight: FontWeight.w800,
-      fontSize: 7.5,
-      height: 1.15);
-  static const _matrixCellStyle =
-      TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
-  static final _matrixInputDecoration = InputDecoration(
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
-    enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(3),
-        borderSide: const BorderSide(color: border)),
-  );
-
-  Widget _matrixHeadCell(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
-      child: Text(label,
-          style: _matrixHeadStyle,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis),
-    );
-  }
 
   Table _productMatrixTable() {
     return Table(
@@ -684,16 +582,16 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
         TableRow(
           decoration: const BoxDecoration(color: navy2),
           children: [
-            _matrixHeadCell('SL'),
-            _matrixHeadCell('MATERIAL PRODUCT DESCRIPTION'),
-            _matrixHeadCell('UOM'),
-            _matrixHeadCell('HSN'),
-            _matrixHeadCell('QTY'),
-            _matrixHeadCell('RATE'),
-            _matrixHeadCell('CGST%'),
-            _matrixHeadCell('SGST%'),
-            _matrixHeadCell('IGST%'),
-            _matrixHeadCell('COMPOUND TOTAL'),
+            enterpriseMatrixHeadCell('SL'),
+            enterpriseMatrixHeadCell('MATERIAL PRODUCT DESCRIPTION'),
+            enterpriseMatrixHeadCell('UOM'),
+            enterpriseMatrixHeadCell('HSN'),
+            enterpriseMatrixHeadCell('QTY'),
+            enterpriseMatrixHeadCell('RATE'),
+            enterpriseMatrixHeadCell('CGST%'),
+            enterpriseMatrixHeadCell('SGST%'),
+            enterpriseMatrixHeadCell('IGST%'),
+            enterpriseMatrixHeadCell('COMPOUND TOTAL'),
             const SizedBox.shrink(),
           ],
         ),
@@ -705,7 +603,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-                child: Text('${i + 1}', style: _matrixCellStyle),
+                child: Text('${i + 1}', style: enterpriseMatrixCellStyle),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
@@ -713,7 +611,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                   isExpanded: true,
                   isDense: true,
                   hint: const Text('Item Description',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
+                      style: enterpriseMatrixHintStyle),
                   value: catalogIdInList(rows[i].productId, products),
                   items: products
                       .map((p) {
@@ -722,7 +620,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                         return DropdownMenuItem<int>(
                           value: id,
                           child: Text('${p['product_name']}',
-                              style: const TextStyle(fontSize: 9),
+                              style: enterpriseMatrixCellStyle,
                               overflow: TextOverflow.ellipsis),
                         );
                       })
@@ -742,7 +640,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                   isDense: true,
                   underline: const SizedBox(),
                   value: catalogIdInList(rows[i].unitId, units),
-                  hint: const Text('UOM', style: TextStyle(fontSize: 9)),
+                  hint: const Text('UOM', style: enterpriseMatrixHintStyle),
                   items: units
                       .map((u) {
                         final id = coerceCatalogId(u['id']);
@@ -768,7 +666,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
                 child: Text(rows[i].hsn,
-                    style: _matrixCellStyle, overflow: TextOverflow.ellipsis),
+                    style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
@@ -827,7 +725,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                 child: Text(
                   _lineTotals(rows[i]).total.toStringAsFixed(2),
                   style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 9.5, color: navy),
+                      fontWeight: FontWeight.w800, fontSize: 13.5, color: navy),
                 ),
               ),
               IconButton(

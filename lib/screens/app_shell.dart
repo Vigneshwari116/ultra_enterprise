@@ -209,7 +209,8 @@ class _AppShellState extends State<AppShell> {
 
     if (overlay) {
       return Scaffold(
-        body: Stack(
+        body: SafeArea(
+          child: Stack(
           children: [
             main,
             if (sidebarOpen) ...[
@@ -233,11 +234,13 @@ class _AppShellState extends State<AppShell> {
             ],
           ],
         ),
+        ),
       );
     }
 
     return Scaffold(
-      body: Row(
+      body: SafeArea(
+        child: Row(
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -255,6 +258,7 @@ class _AppShellState extends State<AppShell> {
           ),
           Expanded(child: main),
         ],
+      ),
       ),
     );
   }
@@ -300,37 +304,49 @@ class _AppShellState extends State<AppShell> {
                       _headerDate(),
                       style: const TextStyle(
                         color: Color(0xFF748094),
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
-              if (MediaQuery.sizeOf(context).width >= 520) ...[
-                const Text(
-                  'ULTRA ENGINEERING',
-                  style: TextStyle(
-                    color: navy,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
+              if (MediaQuery.sizeOf(context).width >= AppBreakpoints.compact) ...[
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 200),
+                  child: Text(
+                    'ULTRA ENGINEERING',
+                    style: const TextStyle(
+                      color: navy,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 16),
               ],
-              const Text(
-                'SUPERUSER',
-                style: TextStyle(
-                  color: teal,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(width: 10),
-              CircleAvatar(
-                radius: 17,
-                backgroundColor: navy,
-                child: const Icon(Icons.person, size: 17, color: Colors.white),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (MediaQuery.sizeOf(context).width >= AppBreakpoints.compact)
+                    const Text(
+                      'SUPERUSER',
+                      style: TextStyle(
+                        color: teal,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  const CircleAvatar(
+                    radius: 17,
+                    backgroundColor: navy,
+                    child: Icon(Icons.person, size: 17, color: Colors.white),
+                  ),
+                ],
               ),
             ],
           ),
@@ -461,7 +477,7 @@ class _AppShellState extends State<AppShell> {
                 'Dashboard',
                 style: TextStyle(
                   color: selected ? tealDark : Colors.white70,
-                  fontSize: 10.5,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -497,7 +513,7 @@ class _AppShellState extends State<AppShell> {
                     group.title,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 10.5,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -540,7 +556,7 @@ class _AppShellState extends State<AppShell> {
                           leaf.label,
                           style: TextStyle(
                             color: highlight ? sidebarActiveBg : Colors.white60,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
                           ),
                         ),

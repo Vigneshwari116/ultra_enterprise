@@ -203,8 +203,9 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       return const Center(
           child: Padding(
               padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
+    final pagePad = AppBreakpoints.pagePadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pagePad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -224,35 +225,62 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
   }
 
   Widget _header() {
+    final narrow = AppBreakpoints.isNarrow(context);
     final titles = [
       'REAL-TIME PROCUREMENT MONITORING & SUPPLIER LEDGER ENTRIES DIRECTORY',
       'REAL-TIME PROCUREMENT MONITORING & SUPPLIER LEDGER ENTRIES DIRECTORY',
       'INDIVIDUAL SUPPLIER DETAILED ACCOUNT LEDGER BOOK STATEMENT',
     ];
-    return Row(
+    final titleBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('PURCHASE LEDGER AUDIT SYSTEM',
-                  style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
-              const SizedBox(height: 4),
-              Text(titles[tabIndex],
-                  style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF748094))),
-            ],
+        Text(
+          'PURCHASE LEDGER AUDIT SYSTEM',
+          style: TextStyle(
+            fontSize: narrow ? 16 : 20,
+            fontWeight: FontWeight.w900,
+            color: navy,
           ),
         ),
+        const SizedBox(height: 4),
+        Text(
+          titles[tabIndex],
+          style: TextStyle(
+            fontSize: narrow ? 9 : 10,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF748094),
+          ),
+        ),
+      ],
+    );
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         _tabSelector(),
         if (tabIndex != 0) ...[
           const SizedBox(width: 10),
           _printButton(),
         ],
+      ],
+    );
+    if (narrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          titleBlock,
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: actions,
+          ),
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: titleBlock),
+        actions,
       ],
     );
   }
@@ -310,31 +338,33 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ),
       );
 
-  Widget _statCardsRow() => Row(children: [
-        Expanded(
-            child: _statCard(
-                'TOTAL PURCHASE (CR)',
-                '₹${totalPurchaseCr.toStringAsFixed(2)}',
-                '${vouchers.length} purchase vouchers',
-                Icons.shopping_cart_outlined,
-                const Color(0xFFDD7A29))),
-        const SizedBox(width: 16),
-        Expanded(
-            child: _statCard(
-                'TOTAL PAID (DR)',
-                '₹${totalPaidDr.toStringAsFixed(2)}',
-                '${payments.length} payments',
-                Icons.credit_card_outlined,
-                const Color(0xFF2E6FDD))),
-        const SizedBox(width: 16),
-        Expanded(
-            child: _statCard(
-                'OUTSTANDING BALANCE',
-                '₹${outstandingBalance.toStringAsFixed(2)}',
-                'net payable to suppliers',
-                Icons.account_balance_wallet_outlined,
-                const Color(0xFFD1467A))),
-      ]);
+  Widget _statCardsRow() => responsiveRowOrColumn(
+        context,
+        [
+          _statCard(
+            'TOTAL PURCHASE (CR)',
+            '₹${totalPurchaseCr.toStringAsFixed(2)}',
+            '${vouchers.length} purchase vouchers',
+            Icons.shopping_cart_outlined,
+            const Color(0xFFDD7A29),
+          ),
+          _statCard(
+            'TOTAL PAID (DR)',
+            '₹${totalPaidDr.toStringAsFixed(2)}',
+            '${payments.length} payments',
+            Icons.credit_card_outlined,
+            const Color(0xFF2E6FDD),
+          ),
+          _statCard(
+            'OUTSTANDING BALANCE',
+            '₹${outstandingBalance.toStringAsFixed(2)}',
+            'net payable to suppliers',
+            Icons.account_balance_wallet_outlined,
+            const Color(0xFFD1467A),
+          ),
+        ],
+        spacing: 12,
+      );
 
   Widget _statCard(
           String label, String value, String sub, IconData icon, Color color) =>
@@ -374,50 +404,62 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ]),
       );
 
-  Widget _searchAndDateFilter() => Row(children: [
+  Widget _searchAndDateFilter() {
+    final searchField = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(children: [
+        const Icon(Icons.search, size: 16, color: Color(0xFF9AA5B4)),
+        const SizedBox(width: 8),
         Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-                border: Border.all(color: border),
-                borderRadius: BorderRadius.circular(4)),
-            child: Row(children: [
-              const Icon(Icons.search, size: 16, color: Color(0xFF9AA5B4)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: searchCtrl,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
-                    hintText:
-                        'Filter by date (YYYY-MM-DD), procurement voucher ID or supplier profile name...',
-                    hintStyle:
-                        TextStyle(fontSize: 11.5, color: Color(0xFF9AA5B4)),
-                  ),
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-            ]),
+          child: TextField(
+            controller: searchCtrl,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 12),
+              hintText:
+                  'Filter by date (YYYY-MM-DD), procurement voucher ID or supplier profile name...',
+              hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF9AA5B4)),
+            ),
+            style: const TextStyle(fontSize: 12),
           ),
         ),
-        const SizedBox(width: 12),
-        CompactDateRangeBar(
-          from: dateRange?.start,
-          to: dateRange?.end,
-          onFromChanged: (d) => setState(() {
-            final end = dateRange?.end ?? d;
-            dateRange = DateTimeRange(start: d, end: end.isBefore(d) ? d : end);
-          }),
-          onToChanged: (d) => setState(() {
-            final start = dateRange?.start ?? d;
-            dateRange = DateTimeRange(start: start, end: d);
-          }),
-          onClear: () => setState(() => dateRange = null),
-        ),
-      ]);
+      ]),
+    );
+    final dateBar = CompactDateRangeBar(
+      from: dateRange?.start,
+      to: dateRange?.end,
+      onFromChanged: (d) => setState(() {
+        final end = dateRange?.end ?? d;
+        dateRange = DateTimeRange(start: d, end: end.isBefore(d) ? d : end);
+      }),
+      onToChanged: (d) => setState(() {
+        final start = dateRange?.start ?? d;
+        dateRange = DateTimeRange(start: start, end: d);
+      }),
+      onClear: () => setState(() => dateRange = null),
+    );
+    if (AppBreakpoints.isNarrow(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          searchField,
+          const SizedBox(height: 8),
+          Align(alignment: Alignment.centerLeft, child: dateBar),
+        ],
+      );
+    }
+    return Row(children: [
+      Expanded(child: searchField),
+      const SizedBox(width: 12),
+      dateBar,
+    ]);
+  }
 
   // ---- Tab 0: Ledger View ----
   Widget _ledgerViewList() {
@@ -440,6 +482,35 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         final displayNo = '${v['_display_no']}';
         final displayDate = '${v['_display_date'] ?? ''}';
 
+        final narrow = AppBreakpoints.isNarrow(context);
+        final amountCol = _amountColumn(
+          isPo ? 'ORDER VALUE' : 'PROCUREMENT VALUE (CR)',
+          '₹${total.toStringAsFixed(0)}',
+          isPo ? const Color(0xFF2E6FDD) : const Color(0xFFDD3B3B),
+        );
+        final details = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(party, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                _badge(type, isPo ? const Color(0xFF2E6FDD) : const Color(0xFF748094)),
+                _badge(status, status == 'POSTED' || status == 'RECEIVED' ? const Color(0xFF2E8B30) : const Color(0xFFB8860B)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${isPo ? 'PO NO' : 'VOUCHER NO'}: '
+              '${isPo ? (v['po_no'] ?? '-') : (v['voucher_no'] ?? '-')}'
+              '  •  REF: $displayNo'
+              '  •  DATE: ${_fmtDate(displayDate)}',
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFB8860B)),
+            ),
+          ],
+        );
         return Container(
           margin: const EdgeInsets.only(bottom: 1),
           padding: const EdgeInsets.symmetric(
@@ -451,62 +522,46 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
               bottom: BorderSide(color: border),
             ),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
+          child: narrow
+              ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            party,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _badge(
-                          type,
-                          isPo
-                              ? const Color(0xFF2E6FDD)
-                              : const Color(0xFF748094),
-                        ),
-                        const SizedBox(width: 6),
-                        _badge(
-                          status,
-                          status == 'POSTED' || status == 'RECEIVED'
-                              ? const Color(0xFF2E8B30)
-                              : const Color(0xFFB8860B),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${isPo ? 'PO NO' : 'VOUCHER NO'}: '
-                      '${isPo ? (v['po_no'] ?? '-') : (v['voucher_no'] ?? '-')}'
-                      '  •  REF: $displayNo'
-                      '  •  DATE: ${_fmtDate(displayDate)}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFFB8860B),
+                    details,
+                    const SizedBox(height: 8),
+                    amountCol,
+                    if (isPo) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final id = v['id'] as int?;
+                          if (id == null) return;
+                          await reprintPurchaseOrder(id);
+                        },
+                        icon: const Icon(Icons.print_outlined, size: 14),
+                        label: const Text('REPRINT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                        style: OutlinedButton.styleFrom(foregroundColor: navy, side: const BorderSide(color: border)),
                       ),
-                    ),
+                    ] else ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final id = v['id'] as int?;
+                          if (id == null) return;
+                          await printPurchaseVoucherReprint(v);
+                        },
+                        icon: const Icon(Icons.print_outlined, size: 14),
+                        label: const Text('REPRINT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                        style: OutlinedButton.styleFrom(foregroundColor: navy, side: const BorderSide(color: border)),
+                      ),
+                    ],
                   ],
-                ),
-              ),
+                )
+              : Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: details),
               if (!isPo) const SizedBox(width: 24),
-              _amountColumn(
-                isPo ? 'ORDER VALUE' : 'PROCUREMENT VALUE (CR)',
-                '₹${total.toStringAsFixed(0)}',
-                isPo ? const Color(0xFF2E6FDD) : const Color(0xFFDD3B3B),
-              ),
+              amountCol,
               const SizedBox(width: 16),
               if (isPo)
                 OutlinedButton.icon(
@@ -784,18 +839,21 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Table(
-          columnWidths: const {
-            0: FlexColumnWidth(1.3),
-            1: FlexColumnWidth(2.2),
-            2: FlexColumnWidth(2.8),
-            3: FlexColumnWidth(1.4),
-            4: FlexColumnWidth(1.3),
-            5: FlexColumnWidth(1.3),
-            6: FlexColumnWidth(1.3),
-            7: FlexColumnWidth(1.5),
-          },
-          children: rows,
+        responsiveHorizontalTable(
+          context,
+          Table(
+            columnWidths: const {
+              0: FlexColumnWidth(1.3),
+              1: FlexColumnWidth(2.2),
+              2: FlexColumnWidth(2.8),
+              3: FlexColumnWidth(1.4),
+              4: FlexColumnWidth(1.3),
+              5: FlexColumnWidth(1.3),
+              6: FlexColumnWidth(1.3),
+              7: FlexColumnWidth(1.5),
+            },
+            children: rows,
+          ),
         ),
 
         const SizedBox(height: 16),
@@ -821,29 +879,14 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _auditSummaryItem(
-                      'PURCHASE ORDER VALUE',
-                      poTotal,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _auditSummaryItem(
-                      'PURCHASE VOUCHER VALUE',
-                      voucherTotal,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _auditSummaryItem(
-                      'TOTAL RECORD VALUE',
-                      gTotal,
-                    ),
-                  ),
+              responsiveRowOrColumn(
+                context,
+                [
+                  _auditSummaryItem('PURCHASE ORDER VALUE', poTotal),
+                  _auditSummaryItem('PURCHASE VOUCHER VALUE', voucherTotal),
+                  _auditSummaryItem('TOTAL RECORD VALUE', gTotal),
                 ],
+                spacing: 12,
               ),
               const SizedBox(height: 12),
               const Divider(),
@@ -1071,28 +1114,24 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [
-                    Expanded(
-                        child: _ledgerStat('OPENING BALANCE', data.opening)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                        child: _ledgerStat(
-                            'TOTAL PURCHASES (CR)', data.totalCredit)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                        child: _ledgerStat(
-                            'TOTAL PAYMENTS (DR)', data.totalDebit)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                        child:
-                            _ledgerStat('NET PAYABLE CLOSING', data.closing)),
-                  ]),
+                  responsiveRowOrColumn(
+                    context,
+                    [
+                      _ledgerStat('OPENING BALANCE', data.opening),
+                      _ledgerStat('TOTAL PURCHASES (CR)', data.totalCredit),
+                      _ledgerStat('TOTAL PAYMENTS (DR)', data.totalDebit),
+                      _ledgerStat('NET PAYABLE CLOSING', data.closing),
+                    ],
+                    spacing: 12,
+                  ),
                   const SizedBox(height: 16),
                   if (data.rows.isEmpty)
                     _emptyState(
                         'No financial ledger logs recorded for selected timeframe parameters.')
                   else
-                    Table(
+                    responsiveHorizontalTable(
+                      context,
+                      Table(
                       columnWidths: const {
                         0: FlexColumnWidth(1.4),
                         1: FlexColumnWidth(1.4),
@@ -1129,6 +1168,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
                                 bold: true),
                           ]),
                       ],
+                    ),
                     ),
                 ],
               );

@@ -16,6 +16,85 @@ const purple = Color(0xFF6E5CC7);
 /// Minimum content width to show transaction form sections 1 & 2 side-by-side.
 const formTwoColumnMinWidth = 640.0;
 
+/// Shared layout breakpoints for web / responsive layouts.
+class AppBreakpoints {
+  static const compact = 520.0;
+  static const narrow = 720.0;
+  static const formStack = formTwoColumnMinWidth;
+  static const navOverlay = 900.0;
+  static const masterStack = 960.0;
+  static const wide = 1100.0;
+
+  static bool isCompact(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < compact;
+
+  static bool isNarrow(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < narrow;
+
+  static bool shouldStackFormSections(BoxConstraints constraints) =>
+      constraints.maxWidth < formStack;
+
+  static bool shouldStackMasterPanels(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < masterStack;
+
+  static double pagePadding(BuildContext context) =>
+      isNarrow(context) ? 12.0 : 20.0;
+}
+
+/// Lays out [children] in a row on wide screens and a column on narrow screens.
+Widget responsiveRowOrColumn(
+  BuildContext context,
+  List<Widget> children, {
+  double spacing = 8,
+  bool expandInRow = true,
+}) {
+  if (AppBreakpoints.isNarrow(context)) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          children[i],
+          if (i < children.length - 1) SizedBox(height: spacing),
+        ],
+      ],
+    );
+  }
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (expandInRow) Expanded(child: children[i]) else children[i],
+        if (i < children.length - 1) SizedBox(width: spacing),
+      ],
+    ],
+  );
+}
+
+/// Two fields side-by-side on wide screens, stacked on narrow.
+Widget responsivePair(BuildContext context, Widget a, Widget b, {double spacing = 12}) {
+  if (AppBreakpoints.isNarrow(context)) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [a, SizedBox(height: spacing), b],
+    );
+  }
+  return Row(
+    children: [Expanded(child: a), SizedBox(width: spacing), Expanded(child: b)],
+  );
+}
+
+/// Wraps wide tables so they scroll horizontally on narrow screens.
+Widget responsiveHorizontalTable(BuildContext context, Widget table, {double minWidth = 640}) {
+  if (!AppBreakpoints.isNarrow(context)) return table;
+  return SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(minWidth: minWidth),
+      child: table,
+    ),
+  );
+}
+
 /// One metric tile for a dashboard, matching the accent-bar + icon layout.
 class MetricCard extends StatelessWidget {
   final String label;
@@ -58,7 +137,7 @@ class MetricCard extends StatelessWidget {
                       Expanded(
                         child: Text(label,
                             style: const TextStyle(
-                                fontSize: 9.5,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF748094),
                                 letterSpacing: .3)),
@@ -75,7 +154,7 @@ class MetricCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(sublabel,
                       style: TextStyle(
-                          fontSize: 9, fontWeight: FontWeight.w700, color: accent)),
+                          fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
                 ],
               ),
             ),
@@ -119,7 +198,7 @@ class SectionHeader extends StatelessWidget {
           Text(title,
               style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                   letterSpacing: .5)),
         ],
@@ -144,7 +223,7 @@ class Field extends StatelessWidget {
             text: label,
             style: const TextStyle(
               color: Color(0xFF39485A),
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
             children: requiredField
@@ -179,7 +258,7 @@ class DataCard extends StatelessWidget {
           children: [
             Text(label,
                 style: const TextStyle(
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF748094))),
             const SizedBox(height: 6),
@@ -216,7 +295,7 @@ class EnterpriseTable extends StatelessWidget {
               .map((c) => DataColumn(
                     label: Text(c,
                         style: const TextStyle(
-                            fontSize: 10,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                             letterSpacing: .3)),
@@ -226,7 +305,7 @@ class EnterpriseTable extends StatelessWidget {
               .map((r) => DataRow(
                     cells: r
                         .map((v) => DataCell(Text(v,
-                            style: const TextStyle(fontSize: 11))))
+                            style: const TextStyle(fontSize: 13.5))))
                         .toList(),
                   ))
               .toList(),
@@ -247,11 +326,11 @@ class PrimaryButton extends StatelessWidget {
     return ElevatedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon ?? Icons.save_outlined, size: 16),
-      label: Text(label),
+      label: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
       style: ElevatedButton.styleFrom(
         backgroundColor: navy,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
       ),
     );
