@@ -173,13 +173,27 @@ List<String> ultraOriginalDuplicateLabels(
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
 final PdfColor _grey = PdfColor.fromInt(0xFF748094);
 
-const int _minItemRows = 4;
-const int _minTaxInvoiceItemRows = 4;
+const int _minItemRows = 8;
+const int _minTaxInvoiceItemRows = 10;
+const double _itemRowHeight = 24;
+const double _itemHeaderHeight = 26;
+const double _pageMarginH = 8;
+const double _pageMarginV = 6;
 
 int _minRowsForKind(InvoiceData d) {
   if (d.kind == UltraBillKind.taxInvoice) return _minTaxInvoiceItemRows;
-  if (d.kind == UltraBillKind.quotation) return 3;
+  if (d.kind == UltraBillKind.quotation) return 6;
   return _minItemRows;
+}
+
+int _computeFillerRows(double tableHeight, InvoiceData d) {
+  final itemCount = d.items.length;
+  final minFiller = (_minRowsForKind(d) - itemCount).clamp(0, 48);
+  final used = _itemHeaderHeight + (itemCount + minFiller) * _itemRowHeight;
+  final remaining = tableHeight - used;
+  final extra =
+      remaining > 0 ? (remaining / _itemRowHeight).floor().clamp(0, 48) : 0;
+  return minFiller + extra;
 }
 
 /// Shared terms & conditions footer used on all ULTRA document PDFs.
@@ -288,8 +302,15 @@ Future<Uint8List> buildUltraInvoicePdf(InvoiceData data) async {
     doc.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(18),
-        build: (context) => _documentPage(data, copyLabel, logo),
+        margin: const pw.EdgeInsets.symmetric(
+            horizontal: _pageMarginH, vertical: _pageMarginV),
+        build: (context) {
+          final pageHeight = context.page.pageFormat.availableHeight;
+          return pw.SizedBox(
+            height: pageHeight,
+            child: _documentPage(data, copyLabel, logo),
+          );
+        },
       ),
     );
   }
@@ -334,15 +355,26 @@ pw.Widget _documentShell(List<pw.Widget> children) {
     decoration:
         pw.BoxDecoration(border: pw.Border.all(color: _black, width: 1)),
     child: pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      mainAxisSize: pw.MainAxisSize.min,
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      mainAxisSize: pw.MainAxisSize.max,
       children: children,
     ),
   );
 }
 
-int _fillerRowsFor(InvoiceData d) =>
-    (_minRowsForKind(d) - d.items.length).clamp(0, 24);
+/// Expands the line-items grid to consume remaining page height (matches paper form).
+pw.Widget _expandableItemsSection(
+    InvoiceData d, pw.Widget Function(int fillerRows) buildTable) {
+  return pw.Expanded(
+    child: pw.LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints?.maxHeight ?? PdfPageFormat.a4.height;
+        final fillerRows = _computeFillerRows(height, d);
+        return pw.SizedBox(height: height, child: buildTable(fillerRows));
+      },
+    ),
+  );
+}
 
 /// Routes each [UltraBillKind] to its own page layout — no shared tax-invoice body.
 pw.Widget _documentPage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
@@ -370,7 +402,8 @@ pw.Widget _taxInvoicePage(
     _topBar(d.documentTitle, copyLabel),
     _taxCompanyHeaderWithMeta(d, logo),
     _taxConsigneeAndShipping(d),
-    _taxInvoiceItemsTable(d, fillerRows: _fillerRowsFor(d)),
+    _expandableItemsSection(
+        d, (f) => _taxInvoiceItemsTable(d, fillerRows: f)),
     _taxInvoiceTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -382,7 +415,8 @@ pw.Widget _purchaseOrderPage(
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _purchaseOrderItemsTable(d, fillerRows: _fillerRowsFor(d)),
+    _expandableItemsSection(
+        d, (f) => _purchaseOrderItemsTable(d, fillerRows: f)),
     _purchaseOrderTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -394,7 +428,8 @@ pw.Widget _purchaseVoucherPage(
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _purchaseVoucherItemsTable(d, fillerRows: _fillerRowsFor(d)),
+    _expandableItemsSection(
+        d, (f) => _purchaseVoucherItemsTable(d, fillerRows: f)),
     _noteTaxTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -405,7 +440,7 @@ pw.Widget _quotationPage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _quotationItemsTable(d, fillerRows: _fillerRowsFor(d)),
+    _expandableItemsSection(d, (f) => _quotationItemsTable(d, fillerRows: f)),
     _forwardingTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -424,7 +459,8 @@ pw.Widget _deliveryChallanPage(
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _deliveryChallanItemsTable(d, fillerRows: _fillerRowsFor(d)),
+    _expandableItemsSection(
+        d, (f) => _deliveryChallanItemsTable(d, fillerRows: f)),
     totals,
     _termsAndSignature(d),
   ]);
@@ -436,7 +472,8 @@ pw.Widget _creditNotePage(
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _adjustmentNoteItemsTable(d, fillerRows: _fillerRowsFor(d)),
+    _expandableItemsSection(
+        d, (f) => _adjustmentNoteItemsTable(d, fillerRows: f)),
     _noteTaxTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -447,7 +484,8 @@ pw.Widget _debitNotePage(InvoiceData d, String copyLabel, pw.MemoryImage logo) {
     _topBar(d.documentTitle, copyLabel),
     _companyHeader(logo),
     _consigneeAndMeta(d),
-    _adjustmentNoteItemsTable(d, fillerRows: _fillerRowsFor(d)),
+    _expandableItemsSection(
+        d, (f) => _adjustmentNoteItemsTable(d, fillerRows: f)),
     _noteTaxTotalsAndBank(d),
     _termsAndSignature(d),
   ]);
@@ -484,7 +522,7 @@ pw.Widget _topBarTitleText(String text,
         : pw.Alignment.centerLeft,
     child: pw.Text(
       text,
-      style: _ts(size: 11, weight: pw.FontWeight.bold),
+      style: _ts(size: 12, weight: pw.FontWeight.bold),
       softWrap: false,
       maxLines: 1,
       textAlign: align,
@@ -542,23 +580,23 @@ pw.Widget _companyHeader(pw.MemoryImage logo) {
             children: [
               pw.Text('ULTRA ENGINEERING WORKS',
                   style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold, fontSize: 20)),
+                      fontWeight: pw.FontWeight.bold, fontSize: 22)),
               pw.SizedBox(height: 2),
               pw.Text('SPM MANUFACTURERS & FABRICATORS',
                   style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      fontWeight: pw.FontWeight.bold, fontSize: 10)),
               pw.SizedBox(height: 2),
               pw.Text(
                   'OFFICE:NO: 15/6, 5th CROSS, VIDYA NAGAR, OPP. S.K.F. FACTORY, BOMMASANDRA INDL. AREA, BENGALURU-560 099.',
-                  style: const pw.TextStyle(fontSize: 7),
+                  style: const pw.TextStyle(fontSize: 7.5),
                   textAlign: pw.TextAlign.center),
               pw.Text(
                   'Tele Fax: 080-27834287, Mob: 9342509313 Email: ueworks@gmail.com',
-                  style: const pw.TextStyle(fontSize: 7),
+                  style: const pw.TextStyle(fontSize: 7.5),
                   textAlign: pw.TextAlign.center),
               pw.Text(
                   'Works: No.B-48, KSSIDC INDL Estate, Near Karnataka Bank, Bommasandra Indl. Area, BENGALURU-560 099.',
-                  style: const pw.TextStyle(fontSize: 7),
+                  style: const pw.TextStyle(fontSize: 7.5),
                   textAlign: pw.TextAlign.center),
             ],
           ),
@@ -1042,34 +1080,48 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
   );
 }
 
+/// Outer border + vertical column lines only (no row dividers in product body).
 const _itemsTableBorder = pw.TableBorder(
   left: pw.BorderSide(color: _black, width: 1),
   right: pw.BorderSide(color: _black, width: 1),
   top: pw.BorderSide(color: _black, width: 1),
   bottom: pw.BorderSide(color: _black, width: 1),
-  horizontalInside: pw.BorderSide(color: _black, width: 1),
   verticalInside: pw.BorderSide(color: _black, width: 1),
 );
 
 pw.Widget _itemsTableCell(String text,
-        {pw.TextAlign align = pw.TextAlign.left}) =>
-    pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-      child: pw.Text(text, style: _ts(size: 8.5), textAlign: align),
-    );
+    {pw.TextAlign align = pw.TextAlign.left, bool header = false}) {
+  final child = pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+    child: pw.Text(
+      text,
+      style: _ts(
+          size: header ? 9 : 9.5,
+          weight: header ? pw.FontWeight.bold : pw.FontWeight.normal),
+      textAlign: align,
+    ),
+  );
+  if (!header) return child;
+  return pw.Container(
+    decoration: const pw.BoxDecoration(
+      border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1)),
+    ),
+    child: child,
+  );
+}
 
 pw.TableRow _itemsEmptyRow(int cols) => pw.TableRow(
-      children: List.generate(cols, (_) => pw.SizedBox(height: 18)),
+      children: List.generate(cols, (_) => pw.SizedBox(height: _itemRowHeight)),
     );
 
 pw.Widget _quotationItemsTable(InvoiceData d, {required int fillerRows}) {
   pw.TableRow headerRow() => pw.TableRow(
         children: [
-          _itemsTableCell('SL', align: pw.TextAlign.center),
-          _itemsTableCell('ITEM SPECIFICATION PARTICULARS'),
-          _itemsTableCell('QTY', align: pw.TextAlign.center),
-          _itemsTableCell('RATE', align: pw.TextAlign.right),
-          _itemsTableCell('NET TOTAL', align: pw.TextAlign.right),
+          _itemsTableCell('SL', align: pw.TextAlign.center, header: true),
+          _itemsTableCell('ITEM SPECIFICATION PARTICULARS', header: true),
+          _itemsTableCell('QTY', align: pw.TextAlign.center, header: true),
+          _itemsTableCell('RATE', align: pw.TextAlign.right, header: true),
+          _itemsTableCell('NET TOTAL', align: pw.TextAlign.right, header: true),
         ],
       );
   pw.TableRow itemRow(int index) {
@@ -1166,13 +1218,14 @@ pw.Widget _hsnItemsTable(
   final colCount = withRemarks ? 7 : 6;
   pw.TableRow headerRow() => pw.TableRow(
         children: [
-          _itemsTableCell(slHeader, align: pw.TextAlign.center),
-          _itemsTableCell('DESCRIPTION'),
-          _itemsTableCell(hsnHeader, align: pw.TextAlign.center),
-          _itemsTableCell('QTY', align: pw.TextAlign.center),
-          _itemsTableCell(priceHeader, align: pw.TextAlign.right),
-          _itemsTableCell('AMOUNT', align: pw.TextAlign.right),
-          if (withRemarks) _itemsTableCell('REMARKS'),
+          _itemsTableCell(slHeader, align: pw.TextAlign.center, header: true),
+          _itemsTableCell('DESCRIPTION', header: true),
+          _itemsTableCell(hsnHeader, align: pw.TextAlign.center, header: true),
+          _itemsTableCell('QTY', align: pw.TextAlign.center, header: true),
+          _itemsTableCell(priceHeader, align: pw.TextAlign.right, header: true),
+          _itemsTableCell('AMOUNT', align: pw.TextAlign.right, header: true),
+          if (withRemarks)
+            _itemsTableCell('REMARKS', header: true),
         ],
       );
   pw.TableRow itemRow(int index) {
