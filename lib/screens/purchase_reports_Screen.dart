@@ -203,8 +203,9 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       return const Center(
           child: Padding(
               padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
+    final pagePad = AppBreakpoints.pagePadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pagePad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -224,35 +225,62 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
   }
 
   Widget _header() {
+    final narrow = AppBreakpoints.isNarrow(context);
     final titles = [
       'REAL-TIME PROCUREMENT MONITORING & SUPPLIER LEDGER ENTRIES DIRECTORY',
       'REAL-TIME PROCUREMENT MONITORING & SUPPLIER LEDGER ENTRIES DIRECTORY',
       'INDIVIDUAL SUPPLIER DETAILED ACCOUNT LEDGER BOOK STATEMENT',
     ];
-    return Row(
+    final titleBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('PURCHASE LEDGER AUDIT SYSTEM',
-                  style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
-              const SizedBox(height: 4),
-              Text(titles[tabIndex],
-                  style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF748094))),
-            ],
+        Text(
+          'PURCHASE LEDGER AUDIT SYSTEM',
+          style: TextStyle(
+            fontSize: narrow ? 16 : 20,
+            fontWeight: FontWeight.w900,
+            color: navy,
           ),
         ),
+        const SizedBox(height: 4),
+        Text(
+          titles[tabIndex],
+          style: TextStyle(
+            fontSize: narrow ? 9 : 10,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF748094),
+          ),
+        ),
+      ],
+    );
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         _tabSelector(),
         if (tabIndex != 0) ...[
           const SizedBox(width: 10),
           _printButton(),
         ],
+      ],
+    );
+    if (narrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          titleBlock,
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: actions,
+          ),
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: titleBlock),
+        actions,
       ],
     );
   }
@@ -310,31 +338,33 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ),
       );
 
-  Widget _statCardsRow() => Row(children: [
-        Expanded(
-            child: _statCard(
-                'TOTAL PURCHASE (CR)',
-                '₹${totalPurchaseCr.toStringAsFixed(2)}',
-                '${vouchers.length} purchase vouchers',
-                Icons.shopping_cart_outlined,
-                const Color(0xFFDD7A29))),
-        const SizedBox(width: 16),
-        Expanded(
-            child: _statCard(
-                'TOTAL PAID (DR)',
-                '₹${totalPaidDr.toStringAsFixed(2)}',
-                '${payments.length} payments',
-                Icons.credit_card_outlined,
-                const Color(0xFF2E6FDD))),
-        const SizedBox(width: 16),
-        Expanded(
-            child: _statCard(
-                'OUTSTANDING BALANCE',
-                '₹${outstandingBalance.toStringAsFixed(2)}',
-                'net payable to suppliers',
-                Icons.account_balance_wallet_outlined,
-                const Color(0xFFD1467A))),
-      ]);
+  Widget _statCardsRow() => responsiveRowOrColumn(
+        context,
+        [
+          _statCard(
+            'TOTAL PURCHASE (CR)',
+            '₹${totalPurchaseCr.toStringAsFixed(2)}',
+            '${vouchers.length} purchase vouchers',
+            Icons.shopping_cart_outlined,
+            const Color(0xFFDD7A29),
+          ),
+          _statCard(
+            'TOTAL PAID (DR)',
+            '₹${totalPaidDr.toStringAsFixed(2)}',
+            '${payments.length} payments',
+            Icons.credit_card_outlined,
+            const Color(0xFF2E6FDD),
+          ),
+          _statCard(
+            'OUTSTANDING BALANCE',
+            '₹${outstandingBalance.toStringAsFixed(2)}',
+            'net payable to suppliers',
+            Icons.account_balance_wallet_outlined,
+            const Color(0xFFD1467A),
+          ),
+        ],
+        spacing: 12,
+      );
 
   Widget _statCard(
           String label, String value, String sub, IconData icon, Color color) =>
@@ -374,50 +404,62 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ]),
       );
 
-  Widget _searchAndDateFilter() => Row(children: [
+  Widget _searchAndDateFilter() {
+    final searchField = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(children: [
+        const Icon(Icons.search, size: 16, color: Color(0xFF9AA5B4)),
+        const SizedBox(width: 8),
         Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-                border: Border.all(color: border),
-                borderRadius: BorderRadius.circular(4)),
-            child: Row(children: [
-              const Icon(Icons.search, size: 16, color: Color(0xFF9AA5B4)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: searchCtrl,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
-                    hintText:
-                        'Filter by date (YYYY-MM-DD), procurement voucher ID or supplier profile name...',
-                    hintStyle:
-                        TextStyle(fontSize: 11.5, color: Color(0xFF9AA5B4)),
-                  ),
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-            ]),
+          child: TextField(
+            controller: searchCtrl,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 12),
+              hintText:
+                  'Filter by date (YYYY-MM-DD), procurement voucher ID or supplier profile name...',
+              hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF9AA5B4)),
+            ),
+            style: const TextStyle(fontSize: 12),
           ),
         ),
-        const SizedBox(width: 12),
-        CompactDateRangeBar(
-          from: dateRange?.start,
-          to: dateRange?.end,
-          onFromChanged: (d) => setState(() {
-            final end = dateRange?.end ?? d;
-            dateRange = DateTimeRange(start: d, end: end.isBefore(d) ? d : end);
-          }),
-          onToChanged: (d) => setState(() {
-            final start = dateRange?.start ?? d;
-            dateRange = DateTimeRange(start: start, end: d);
-          }),
-          onClear: () => setState(() => dateRange = null),
-        ),
-      ]);
+      ]),
+    );
+    final dateBar = CompactDateRangeBar(
+      from: dateRange?.start,
+      to: dateRange?.end,
+      onFromChanged: (d) => setState(() {
+        final end = dateRange?.end ?? d;
+        dateRange = DateTimeRange(start: d, end: end.isBefore(d) ? d : end);
+      }),
+      onToChanged: (d) => setState(() {
+        final start = dateRange?.start ?? d;
+        dateRange = DateTimeRange(start: start, end: d);
+      }),
+      onClear: () => setState(() => dateRange = null),
+    );
+    if (AppBreakpoints.isNarrow(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          searchField,
+          const SizedBox(height: 8),
+          Align(alignment: Alignment.centerLeft, child: dateBar),
+        ],
+      );
+    }
+    return Row(children: [
+      Expanded(child: searchField),
+      const SizedBox(width: 12),
+      dateBar,
+    ]);
+  }
 
   // ---- Tab 0: Ledger View ----
   Widget _ledgerViewList() {
@@ -1071,28 +1113,24 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [
-                    Expanded(
-                        child: _ledgerStat('OPENING BALANCE', data.opening)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                        child: _ledgerStat(
-                            'TOTAL PURCHASES (CR)', data.totalCredit)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                        child: _ledgerStat(
-                            'TOTAL PAYMENTS (DR)', data.totalDebit)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                        child:
-                            _ledgerStat('NET PAYABLE CLOSING', data.closing)),
-                  ]),
+                  responsiveRowOrColumn(
+                    context,
+                    [
+                      _ledgerStat('OPENING BALANCE', data.opening),
+                      _ledgerStat('TOTAL PURCHASES (CR)', data.totalCredit),
+                      _ledgerStat('TOTAL PAYMENTS (DR)', data.totalDebit),
+                      _ledgerStat('NET PAYABLE CLOSING', data.closing),
+                    ],
+                    spacing: 12,
+                  ),
                   const SizedBox(height: 16),
                   if (data.rows.isEmpty)
                     _emptyState(
                         'No financial ledger logs recorded for selected timeframe parameters.')
                   else
-                    Table(
+                    responsiveHorizontalTable(
+                      context,
+                      Table(
                       columnWidths: const {
                         0: FlexColumnWidth(1.4),
                         1: FlexColumnWidth(1.4),
@@ -1129,6 +1167,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
                                 bold: true),
                           ]),
                       ],
+                    ),
                     ),
                 ],
               );
