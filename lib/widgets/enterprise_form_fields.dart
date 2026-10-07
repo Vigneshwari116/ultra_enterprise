@@ -3,18 +3,44 @@ import 'package:intl/intl.dart';
 
 import 'enterprise_widgets.dart';
 
+/// Shared transaction-form typography (all commercial entry screens).
 const enterpriseInsetLabelStyle = TextStyle(
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: FontWeight.w700,
   color: Color(0xFF748094),
   letterSpacing: 0.2,
 );
 
 const enterpriseInsetValueStyle = TextStyle(
-  fontSize: 13.5,
+  fontSize: 15,
   fontWeight: FontWeight.w600,
   color: navy,
 );
+
+const enterpriseSectionTitleStyle = TextStyle(
+  fontSize: 14,
+  fontWeight: FontWeight.w800,
+  color: navy,
+  letterSpacing: 0.3,
+);
+
+const enterpriseTerminalStatLabelStyle = TextStyle(
+  color: Colors.white54,
+  fontSize: 10.5,
+  fontWeight: FontWeight.w700,
+);
+
+const enterpriseTerminalStatValueStyle = TextStyle(
+  color: Colors.white,
+  fontSize: 14,
+  fontWeight: FontWeight.w800,
+);
+
+/// Tighter inset boxes for metadata sections (sections 1 & 2).
+const enterpriseCompactFieldPadding = EdgeInsets.fromLTRB(8, 4, 8, 5);
+
+const double enterpriseFormRowGap = 3;
+const double enterpriseFormColumnGap = 8;
 
 InputDecoration enterpriseInsetInputDecoration({
   Widget? suffixIcon,
@@ -56,7 +82,7 @@ Widget enterpriseInsetFieldShell({
   required Widget child,
   bool filled = false,
   Color? borderColor,
-  EdgeInsets padding = const EdgeInsets.fromLTRB(10, 8, 10, 8),
+  EdgeInsets padding = enterpriseCompactFieldPadding,
 }) {
   return Container(
     decoration: enterpriseInsetBoxDecoration(filled: filled, borderColor: borderColor),
@@ -66,10 +92,61 @@ Widget enterpriseInsetFieldShell({
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label, style: enterpriseInsetLabelStyle),
-        const SizedBox(height: 2),
+        const SizedBox(height: 1),
         child,
       ],
     ),
+  );
+}
+
+/// Section 1 / 2 block title with divider (compact spacing).
+Widget enterprisePlainSection({
+  required String title,
+  required List<Widget> children,
+}) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: enterpriseSectionTitleStyle),
+      const SizedBox(height: 3),
+      Container(height: 1, color: border),
+      const SizedBox(height: 6),
+      ...children,
+    ],
+  );
+}
+
+/// Two fields on one row with reduced gap.
+Widget enterpriseFormPair(Widget left, Widget right) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: enterpriseFormRowGap),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: left),
+        const SizedBox(width: enterpriseFormColumnGap),
+        Expanded(child: right),
+      ],
+    ),
+  );
+}
+
+/// Wraps a single inset field with compact row spacing.
+Widget enterpriseFormField(Widget field) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: enterpriseFormRowGap),
+    child: field,
+  );
+}
+
+Widget enterpriseStatMini(String label, String value) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: enterpriseTerminalStatLabelStyle),
+      const SizedBox(height: 2),
+      Text(value, style: enterpriseTerminalStatValueStyle),
+    ],
   );
 }
 
@@ -134,12 +211,12 @@ Widget enterpriseInsetDateField({
     child: InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+        padding: EdgeInsets.zero,
         child: Row(
           children: [
             Text(display, style: enterpriseInsetValueStyle),
             const Spacer(),
-            const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF748094)),
+            const Icon(Icons.calendar_today_outlined, size: 18, color: Color(0xFF748094)),
           ],
         ),
       ),
@@ -175,7 +252,7 @@ Widget enterpriseInsetDropdown<T>({
   Color? borderColor,
 }) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 4),
+    padding: const EdgeInsets.only(bottom: enterpriseFormRowGap),
     child: enterpriseInsetFieldShell(
       label: label,
       borderColor: borderColor,
@@ -233,7 +310,7 @@ Widget enterpriseValueWordsFooter({
     ),
     child: Text(
       '$wordsLabel: $valueInWords',
-      style: TextStyle(color: wordsColor, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.3),
+      style: TextStyle(color: wordsColor, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.3),
     ),
   );
 
@@ -340,19 +417,24 @@ const Map<int, TableColumnWidth> adjustmentNoteMatrixColumns = {
 const TextStyle enterpriseMatrixHeadStyle = TextStyle(
   color: Colors.white,
   fontWeight: FontWeight.w800,
-  fontSize: 9,
+  fontSize: 10,
   height: 1.2,
 );
 
 const TextStyle enterpriseMatrixCellStyle = TextStyle(
-  fontSize: 12,
+  fontSize: 13.5,
   fontWeight: FontWeight.w600,
   color: navy,
 );
 
+const TextStyle enterpriseMatrixHintStyle = TextStyle(
+  fontSize: 13.5,
+  color: Color(0xFF9AA5B4),
+);
+
 final InputDecoration enterpriseMatrixInputDecoration = InputDecoration(
   isDense: true,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+  contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
   border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
 );
@@ -384,7 +466,7 @@ Widget enterpriseMatrixBoxedCell({
     padding: padding,
     child: Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
       decoration: BoxDecoration(
         border: Border.all(color: border),
         borderRadius: BorderRadius.circular(3),

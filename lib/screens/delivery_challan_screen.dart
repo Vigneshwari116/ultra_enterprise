@@ -207,7 +207,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
       items.add(DropdownMenuItem(
         value: 'SUPPLIER:$id',
         child: Text('[SUPPLIER] ${s['supplier_name']}',
-            style: const TextStyle(color: red, fontSize: 13.5, fontWeight: FontWeight.w600)),
+            style: const TextStyle(color: red, fontSize: 15, fontWeight: FontWeight.w600)),
       ));
     }
     for (final c in customers) {
@@ -216,7 +216,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
       items.add(DropdownMenuItem(
         value: 'CUSTOMER:$id',
         child: Text('[CUSTOMER] ${c['customer_name']}',
-            style: const TextStyle(color: Color(0xFF1A5FB4), fontSize: 13.5, fontWeight: FontWeight.w600)),
+            style: const TextStyle(color: Color(0xFF1A5FB4), fontSize: 15, fontWeight: FontWeight.w600)),
       ));
     }
     return items;
@@ -575,12 +575,12 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                   ],
                 );
                 final stats = Wrap(
-                  spacing: 18,
-                  runSpacing: 6,
+                  spacing: 16,
+                  runSpacing: 4,
                   children: [
-                    _mini('TOTAL PCS', totalPcs.toStringAsFixed(0)),
-                    _mini('TAXABLE', baseValue.toStringAsFixed(2)),
-                    _mini('TOTAL TAX', taxTotal.toStringAsFixed(2)),
+                    enterpriseStatMini('TOTAL PCS', totalPcs.toStringAsFixed(0)),
+                    enterpriseStatMini('TAXABLE', baseValue.toStringAsFixed(2)),
+                    enterpriseStatMini('TOTAL TAX', taxTotal.toStringAsFixed(2)),
                   ],
                 );
                 if (narrow) {
@@ -626,58 +626,57 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 LayoutBuilder(
                   builder: (context, c) {
                     final stacked = c.maxWidth < formTwoColumnMinWidth;
-                    final s1 = _section(
-                      'SECTION 1: CONSIGNMENT METADATA',
-                      [
-                        _pair(
+                    final s1 = enterprisePlainSection(
+                      title: 'SECTION 1: CONSIGNMENT METADATA',
+                      children: [
+                        enterpriseFormPair(
                           _ro(kind == DcKind.proforma ? 'PROFORMA SERIAL NO (AUTO)' : 'CHALLAN / DC NUMERIC NO *', serialNo),
                           _date('DOCUMENT DATE', docDate, (v) => setState(() => docDate = v)),
                         ),
-                        _pair(
+                        enterpriseFormPair(
                           _field('PO REFERENCE NO', poRef, autofocus: true),
                           _date('PO REFERENCE DATE', poRefDate, (v) => setState(() => poRefDate = v)),
                         ),
-                        _pair(
+                        enterpriseFormPair(
                           _field('TOTAL NO OF PACKAGES', packages),
                           _field('VEHICLE NO / DISPATCH MODE', vehicle),
                         ),
                         if (kind == DcKind.proforma)
                           _field('VALIDITY DAYS', validityDays)
                         else
-                          _pair(_field('CREDIT DUE DAYS', creditDays), _field('E-WAY BILL NO (EWB)', eway)),
+                          enterpriseFormPair(_field('CREDIT DUE DAYS', creditDays), _field('E-WAY BILL NO (EWB)', eway)),
                       ],
                     );
-                    final s2 = _section(
-                      'SECTION 2: ACCOUNT / PARTY INFORMATION',
-                      [
+                    final s2 = enterprisePlainSection(
+                      title: 'SECTION 2: ACCOUNT / PARTY INFORMATION',
+                      children: [
                         enterpriseInsetDropdown<String>(
                           label: 'SELECT TRANS-PARTY PROFILE (SUPPLIER / CUSTOMER) *',
                           value: partyKey,
-                          hint: const Text('Choose supplier or customer', style: TextStyle(fontSize: 13.5)),
+                          hint: const Text('Choose supplier or customer', style: enterpriseInsetValueStyle),
                           items: _partyItems,
                           onChanged: (v) => setState(() => _fillParty(v!)),
                         ),
-                        const SizedBox(height: 10),
                         _field('OFFICIAL BILLING ADDRESS', billingAddress, maxLines: 2),
-                        _pair(_field('CITY', city), _field('POSTAL PINCODE', pin)),
-                        _pair(_field('PARTY GSTIN REFERENCE', gstin), _field('ACCOUNT REFERENCE NO', accountRef)),
+                        enterpriseFormPair(_field('CITY', city), _field('POSTAL PINCODE', pin)),
+                        enterpriseFormPair(_field('PARTY GSTIN REFERENCE', gstin), _field('ACCOUNT REFERENCE NO', accountRef)),
                         _field('DELIVERY SITE DESTINATION ADDRESS', deliverySite, maxLines: 2),
                       ],
                     );
-                    if (stacked) return Column(children: [s1, const SizedBox(height: 14), s2]);
-                    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: s1), const SizedBox(width: 14), Expanded(child: s2)]);
+                    if (stacked) return Column(children: [s1, const SizedBox(height: 8), s2]);
+                    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: s1), const SizedBox(width: 8), Expanded(child: s2)]);
                   },
                 ),
-                const SizedBox(height: 18),
-                const Text('SECTION 3: MATERIAL MATRIX GRID ENTRY', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy)),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
+                const Text('SECTION 3: MATERIAL MATRIX GRID ENTRY', style: enterpriseSectionTitleStyle),
+                const SizedBox(height: 6),
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4), color: Colors.white),
@@ -820,8 +819,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
           isExpanded: true,
           isDense: true,
           underline: const SizedBox.shrink(),
-          hint: const Text('Item Description',
-              style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
+          hint: const Text('Item Description', style: enterpriseMatrixHintStyle),
           value: catalogIdInList(rows[i].productId, products),
           items: products
               .map((p) {
@@ -848,7 +846,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
           isDense: true,
           underline: const SizedBox.shrink(),
           value: catalogIdInList(rows[i].unitId, units),
-          hint: const Text('UOM', style: TextStyle(fontSize: 12, color: Color(0xFF9AA5B4))),
+          hint: const Text('UOM', style: enterpriseMatrixHintStyle),
           items: units
               .map((u) {
                 final id = coerceCatalogId(u['id']);
@@ -886,36 +884,13 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
         ),
       );
 
-  Widget _mini(String l, String v) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-          Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
-        ],
+  Widget _field(String label, TextEditingController c, {int maxLines = 1, bool autofocus = false}) =>
+      enterpriseFormField(
+        enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines, autofocus: autofocus),
       );
 
-  Widget _section(String title, List<Widget> children) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy)),
-          const Divider(),
-          ...children,
-        ],
-      );
-
-  Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]),
-      );
-
-  Widget _field(String label, TextEditingController c, {int maxLines = 1, bool autofocus = false}) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines, autofocus: autofocus),
-      );
-
-  Widget _ro(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: enterpriseInsetTextField(
+  Widget _ro(String label, String value) => enterpriseFormField(
+        enterpriseInsetTextField(
           label: label,
           controller: TextEditingController(text: value),
           readOnly: true,
@@ -923,9 +898,8 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
         ),
       );
 
-  Widget _date(String label, String iso, ValueChanged<String> on) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: enterpriseInsetDateField(
+  Widget _date(String label, String iso, ValueChanged<String> on) => enterpriseFormField(
+        enterpriseInsetDateField(
           label: label,
           isoDate: iso,
           onTap: () => _pickDate(iso, (v) => setState(() => on(v))),

@@ -58,7 +58,7 @@ class MetricCard extends StatelessWidget {
                       Expanded(
                         child: Text(label,
                             style: const TextStyle(
-                                fontSize: 9.5,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF748094),
                                 letterSpacing: .3)),
@@ -75,7 +75,7 @@ class MetricCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(sublabel,
                       style: TextStyle(
-                          fontSize: 9, fontWeight: FontWeight.w700, color: accent)),
+                          fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
                 ],
               ),
             ),
@@ -119,7 +119,7 @@ class SectionHeader extends StatelessWidget {
           Text(title,
               style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                   letterSpacing: .5)),
         ],
@@ -144,7 +144,7 @@ class Field extends StatelessWidget {
             text: label,
             style: const TextStyle(
               color: Color(0xFF39485A),
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
             children: requiredField
@@ -179,7 +179,7 @@ class DataCard extends StatelessWidget {
           children: [
             Text(label,
                 style: const TextStyle(
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF748094))),
             const SizedBox(height: 6),
@@ -216,7 +216,7 @@ class EnterpriseTable extends StatelessWidget {
               .map((c) => DataColumn(
                     label: Text(c,
                         style: const TextStyle(
-                            fontSize: 10,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                             letterSpacing: .3)),
@@ -226,7 +226,7 @@ class EnterpriseTable extends StatelessWidget {
               .map((r) => DataRow(
                     cells: r
                         .map((v) => DataCell(Text(v,
-                            style: const TextStyle(fontSize: 11))))
+                            style: const TextStyle(fontSize: 13.5))))
                         .toList(),
                   ))
               .toList(),
@@ -247,11 +247,11 @@ class PrimaryButton extends StatelessWidget {
     return ElevatedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon ?? Icons.save_outlined, size: 16),
-      label: Text(label),
+      label: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
       style: ElevatedButton.styleFrom(
         backgroundColor: navy,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
       ),
     );

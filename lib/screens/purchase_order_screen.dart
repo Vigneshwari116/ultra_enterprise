@@ -509,9 +509,9 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         spacing: 22,
                         runSpacing: 6,
                         children: [
-                          _statMini('TOTAL QTY', totalQty.toStringAsFixed(0)),
-                          _statMini('TAXABLE VAL', taxable.toStringAsFixed(2)),
-                          _statMini('GST TOTAL', gstTotal.toStringAsFixed(2)),
+                          enterpriseStatMini('TOTAL QTY', totalQty.toStringAsFixed(0)),
+                          enterpriseStatMini('TAXABLE VAL', taxable.toStringAsFixed(2)),
+                          enterpriseStatMini('GST TOTAL', gstTotal.toStringAsFixed(2)),
                         ],
                       ),
                     ],
@@ -551,10 +551,10 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final stacked = constraints.maxWidth < formTwoColumnMinWidth;
-                    final section1 = _plainSection(
+                    final section1 = enterprisePlainSection(
                       title: 'SECTION 1: ORDER METADATA',
                       children: [
-                        _pair(
+                        enterpriseFormPair(
                           _outline('PO NUMERIC SERIAL NO (AUTO)', controller: TextEditingController(text: poNo), readOnly: true, filled: true),
                           enterpriseInsetDateField(
                             label: 'ORDER PLACEMENT DATE',
@@ -563,7 +563,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                           ),
                         ),
                         _zoneField(),
-                        _pair(
+                        enterpriseFormPair(
                           _outline('DELIVERY TIMELINE VALIDITY (DAYS)', controller: dueDays, autofocus: true,
                               onChanged: (_) {
                                 _syncDueDateFromDays();
@@ -575,7 +575,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         _outline('SUPPLIER REFERENCE / REMARKS', controller: supplierRef),
                       ],
                     );
-                    final section2 = _plainSection(
+                    final section2 = enterprisePlainSection(
                       title: 'SECTION 2: PARTY ALLOCATION — SUPPLIER',
                       children: [
                         enterpriseInsetDropdown<int>(
@@ -603,11 +603,11 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         const SizedBox(height: 12),
                         _outline('OFFICIAL BILLING HEADQUARTERS ADDRESS', controller: supplierAddress, readOnly: true, filled: true),
                         const SizedBox(height: 12),
-                        _pair(
+                        enterpriseFormPair(
                           _outline('CITY', controller: city, readOnly: true, filled: true),
                           _outline('PINCODE', controller: pin, readOnly: true, filled: true),
                         ),
-                        _pair(
+                        enterpriseFormPair(
                           _outline('REGISTERED GSTIN REFERENCE', controller: gstin, readOnly: true, filled: true),
                           _outline('BANK IDENTIFIER NAME', controller: bank, readOnly: true, filled: true),
                         ),
@@ -778,54 +778,6 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     );
   }
 
-  Widget _statMini(String label, String value) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
-        ],
-      );
-
-  Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: a),
-            const SizedBox(width: 14),
-            Expanded(child: b),
-          ],
-        ),
-      );
-
-  Widget _plainSection({required String title, required List<Widget> children}) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
-          const SizedBox(height: 4),
-          Container(height: 1, color: border),
-          const SizedBox(height: 8),
-          ...children,
-        ],
-      );
-
-  static const _matrixHeadStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 7.5, height: 1.15);
-  static const _matrixCellStyle = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
-  static final _matrixInputDecoration = InputDecoration(
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
-  );
-
-  Widget _matrixHeadCell(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
-      child: Text(label, style: _matrixHeadStyle, maxLines: 2, overflow: TextOverflow.ellipsis),
-    );
-  }
-
   Table _productMatrixTable() {
     return Table(
       columnWidths: enterpriseProductMatrixColumns,
@@ -834,16 +786,16 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
         TableRow(
           decoration: const BoxDecoration(color: navy2),
           children: [
-            _matrixHeadCell('SL'),
-            _matrixHeadCell('MATERIAL PROCUREMENT DESCRIPTION'),
-            _matrixHeadCell('UOM'),
-            _matrixHeadCell('HSN'),
-            _matrixHeadCell('REQ QTY'),
-            _matrixHeadCell('AGREED RATE'),
-            _matrixHeadCell('CGST%'),
-            _matrixHeadCell('SGST%'),
-            _matrixHeadCell('IGST%'),
-            _matrixHeadCell('COMPOUND ROW VALUE'),
+            enterpriseMatrixHeadCell('SL'),
+            enterpriseMatrixHeadCell('MATERIAL PROCUREMENT DESCRIPTION'),
+            enterpriseMatrixHeadCell('UOM'),
+            enterpriseMatrixHeadCell('HSN'),
+            enterpriseMatrixHeadCell('REQ QTY'),
+            enterpriseMatrixHeadCell('AGREED RATE'),
+            enterpriseMatrixHeadCell('CGST%'),
+            enterpriseMatrixHeadCell('SGST%'),
+            enterpriseMatrixHeadCell('IGST%'),
+            enterpriseMatrixHeadCell('COMPOUND ROW VALUE'),
             const SizedBox.shrink(),
           ],
         ),
@@ -853,14 +805,14 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-                child: Text('${i + 1}', style: _matrixCellStyle),
+                child: Text('${i + 1}', style: enterpriseMatrixCellStyle),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
                 child: DropdownButton<int>(
                   isExpanded: true,
                   isDense: true,
-                  hint: const Text('Enter Description', style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
+                  hint: const Text('Enter Description', style: enterpriseMatrixHintStyle),
                   value: catalogIdInList(rows[i].productId, products),
                   items: products
                       .map((p) {
@@ -868,7 +820,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
+                          child: Text('${p['product_name']}', style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
@@ -886,14 +838,14 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   isDense: true,
                   underline: const SizedBox(),
                   value: catalogIdInList(rows[i].unitId, units),
-                  hint: const Text('UOM', style: TextStyle(fontSize: 9)),
+                  hint: const Text('UOM', style: enterpriseMatrixHintStyle),
                   items: units
                       .map((u) {
                         final id = coerceCatalogId(u['id']);
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${u['code']}', style: const TextStyle(fontSize: 9)),
+                          child: Text('${u['code']}', style: enterpriseMatrixCellStyle),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
@@ -909,7 +861,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-                child: Text(rows[i].hsn, style: _matrixCellStyle, overflow: TextOverflow.ellipsis),
+                child: Text(rows[i].hsn, style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
@@ -958,7 +910,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-                child: Text(_lineTotals(rows[i]).total.toStringAsFixed(2), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
+                child: Text(_lineTotals(rows[i]).total.toStringAsFixed(2), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
