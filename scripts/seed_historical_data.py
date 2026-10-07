@@ -53,6 +53,7 @@ EXPECTED = {
     "purchase_voucher_items": 874,
     "sales_invoices": 208,
     "sales_invoice_items": 371,
+    "stock_movements": 872,
 }
 
 UNIT_SEED = [
@@ -116,7 +117,12 @@ def customer_uuid(dedupe_key: str) -> str:
 
 
 def supplier_uuid(dedupe_key: str) -> str:
+    """suppliers.uuid is TEXT on live VPS — uuid5 string stored without ::uuid cast."""
     return deterministic_uuid(f"SUPPLIER:{dedupe_key}")
+
+
+def stock_movement_uuid(voucher_no: int, line_no: int) -> str:
+    return deterministic_uuid(f"STOCK-MOVEMENT:{voucher_no}:{line_no}")
 
 
 def customer_code(dedupe_key: str) -> str:
@@ -197,6 +203,25 @@ def validate_generated_uuids(data: dict[str, Any]) -> None:
         pv_uuid = purchase_uuid(voucher_no)
         if not pv_uuid.startswith("PURCHASE:"):
             raise RuntimeError(f"purchase voucher uuid must remain TEXT form: {pv_uuid!r}")
+
+    movement_uuids: set[str] = set()
+    for line in data["purchase_lines"]:
+        qty = float(line["qty"])
+        if qty <= 0:
+            continue
+        voucher_no = int(line["bill_no"])
+        line_no = int(line["line_no"])
+        uid = stock_movement_uuid(voucher_no, line_no)
+        assert_valid_rfc4122_uuid(uid, "stock_movement")
+        if uid in movement_uuids:
+            raise RuntimeError(
+                f"duplicate stock movement UUID for voucher_no={voucher_no} line_no={line_no}"
+            )
+        movement_uuids.add(uid)
+    if len(movement_uuids) != EXPECTED["stock_movements"]:
+        raise RuntimeError(
+            f"stock movement UUID count: got {len(movement_uuids)}, expected {EXPECTED['stock_movements']}"
+        )
 
 
 def connect(database_url: str):
@@ -328,7 +353,7 @@ def seed_suppliers(cur, suppliers: dict[str, dict[str, Any]]) -> dict[str, int]:
     supplier_ids: dict[str, int] = {}
     for dedupe_key, header in sorted(suppliers.items()):
         uuid = supplier_uuid(dedupe_key)
-        existing = fetch_one(cur, "SELECT id FROM suppliers WHERE uuid = %s::uuid", (uuid,))
+        existing = fetch_one(cur, "SELECT id FROM suppliers WHERE uuid = %s", (uuid,))
         if existing:
             supplier_ids[dedupe_key] = int(existing)
             continue
@@ -403,6 +428,7 @@ def apply_stock_increase(cur, product_id: int, qty: float, created_at: str) -> f
 
 def insert_stock_movement(
     cur,
+    movement_uuid: str,
     product_id: int,
     qty: float,
     balance_after: float,
@@ -411,11 +437,11 @@ def insert_stock_movement(
     cur.execute(
         """
         INSERT INTO stock_movements (
-          product_id, movement_type, reference_type, reference_id,
+          uuid, product_id, movement_type, reference_type, reference_id,
           quantity, balance_after, created_at
-        ) VALUES (%s, 'PURCHASE_VOUCHER', NULL, NULL, %s, %s, %s::timestamptz)
+        ) VALUES (%s::uuid, %s, 'PURCHASE_VOUCHER', NULL, NULL, %s, %s, %s::timestamptz)
         """,
-        (product_id, qty, balance_after, created_at),
+        (movement_uuid, product_id, qty, balance_after, created_at),
     )
 
 
@@ -500,7 +526,14 @@ def seed_purchase_vouchers(
             qty = float(line["qty"])
             if qty > 0:
                 balance_after = apply_stock_increase(cur, product_id, qty, created_at)
-                insert_stock_movement(cur, product_id, qty, balance_after, created_at)
+                insert_stock_movement(
+                    cur,
+                    stock_movement_uuid(voucher_no, int(line["line_no"])),
+                    product_id,
+                    qty,
+                    balance_after,
+                    created_at,
+                )
                 stats["stock_movements"] += 1
 
     return dict(stats)
@@ -628,7 +661,9 @@ def dry_run_report(data: dict[str, Any]) -> None:
     print(f"Product UUIDs (uuid5):     {len(data['catalog'])} validated")
     print(f"Sales invoice UUIDs:       {len(data['sales_headers'])} validated")
     print(f"Sales item UUIDs:          {len(data['sales_lines'])} validated")
+    print(f"Stock movement UUIDs:      {positive_lines} validated")
     print(f"Purchase voucher UUIDs:    TEXT form PURCHASE:{{n}} ({len(data['purchase_headers'])})")
+    print(f"Supplier UUIDs:            TEXT uuid5 strings ({len(data['suppliers'])})")
     print("No database changes were made.")
 
 
