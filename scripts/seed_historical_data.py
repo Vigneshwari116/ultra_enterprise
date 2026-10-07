@@ -24,8 +24,8 @@ import hashlib
 import json
 import os
 import sys
+import uuid
 from collections import Counter
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -72,39 +72,51 @@ STATE_ZONE_SEED = [
     (2, "INTER", "Inter State"),
 ]
 
+# DNS namespace — fixed seed for reproducible uuid5 values across runs.
+NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+
+def deterministic_uuid(key: str) -> str:
+    """Return a stable RFC-4122 UUID string for the given logical key."""
+    return str(uuid.uuid5(NAMESPACE, key))
+
 
 def sha_hex(value: str, length: int = 32) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:length].upper()
 
 
-def product_uuid(name: str, hsn: str) -> str:
+def product_key_string(name: str, hsn: str) -> str:
     norm_name, norm_hsn = product_key(name, hsn)
-    return f"PRODUCT:{sha_hex(f'{norm_name}|{norm_hsn}')}"
+    return f"{norm_name}|{norm_hsn}"
+
+
+def product_uuid(name: str, hsn: str) -> str:
+    return deterministic_uuid(f"PRODUCT:{product_key_string(name, hsn)}")
 
 
 def product_code(name: str, hsn: str) -> str:
-    norm_name, norm_hsn = product_key(name, hsn)
-    return f"P{sha_hex(f'{norm_name}|{norm_hsn}', 12)}"
+    return f"P{sha_hex(product_key_string(name, hsn), 12)}"
 
 
 def purchase_uuid(voucher_no: int) -> str:
+    """purchase_vouchers.uuid is TEXT — keep human-readable deterministic id."""
     return f"PURCHASE:{voucher_no}"
 
 
 def sales_uuid(invoice_no: int) -> str:
-    return f"SALES:{invoice_no}"
+    return deterministic_uuid(f"SALES:{invoice_no}")
 
 
 def sales_item_uuid(invoice_no: int, line_no: int) -> str:
-    return f"SALES:{invoice_no}:LINE:{line_no}"
+    return deterministic_uuid(f"SALES-ITEM:{invoice_no}:{line_no}")
 
 
 def customer_uuid(dedupe_key: str) -> str:
-    return f"CUSTOMER:{sha_hex(dedupe_key, 24)}"
+    return deterministic_uuid(f"CUSTOMER:{dedupe_key}")
 
 
 def supplier_uuid(dedupe_key: str) -> str:
-    return f"SUPPLIER:{sha_hex(dedupe_key, 24)}"
+    return deterministic_uuid(f"SUPPLIER:{dedupe_key}")
 
 
 def customer_code(dedupe_key: str) -> str:
@@ -139,6 +151,52 @@ def validate_source_counts(data: dict[str, Any]) -> None:
         raise RuntimeError(
             f"state_zone distribution: got intra={zone_counts.get(1)}, inter={zone_counts.get(2)}; expected 186/22"
         )
+
+
+def assert_valid_rfc4122_uuid(value: str, label: str) -> None:
+    try:
+        parsed = uuid.UUID(value)
+    except ValueError as exc:
+        raise RuntimeError(f"{label}: not a valid RFC-4122 UUID: {value!r}") from exc
+    if str(parsed) != value:
+        raise RuntimeError(f"{label}: UUID canonical form mismatch: {value!r} != {parsed}")
+
+
+def validate_generated_uuids(data: dict[str, Any]) -> None:
+    """Verify every product/sales UUID is valid RFC-4122 before any DB access."""
+    product_uuids: set[str] = set()
+    for entry in data["catalog"].values():
+        uid = product_uuid(entry["item_name"], entry["hsn"])
+        assert_valid_rfc4122_uuid(uid, "product")
+        if uid in product_uuids:
+            raise RuntimeError(f"duplicate product UUID for key: {product_key_string(entry['item_name'], entry['hsn'])}")
+        product_uuids.add(uid)
+
+    sales_uuids: set[str] = set()
+    for header in data["sales_headers"]:
+        invoice_no = int(header["invoice_no"])
+        uid = sales_uuid(invoice_no)
+        assert_valid_rfc4122_uuid(uid, "sales_invoice")
+        if uid in sales_uuids:
+            raise RuntimeError(f"duplicate sales invoice UUID for invoice_no={invoice_no}")
+        sales_uuids.add(uid)
+
+    item_uuids: set[str] = set()
+    for line in data["sales_lines"]:
+        invoice_no = int(line["invoice_no"])
+        line_no = int(line["line_no"])
+        uid = sales_item_uuid(invoice_no, line_no)
+        assert_valid_rfc4122_uuid(uid, "sales_invoice_item")
+        if uid in item_uuids:
+            raise RuntimeError(
+                f"duplicate sales item UUID for invoice_no={invoice_no} line_no={line_no}"
+            )
+        item_uuids.add(uid)
+
+    for voucher_no in {int(h["bill_no"]) for h in data["purchase_headers"]}:
+        pv_uuid = purchase_uuid(voucher_no)
+        if not pv_uuid.startswith("PURCHASE:"):
+            raise RuntimeError(f"purchase voucher uuid must remain TEXT form: {pv_uuid!r}")
 
 
 def connect(database_url: str):
@@ -194,7 +252,7 @@ def seed_products(cur, catalog: dict[tuple[str, str], dict[str, Any]], unit_ids:
 
         existing = fetch_one(
             cur,
-            "SELECT id FROM products WHERE uuid = %s OR product_code = %s",
+            "SELECT id FROM products WHERE uuid = %s::uuid OR product_code = %s",
             (uuid, code),
         )
         if existing:
@@ -234,7 +292,7 @@ def seed_customers(cur, customers: dict[str, dict[str, Any]]) -> dict[str, int]:
         code = customer_code(dedupe_key)
         existing = fetch_one(
             cur,
-            "SELECT id FROM customers WHERE uuid = %s OR customer_code = %s",
+            "SELECT id FROM customers WHERE uuid = %s::uuid OR customer_code = %s",
             (uuid, code),
         )
         if existing:
@@ -270,7 +328,7 @@ def seed_suppliers(cur, suppliers: dict[str, dict[str, Any]]) -> dict[str, int]:
     supplier_ids: dict[str, int] = {}
     for dedupe_key, header in sorted(suppliers.items()):
         uuid = supplier_uuid(dedupe_key)
-        existing = fetch_one(cur, "SELECT id FROM suppliers WHERE uuid = %s", (uuid,))
+        existing = fetch_one(cur, "SELECT id FROM suppliers WHERE uuid = %s::uuid", (uuid,))
         if existing:
             supplier_ids[dedupe_key] = int(existing)
             continue
@@ -314,15 +372,16 @@ def purchase_voucher_exists(cur, voucher_no: int, uuid: str) -> bool:
     return existing is not None
 
 
-def sales_invoice_exists(cur, invoice_no: int, uuid: str) -> bool:
+def sales_invoice_exists(cur, invoice_no: int) -> bool:
+    invoice_uuid = sales_uuid(invoice_no)
     existing = fetch_one(
         cur,
         """
         SELECT id FROM sales_invoices
-        WHERE uuid = %s OR invoice_no = %s
+        WHERE uuid = %s::uuid OR invoice_no = %s
         LIMIT 1
         """,
-        (uuid, invoice_no),
+        (invoice_uuid, invoice_no),
     )
     return existing is not None
 
@@ -462,8 +521,8 @@ def seed_sales_invoices(
 
     for header in headers:
         invoice_no = int(header["invoice_no"])
-        uuid = sales_uuid(invoice_no)
-        if sales_invoice_exists(cur, invoice_no, uuid):
+        invoice_uuid = sales_uuid(invoice_no)
+        if sales_invoice_exists(cur, invoice_no):
             stats["skipped_invoices"] += 1
             continue
 
@@ -492,7 +551,7 @@ def seed_sales_invoices(
             RETURNING id
             """,
             (
-                uuid,
+                invoice_uuid,
                 invoice_no,
                 transaction_date,
                 customer_id,
@@ -566,6 +625,10 @@ def dry_run_report(data: dict[str, Any]) -> None:
     print(f"Product UOMs:      {dict(sorted(uoms.items()))}")
     positive_lines = sum(1 for line in data["purchase_lines"] if float(line["qty"]) > 0)
     print(f"Positive purchase lines (stock movements): {positive_lines}")
+    print(f"Product UUIDs (uuid5):     {len(data['catalog'])} validated")
+    print(f"Sales invoice UUIDs:       {len(data['sales_headers'])} validated")
+    print(f"Sales item UUIDs:          {len(data['sales_lines'])} validated")
+    print(f"Purchase voucher UUIDs:    TEXT form PURCHASE:{{n}} ({len(data['purchase_headers'])})")
     print("No database changes were made.")
 
 
@@ -620,6 +683,7 @@ def main() -> int:
     pdf_dir = resolve_pdf_dir(args.pdf_dir)
     data = load_all_pdfs(pdf_dir)
     validate_source_counts(data)
+    validate_generated_uuids(data)
 
     if not args.execute:
         dry_run_report(data)

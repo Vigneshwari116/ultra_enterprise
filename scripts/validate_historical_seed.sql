@@ -118,18 +118,23 @@ FROM sales_invoices
 GROUP BY invoice_no
 HAVING COUNT(*) > 1;
 
-\echo '=== Deterministic UUID pattern checks ==='
-SELECT COUNT(*) AS purchase_uuid_pattern_ok
+\echo '=== Deterministic UUID form checks ==='
+SELECT COUNT(*) AS purchase_uuid_text_form_ok
 FROM purchase_vouchers
 WHERE uuid LIKE 'PURCHASE:%';
 
-SELECT COUNT(*) AS sales_uuid_pattern_ok
-FROM sales_invoices
-WHERE uuid LIKE 'SALES:%';
-
-SELECT COUNT(*) AS product_uuid_pattern_ok
+-- products / sales use uuid5 RFC-4122 values (not text prefixes)
+SELECT COUNT(*) AS products_with_uuid
 FROM products
-WHERE uuid LIKE 'PRODUCT:%';
+WHERE uuid IS NOT NULL;
+
+SELECT COUNT(*) AS sales_invoices_with_uuid
+FROM sales_invoices
+WHERE uuid IS NOT NULL;
+
+SELECT COUNT(*) AS sales_items_with_uuid
+FROM sales_invoice_items
+WHERE uuid IS NOT NULL;
 
 \echo '=== Purchase stock movement count ==='
 SELECT COUNT(*) AS purchase_stock_movements
