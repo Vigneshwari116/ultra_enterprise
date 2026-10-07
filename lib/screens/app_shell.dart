@@ -209,7 +209,8 @@ class _AppShellState extends State<AppShell> {
 
     if (overlay) {
       return Scaffold(
-        body: Stack(
+        body: SafeArea(
+          child: Stack(
           children: [
             main,
             if (sidebarOpen) ...[
@@ -233,11 +234,13 @@ class _AppShellState extends State<AppShell> {
             ],
           ],
         ),
+        ),
       );
     }
 
     return Scaffold(
-      body: Row(
+      body: SafeArea(
+        child: Row(
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -255,6 +258,7 @@ class _AppShellState extends State<AppShell> {
           ),
           Expanded(child: main),
         ],
+      ),
       ),
     );
   }

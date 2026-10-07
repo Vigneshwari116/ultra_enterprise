@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/adjustment_note_document.dart';
 import '../widgets/compact_date_picker.dart';
+import '../widgets/enterprise_widgets.dart';
 import '../widgets/journal_summary_report.dart';
 import '../widgets/sales_report.dart';
 
@@ -183,11 +184,22 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
     );
   }
 
+  EdgeInsets _headerPadding() {
+    final narrow = AppBreakpoints.isNarrow(context);
+    return EdgeInsets.fromLTRB(
+      narrow ? 12 : 20,
+      narrow ? 10 : 14,
+      narrow ? 12 : 20,
+      narrow ? 8 : 10,
+    );
+  }
+
   Widget _topHeader() {
+    final narrow = AppBreakpoints.isNarrow(context);
     if (centerMode == ReportsCenterMode.journalSummary) {
       return Container(
         color: Colors.white,
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+        padding: _headerPadding(),
         child: Row(
           children: [
             const Expanded(
@@ -213,7 +225,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
     if (centerMode == ReportsCenterMode.noteHistory) {
       return Container(
         color: Colors.white,
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+        padding: _headerPadding(),
         child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -225,23 +237,57 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
         ),
       );
     }
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'SALES LEDGER AUDIT REPORT',
+          style: TextStyle(
+            fontSize: narrow ? 13 : 14,
+            fontWeight: FontWeight.w800,
+            color: _navy,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          'REAL-TIME REVENUE MONITORING & RECIPIENT LEDGER ENTRIES DIRECTORY',
+          style: TextStyle(
+            fontSize: narrow ? 8 : 8.5,
+            color: const Color(0xFF748094),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+    final tabs = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _tab('LEDGER VIEW', 0),
+        _tab('AUDIT REPORT', 1),
+        _tab('VIEW LEDGER WISE', 2),
+      ],
+    );
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(20, 14, 8, 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
-              Text('SALES LEDGER AUDIT REPORT', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _navy)),
-              SizedBox(height: 3),
-              Text('REAL-TIME REVENUE MONITORING & RECIPIENT LEDGER ENTRIES DIRECTORY', style: TextStyle(fontSize: 8.5, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
-            ]),
-          ),
-          _tab('LEDGER VIEW', 0),
-          _tab('AUDIT REPORT', 1),
-          _tab('VIEW LEDGER WISE', 2),
-        ],
-      ),
+      padding: _headerPadding(),
+      child: narrow
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleBlock,
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: tabs,
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: titleBlock),
+                tabs,
+              ],
+            ),
     );
   }
 
@@ -312,35 +358,38 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Container(
-              color: Colors.white,
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))),
-                    child: const Row(children: [
-                      Expanded(flex: 1, child: Text('VOUCHER DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                      Expanded(flex: 2, child: Text('VOUCHER NARRATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                      Expanded(flex: 2, child: Text('DEBIT (TO) ACCOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                      Expanded(flex: 2, child: Text('CREDIT (BY) ACCOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                      Expanded(child: Text('AMOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                    ]),
-                  ),
-                  if (rows.isEmpty)
-                    const Padding(padding: EdgeInsets.all(32), child: Text('No journal entries posted yet.', style: TextStyle(fontSize: 11, color: Color(0xFF748094))))
-                  else
-                    ...rows.map(_journalRow),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                    color: const Color(0xFFE1E7F0),
-                    child: Row(children: [
-                      const Expanded(flex: 7, child: Text('TOTAL VOUCHER SUMMARY VALUE:', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                      Expanded(child: Text('₹ ${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _green))),
-                    ]),
-                  ),
-                ],
+            padding: EdgeInsets.symmetric(horizontal: AppBreakpoints.pagePadding(context)),
+            child: responsiveHorizontalTable(
+              context,
+              Container(
+                color: Colors.white,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))),
+                      child: const Row(children: [
+                        Expanded(flex: 1, child: Text('VOUCHER DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                        Expanded(flex: 2, child: Text('VOUCHER NARRATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                        Expanded(flex: 2, child: Text('DEBIT (TO) ACCOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                        Expanded(flex: 2, child: Text('CREDIT (BY) ACCOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                        Expanded(child: Text('AMOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                      ]),
+                    ),
+                    if (rows.isEmpty)
+                      const Padding(padding: EdgeInsets.all(32), child: Text('No journal entries posted yet.', style: TextStyle(fontSize: 11, color: Color(0xFF748094))))
+                    else
+                      ...rows.map(_journalRow),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                      color: const Color(0xFFE1E7F0),
+                      child: Row(children: [
+                        const Expanded(flex: 7, child: Text('TOTAL VOUCHER SUMMARY VALUE:', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                        Expanded(child: Text('₹ ${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _green))),
+                      ]),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -371,31 +420,62 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: noteSearchCtrl,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search, size: 16, color: _teal),
-                      hintText: 'FILTER BY NOTE NO, PARTY NAME, REASON OR DATE...',
-                      hintStyle: TextStyle(fontSize: 9),
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
-                    ),
+            padding: EdgeInsets.fromLTRB(AppBreakpoints.pagePadding(context), 12, AppBreakpoints.pagePadding(context), 8),
+            child: AppBreakpoints.isNarrow(context)
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        controller: noteSearchCtrl,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search, size: 16, color: _teal),
+                          hintText: 'FILTER BY NOTE NO, PARTY NAME, REASON OR DATE...',
+                          hintStyle: TextStyle(fontSize: 9),
+                          filled: true,
+                          fillColor: Colors.white,
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _noteFilterChip('ALL', null),
+                            const SizedBox(width: 4),
+                            _noteFilterChip('DEBIT', 'DEBIT'),
+                            const SizedBox(width: 4),
+                            _noteFilterChip('CREDIT', 'CREDIT'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: noteSearchCtrl,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.search, size: 16, color: _teal),
+                            hintText: 'FILTER BY NOTE NO, PARTY NAME, REASON OR DATE...',
+                            hintStyle: TextStyle(fontSize: 9),
+                            filled: true,
+                            fillColor: Colors.white,
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _noteFilterChip('ALL', null),
+                      const SizedBox(width: 4),
+                      _noteFilterChip('DEBIT', 'DEBIT'),
+                      const SizedBox(width: 4),
+                      _noteFilterChip('CREDIT', 'CREDIT'),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                _noteFilterChip('ALL', null),
-                const SizedBox(width: 4),
-                _noteFilterChip('DEBIT', 'DEBIT'),
-                const SizedBox(width: 4),
-                _noteFilterChip('CREDIT', 'CREDIT'),
-              ],
-            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -496,21 +576,23 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
     final gross = _sum('grand_total');
     final received = 0.0;
     final net = gross;
+    final horizontalPad = AppBreakpoints.isNarrow(context) ? 12.0 : 14.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      child: Row(children: [
-        _summary('GROSS SALES (DR)', gross, Icons.show_chart, const Color(0xFF3B9ED8)),
-        const SizedBox(width: 8),
-        _summary('TOTAL RECEIPTS (CR)', received, Icons.account_balance, _green),
-        const SizedBox(width: 8),
-        _summary('NET BALANCES REVENUE', net, Icons.account_balance_wallet_outlined, const Color(0xFFF0A72E)),
-      ]),
+      padding: EdgeInsets.fromLTRB(horizontalPad, 10, horizontalPad, 8),
+      child: responsiveRowOrColumn(
+        context,
+        [
+          _summary('GROSS SALES (DR)', gross, Icons.show_chart, const Color(0xFF3B9ED8)),
+          _summary('TOTAL RECEIPTS (CR)', received, Icons.account_balance, _green),
+          _summary('NET BALANCES REVENUE', net, Icons.account_balance_wallet_outlined, const Color(0xFFF0A72E)),
+        ],
+        spacing: 8,
+      ),
     );
   }
 
   Widget _summary(String title, double value, IconData icon, Color iconColor) {
-    return Expanded(
-      child: Container(
+    return Container(
         height: 55,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _border)),
@@ -523,12 +605,11 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
             Text('₹ ${value.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, color: _navy, fontWeight: FontWeight.w800)),
           ]),
         ]),
-      ),
     );
   }
 
   Widget _filters() {
-    final narrow = MediaQuery.sizeOf(context).width < 720;
+    final narrow = AppBreakpoints.isNarrow(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: narrow
@@ -593,26 +674,84 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
 
   Widget _invoiceRow(Map<String, dynamic> r) {
     final total = _asDouble(r['grand_total']);
+    final narrow = AppBreakpoints.isNarrow(context);
+    final reprintBtn = OutlinedButton.icon(
+      onPressed: () => reprintSalesInvoice(r['id'] as int),
+      icon: const Icon(Icons.print, size: 12),
+      label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
+      style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8)),
+    );
     return Container(
-      height: 58,
       margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _border)),
-      child: Row(children: [
-        Container(width: 3, height: 38, color: _navy),
-        const SizedBox(width: 10),
-        Expanded(flex: 4, child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text('${r['customer_name']}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _navy)), const SizedBox(height: 4), Row(children: [Text('SERIAL NO: ${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 8.5, color: _teal, fontWeight: FontWeight.w700)), const SizedBox(width: 8), Text('•  RECORDING DATE: ${_date(r['transaction_date'])}', style: const TextStyle(fontSize: 8, color: Color(0xFF748094)))] )])),
-        Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [const Text('DEBIT VAL (REV)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))), Text('₹${total.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Color(0xFF2B65B0), fontWeight: FontWeight.w800))])),
-        const SizedBox(width: 18),
-        Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [const Text('CREDIT VAL (REC)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))), const Text('₹0', style: TextStyle(fontSize: 12, color: Color(0xFFB93636), fontWeight: FontWeight.w800))])),
-        const SizedBox(width: 12),
-        OutlinedButton.icon(
-          onPressed: () => reprintSalesInvoice(r['id'] as int),
-          icon: const Icon(Icons.print, size: 12),
-          label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
-          style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8)),
-        ),
-      ]),
+      child: narrow
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${r['customer_name']}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _navy)),
+                const SizedBox(height: 4),
+                Text(
+                  'SERIAL NO: ${r['invoice_no'] ?? '-'}  •  RECORDING DATE: ${_date(r['transaction_date'])}',
+                  style: const TextStyle(fontSize: 8, color: Color(0xFF748094)),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('DEBIT ₹${total.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Color(0xFF2B65B0), fontWeight: FontWeight.w800)),
+                    Text('CREDIT ₹0', style: const TextStyle(fontSize: 12, color: Color(0xFFB93636), fontWeight: FontWeight.w800)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                reprintBtn,
+              ],
+            )
+          : Row(children: [
+              Container(width: 3, height: 38, color: _navy),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 4,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('${r['customer_name']}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _navy)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text('SERIAL NO: ${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 8.5, color: _teal, fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 8),
+                        Text('•  RECORDING DATE: ${_date(r['transaction_date'])}', style: const TextStyle(fontSize: 8, color: Color(0xFF748094))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('DEBIT VAL (REV)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))),
+                    Text('₹${total.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Color(0xFF2B65B0), fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('CREDIT VAL (REC)', style: TextStyle(fontSize: 7.5, color: Color(0xFF748094))),
+                    const Text('₹0', style: TextStyle(fontSize: 12, color: Color(0xFFB93636), fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              reprintBtn,
+            ]),
     );
   }
 
@@ -651,38 +790,41 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
         ),
         const SizedBox(height: 8),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Container(
-            color: Colors.white,
-            child: Column(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))),
-                child: const Row(children: [
-                  Expanded(flex: 1, child: Text('BILL NO', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                  Expanded(flex: 1, child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                  Expanded(flex: 4, child: Text('PARTY NAME', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                  Expanded(child: Text('TAXABLE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                  Expanded(child: Text('CGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                  Expanded(child: Text('SGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                  Expanded(child: Text('IGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                  Expanded(child: Text('TOTAL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                ]),
-              ),
-              ...sorted.map(_auditRow),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                color: const Color(0xFFE1E7F0),
-                child: Row(children: [
-                  const Expanded(flex: 6, child: Text('GRAND TOTALS:', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                  Expanded(child: Text(taxable.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                  Expanded(child: Text(cgst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                  Expanded(child: Text(sgst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                  Expanded(child: Text(igst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                  Expanded(child: Text(total.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _green))),
-                ]),
-              ),
-            ]),
+          padding: EdgeInsets.symmetric(horizontal: AppBreakpoints.pagePadding(context)),
+          child: responsiveHorizontalTable(
+            context,
+            Container(
+              color: Colors.white,
+              child: Column(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                  decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))),
+                  child: const Row(children: [
+                    Expanded(flex: 1, child: Text('BILL NO', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    Expanded(flex: 1, child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    Expanded(flex: 4, child: Text('PARTY NAME', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    Expanded(child: Text('TAXABLE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    Expanded(child: Text('CGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    Expanded(child: Text('SGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    Expanded(child: Text('IGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    Expanded(child: Text('TOTAL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                  ]),
+                ),
+                ...sorted.map(_auditRow),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                  color: const Color(0xFFE1E7F0),
+                  child: Row(children: [
+                    const Expanded(flex: 6, child: Text('GRAND TOTALS:', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    Expanded(child: Text(taxable.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                    Expanded(child: Text(cgst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                    Expanded(child: Text(sgst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                    Expanded(child: Text(igst.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                    Expanded(child: Text(total.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _green))),
+                  ]),
+                ),
+              ]),
+            ),
           ),
         ),
       ]),
@@ -723,20 +865,27 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
           ),
           if (name != null) ...[
             const SizedBox(height: 12),
-            Row(children: [
-              _ledgerCard('OPENING BALANCE', 0, _navy),
-              const SizedBox(width: 8),
-              _ledgerCard('GROSS SALES BILLING (DR)', gross, const Color(0xFF2B8ED2)),
-              const SizedBox(width: 8),
-              _ledgerCard('TOTAL RECEIVED (CR)', 0, _green),
-              const SizedBox(width: 8),
-              _ledgerCard('NET OUTSTANDING DUE', -gross, _navy),
-            ]),
+            responsiveRowOrColumn(
+              context,
+              [
+                _ledgerCard('OPENING BALANCE', 0, _navy),
+                _ledgerCard('GROSS SALES BILLING (DR)', gross, const Color(0xFF2B8ED2)),
+                _ledgerCard('TOTAL RECEIVED (CR)', 0, _green),
+                _ledgerCard('NET OUTSTANDING DUE', -gross, _navy),
+              ],
+              spacing: 8,
+            ),
             const SizedBox(height: 14),
-            Container(color: Colors.white, child: Column(children: [
-              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), child: const Row(children: [Expanded(child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('TXN TYPE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('REF / INVOICE ID', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(flex: 3, child: Text('PARTICULARS / NARRATION ENTRY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('DEBIT (DR) [+]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF2B8ED2)))), Expanded(child: Text('CREDIT (CR) [-]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _green))), Expanded(child: Text('BALANCE (₹)', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy)))])),
-              ...rows.map((r) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE7EBF0)))), child: Row(children: [Expanded(child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))), Expanded(child: Container(alignment: Alignment.centerLeft, child: const Text('SALES', style: TextStyle(fontSize: 8, color: _green, fontWeight: FontWeight.w700)))), Expanded(child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9))), Expanded(flex: 3, child: Text('SALES INVOICE FOR ${r['customer_name']}', style: const TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))), Expanded(child: const Text('-', style: TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9)))]))),
-            ])),
+            responsiveHorizontalTable(
+              context,
+              Container(
+                color: Colors.white,
+                child: Column(children: [
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), child: const Row(children: [Expanded(child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('TXN TYPE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('REF / INVOICE ID', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(flex: 3, child: Text('PARTICULARS / NARRATION ENTRY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('DEBIT (DR) [+]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF2B8ED2)))), Expanded(child: Text('CREDIT (CR) [-]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _green))), Expanded(child: Text('BALANCE (₹)', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy)))])),
+                  ...rows.map((r) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE7EBF0)))), child: Row(children: [Expanded(child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))), Expanded(child: Container(alignment: Alignment.centerLeft, child: const Text('SALES', style: TextStyle(fontSize: 8, color: _green, fontWeight: FontWeight.w700)))), Expanded(child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9))), Expanded(flex: 3, child: Text('SALES INVOICE FOR ${r['customer_name']}', style: const TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))), Expanded(child: const Text('-', style: TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9)))]))),
+                ]),
+              ),
+            ),
           ] else
             const SizedBox(height: 190, child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.supervisor_account_outlined, size: 34, color: Color(0xFF607789)), SizedBox(height: 10), Text('Select a customer client database line row item to view accounts directory tracks.', style: TextStyle(fontSize: 11, color: Color(0xFF7A8595)))]))),
         ]),
@@ -745,7 +894,20 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   }
 
   Widget _ledgerCard(String title, double value, Color color) {
-    return Expanded(child: Container(height: 54, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text(title, style: const TextStyle(fontSize: 7.5, color: Color(0xFF748094))), const SizedBox(height: 3), Text('₹ ${value.toStringAsFixed(2)}', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w800))])));
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 7.5, color: Color(0xFF748094))),
+          const SizedBox(height: 3),
+          Text('₹ ${value.toStringAsFixed(2)}', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
   }
 
   Widget _empty() => const Padding(padding: EdgeInsets.all(40), child: Center(child: Text('No sales records found.', style: TextStyle(fontSize: 11, color: Color(0xFF748094)))));

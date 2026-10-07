@@ -36,6 +36,63 @@ class AppBreakpoints {
 
   static bool shouldStackMasterPanels(BuildContext context) =>
       MediaQuery.sizeOf(context).width < masterStack;
+
+  static double pagePadding(BuildContext context) =>
+      isNarrow(context) ? 12.0 : 20.0;
+}
+
+/// Lays out [children] in a row on wide screens and a column on narrow screens.
+Widget responsiveRowOrColumn(
+  BuildContext context,
+  List<Widget> children, {
+  double spacing = 8,
+  bool expandInRow = true,
+}) {
+  if (AppBreakpoints.isNarrow(context)) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          children[i],
+          if (i < children.length - 1) SizedBox(height: spacing),
+        ],
+      ],
+    );
+  }
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (expandInRow) Expanded(child: children[i]) else children[i],
+        if (i < children.length - 1) SizedBox(width: spacing),
+      ],
+    ],
+  );
+}
+
+/// Two fields side-by-side on wide screens, stacked on narrow.
+Widget responsivePair(BuildContext context, Widget a, Widget b, {double spacing = 12}) {
+  if (AppBreakpoints.isNarrow(context)) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [a, SizedBox(height: spacing), b],
+    );
+  }
+  return Row(
+    children: [Expanded(child: a), SizedBox(width: spacing), Expanded(child: b)],
+  );
+}
+
+/// Wraps wide tables so they scroll horizontally on narrow screens.
+Widget responsiveHorizontalTable(BuildContext context, Widget table, {double minWidth = 640}) {
+  if (!AppBreakpoints.isNarrow(context)) return table;
+  return SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(minWidth: minWidth),
+      child: table,
+    ),
+  );
 }
 
 /// One metric tile for a dashboard, matching the accent-bar + icon layout.

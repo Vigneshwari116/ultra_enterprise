@@ -198,40 +198,73 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
           Container(
             width: double.infinity,
             color: _accent,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppBreakpoints.isNarrow(context) ? 12 : 16,
+              vertical: 12,
+            ),
+            child: AppBreakpoints.isNarrow(context)
+                ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(isDebit ? 'DEBIT NOTE REVERSAL ENGINE' : 'CREDIT NOTE REVERSAL ENGINE',
-                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900)),
+                      Text(
+                        isDebit ? 'DEBIT NOTE REVERSAL ENGINE' : 'CREDIT NOTE REVERSAL ENGINE',
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900),
+                      ),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 16,
+                        runSpacing: 6,
                         children: [
                           _stat('PCS ITEM COUNT', rows.length.toString()),
                           _stat('TAXABLE AMT', taxable.toStringAsFixed(2)),
                           _stat('TOTAL TAX', taxTotal.toStringAsFixed(2)),
                         ],
                       ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        children: [_toggleBtn('DEBIT NOTE', true), _toggleBtn('CREDIT NOTE', false)],
+                      ),
+                      const SizedBox(height: 10),
+                      Text('₹ ${grandTotal.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
+                      const Text('NET ACCOUNT REVERSAL VALUE', style: TextStyle(color: Colors.white70, fontSize: 8)),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isDebit ? 'DEBIT NOTE REVERSAL ENGINE' : 'CREDIT NOTE REVERSAL ENGINE',
+                              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 16,
+                              children: [
+                                _stat('PCS ITEM COUNT', rows.length.toString()),
+                                _stat('TAXABLE AMT', taxable.toStringAsFixed(2)),
+                                _stat('TOTAL TAX', taxTotal.toStringAsFixed(2)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      _toggleBtn('DEBIT NOTE', true),
+                      const SizedBox(width: 6),
+                      _toggleBtn('CREDIT NOTE', false),
+                      const SizedBox(width: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text('₹ ${grandTotal.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
+                          const Text('NET ACCOUNT REVERSAL VALUE', style: TextStyle(color: Colors.white70, fontSize: 8)),
+                        ],
+                      ),
                     ],
                   ),
-                ),
-                _toggleBtn('DEBIT NOTE', true),
-                const SizedBox(width: 6),
-                _toggleBtn('CREDIT NOTE', false),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('₹ ${grandTotal.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
-                    const Text('NET ACCOUNT REVERSAL VALUE', style: TextStyle(color: Colors.white70, fontSize: 8)),
-                  ],
-                ),
-              ],
-            ),
           ),
           Padding(
             padding: const EdgeInsets.all(12),
@@ -522,7 +555,10 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
         ],
       );
 
-  Widget _pair(Widget a, Widget b) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]));
+  Widget _pair(Widget a, Widget b) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: responsivePair(context, a, b),
+      );
 }
 
 class _AdjRow {
@@ -660,32 +696,138 @@ class _CashBookPanelState extends State<_CashBookPanel> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CASHBOOK ENTRY SAVED')));
   }
 
+  Widget _entryForm(Color accent) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border), borderRadius: BorderRadius.circular(6)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            isReceipt ? 'NEW RECEIPT RECORD' : 'NEW PAYMENT RECORD',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy),
+          ),
+          const SizedBox(height: 14),
+          enterpriseInsetFieldShell(
+            label: 'VOUCHER REGISTRATION DATE',
+            filled: true,
+            child: Row(
+              children: [
+                const Icon(Icons.lock_outline, size: 14, color: Color(0xFF748094)),
+                const SizedBox(width: 8),
+                Text(voucherDate, style: enterpriseInsetValueStyle),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          enterpriseInsetDropdown<String>(
+            label: isReceipt ? 'SEARCH CUSTOMER DIRECTORY *' : 'TARGET ALLOCATED LEDGER NAME *',
+            value: partyKey,
+            hint: const Text('Search Customer/Supplier...', style: TextStyle(fontSize: 11, color: Color(0xFF9AA5B4))),
+            items: _partyItems,
+            onChanged: (v) => setState(() => partyKey = v),
+          ),
+          const SizedBox(height: 4),
+          enterpriseInsetTextField(
+            label: 'TRANSACTION VOUCHER AMOUNT *',
+            controller: amount,
+            autofocus: true,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy),
+          ),
+          const SizedBox(height: 4),
+          enterpriseInsetTextField(
+            label: 'VOUCHER REMARKS / NARRATION',
+            controller: remarks,
+            maxLines: 2,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _save,
+              style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+              child: const Text('SAVE ENTRY UNTO CASHBOOKS', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _passbookPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.history, size: 16, color: Color(0xFF748094)),
+            SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'CASH PASSBOOK (CR/DR) ACCOUNT TRANSACTION DIRECTORY LOGS',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF748094)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...passbook.map(_passbookCard),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final accent = isReceipt ? green : red;
+    final narrow = AppBreakpoints.isNarrow(context);
+    final pad = AppBreakpoints.pagePadding(context);
+    final modeButtons = Row(
+      children: [
+        Expanded(child: _modeBtn('RECEIPT', true, green)),
+        const SizedBox(width: 8),
+        Expanded(child: _modeBtn('PAYMENT', false, red)),
+      ],
+    );
+    final titles = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'CASH RECEIPT / CASH PAYMENT REGISTER',
+          style: TextStyle(fontSize: narrow ? 16 : 18, fontWeight: FontWeight.w900, color: navy),
+        ),
+        const Text(
+          'CASH PASSBOOK (CR/DR) ACCOUNT TRANSACTION DIRECTORY LOGS',
+          style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+
+    if (narrow) {
+      return SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(pad, pad, pad, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            titles,
+            const SizedBox(height: 14),
+            modeButtons,
+            const SizedBox(height: 16),
+            _entryForm(accent),
+            const SizedBox(height: 16),
+            _passbookPanel(),
+          ],
+        ),
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      padding: EdgeInsets.fromLTRB(pad, pad, pad, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('CASH RECEIPT / CASH PAYMENT REGISTER', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: navy)),
-          const Text('CASH PASSBOOK (CR/DR) ACCOUNT TRANSACTION DIRECTORY LOGS',
-              style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
+          titles,
           const SizedBox(height: 14),
-          Row(
-            children: [
-              SizedBox(
-                width: 280,
-                child: Row(
-                  children: [
-                    Expanded(child: _modeBtn('RECEIPT', true, green)),
-                    const SizedBox(width: 8),
-                    Expanded(child: _modeBtn('PAYMENT', false, red)),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          SizedBox(width: 280, child: modeButtons),
           const SizedBox(height: 16),
           Expanded(
             child: Row(
@@ -695,59 +837,7 @@ class _CashBookPanelState extends State<_CashBookPanel> {
                   flex: 5,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 440),
-                    child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border), borderRadius: BorderRadius.circular(6)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(isReceipt ? 'NEW RECEIPT RECORD' : 'NEW PAYMENT RECORD',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy)),
-                        const SizedBox(height: 14),
-                        enterpriseInsetFieldShell(
-                          label: 'VOUCHER REGISTRATION DATE',
-                          filled: true,
-                          child: Row(
-                            children: [
-                              const Icon(Icons.lock_outline, size: 14, color: Color(0xFF748094)),
-                              const SizedBox(width: 8),
-                              Text(voucherDate, style: enterpriseInsetValueStyle),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        enterpriseInsetDropdown<String>(
-                          label: isReceipt ? 'SEARCH CUSTOMER DIRECTORY *' : 'TARGET ALLOCATED LEDGER NAME *',
-                          value: partyKey,
-                          hint: const Text('Search Customer/Supplier...', style: TextStyle(fontSize: 11, color: Color(0xFF9AA5B4))),
-                          items: _partyItems,
-                          onChanged: (v) => setState(() => partyKey = v),
-                        ),
-                        const SizedBox(height: 4),
-                        enterpriseInsetTextField(
-                          label: 'TRANSACTION VOUCHER AMOUNT *',
-                          controller: amount,
-                          autofocus: true,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy),
-                        ),
-                        const SizedBox(height: 4),
-                        enterpriseInsetTextField(
-                          label: 'VOUCHER REMARKS / NARRATION',
-                          controller: remarks,
-                          maxLines: 2,
-                        ),
-                        const Spacer(),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _save,
-                            style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
-                            child: const Text('SAVE ENTRY UNTO CASHBOOKS', style: TextStyle(fontWeight: FontWeight.w800)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                    child: _entryForm(accent),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -761,8 +851,10 @@ class _CashBookPanelState extends State<_CashBookPanel> {
                           Icon(Icons.history, size: 16, color: Color(0xFF748094)),
                           SizedBox(width: 6),
                           Expanded(
-                            child: Text('CASH PASSBOOK (CR/DR) ACCOUNT TRANSACTION DIRECTORY LOGS',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF748094))),
+                            child: Text(
+                              'CASH PASSBOOK (CR/DR) ACCOUNT TRANSACTION DIRECTORY LOGS',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF748094)),
+                            ),
                           ),
                         ],
                       ),
@@ -893,57 +985,79 @@ class _JournalEntryPanelState extends State<_JournalEntryPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final narrow = AppBreakpoints.isNarrow(context);
+    final pad = AppBreakpoints.pagePadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('NEW JOURNAL VOUCHER', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
-          const Text('DOUBLE ENTRY FINANCIAL ADJUSTMENT INTERCEPTOR JOURNAL',
-              style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
+          Text(
+            'NEW JOURNAL VOUCHER',
+            style: TextStyle(fontSize: narrow ? 16 : 20, fontWeight: FontWeight.w900, color: navy),
+          ),
+          const Text(
+            'DOUBLE ENTRY FINANCIAL ADJUSTMENT INTERCEPTOR JOURNAL',
+            style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: enterpriseInsetFieldShell(
-                  label: 'VOUCHER DATE',
-                  filled: true,
-                  child: Text(voucherDate, style: enterpriseInsetValueStyle),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 5,
-                child: enterpriseInsetTextField(
-                  label: 'VOUCHER NARRATION EXPLANATION DESCRIPTION',
-                  controller: narration,
-                ),
-              ),
-            ],
+          responsivePair(
+            context,
+            enterpriseInsetFieldShell(
+              label: 'VOUCHER DATE',
+              filled: true,
+              child: Text(voucherDate, style: enterpriseInsetValueStyle),
+            ),
+            enterpriseInsetTextField(
+              label: 'VOUCHER NARRATION EXPLANATION DESCRIPTION',
+              controller: narration,
+            ),
           ),
           const SizedBox(height: 20),
           ...List.generate(lines.length, (i) => _journalBlock(i)),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Text('TOTAL VOUCHER SUMMARY VALUE AMOUNT  ₹ ${total.toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: () => setState(() => lines.add(_JournalLine())),
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('+ ADD LINE ENTRY', style: TextStyle(fontWeight: FontWeight.w800)),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: _save,
-                style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14)),
-                child: const Text('SAVE JOURNAL RECORD', style: TextStyle(fontWeight: FontWeight.w800)),
-              ),
-            ],
-          ),
+          narrow
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'TOTAL VOUCHER SUMMARY VALUE AMOUNT  ₹ ${total.toStringAsFixed(2)}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: () => setState(() => lines.add(_JournalLine())),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('+ ADD LINE ENTRY', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: _save,
+                      style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14)),
+                      child: const Text('SAVE JOURNAL RECORD', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Text(
+                      'TOTAL VOUCHER SUMMARY VALUE AMOUNT  ₹ ${total.toStringAsFixed(2)}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                    ),
+                    const Spacer(),
+                    OutlinedButton.icon(
+                      onPressed: () => setState(() => lines.add(_JournalLine())),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('+ ADD LINE ENTRY', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: _save,
+                      style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14)),
+                      child: const Text('SAVE JOURNAL RECORD', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ),
         ],
       ),
     );

@@ -408,25 +408,9 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
 
   Widget _historyView() {
     final list = _filteredHistory;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              IconButton(onPressed: () => setState(() => showHistory = false), icon: const Icon(Icons.arrow_back)),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('INVENTORY VOUCHERS DIRECTORY', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
-                    Text('LOGISTICS DISPATCH MATERIAL MOVEMENT RUNNING AUDIT TRAILS',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF748094))),
-                  ],
-                ),
-              ),
-              PopupMenuButton<String>(
+    final narrow = AppBreakpoints.isNarrow(context);
+    final pad = AppBreakpoints.pagePadding(context);
+    final registerMenu = PopupMenuButton<String>(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(border: Border.all(color: border), borderRadius: BorderRadius.circular(4)),
@@ -452,9 +436,37 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                   PopupMenuItem(value: 'OUTWARD', child: Text('DC OUTWARD REGISTER')),
                   PopupMenuItem(value: 'PROFORMA', child: Text('PROFORMA ESTIMATES')),
                 ],
+              );
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(pad),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(onPressed: () => setState(() => showHistory = false), icon: const Icon(Icons.arrow_back)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'INVENTORY VOUCHERS DIRECTORY',
+                      style: TextStyle(fontSize: narrow ? 16 : 20, fontWeight: FontWeight.w900, color: navy),
+                    ),
+                    const Text(
+                      'LOGISTICS DISPATCH MATERIAL MOVEMENT RUNNING AUDIT TRAILS',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF748094)),
+                    ),
+                  ],
+                ),
               ),
+              if (!narrow) registerMenu,
             ],
           ),
+          if (narrow) ...[
+            const SizedBox(height: 8),
+            registerMenu,
+          ],
           const SizedBox(height: 14),
           TextField(
             controller: historySearch,
@@ -479,62 +491,79 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     final type = '${row['dc_type']}';
     final amt = (row['grand_total'] as num?)?.toDouble() ?? 0;
     final pcs = (row['total_pcs'] as num?)?.toDouble() ?? 0;
+    final narrow = AppBreakpoints.isNarrow(context);
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('${row['party_name']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              color: const Color(0xFFE8ECF0),
+              child: Text(type, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'SERIAL NO: ${row['serial_no']}  ·  DOC ID: ${row['doc_id']}  ·  DATE: ${_display('${row['document_date']}')}  ·  PO REF: ${row['po_ref_no']}',
+          style: const TextStyle(fontSize: 10, color: teal, fontWeight: FontWeight.w600),
+        ),
+        if ('${row['vehicle_dispatch']}'.isNotEmpty)
+          Text(
+            'DISPATCH LOGISTICS VEHICLE: ${row['vehicle_dispatch']}',
+            style: const TextStyle(fontSize: 9.5, color: Color(0xFF748094)),
+          ),
+      ],
+    );
+    final amounts = Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+        Text('${pcs.toStringAsFixed(0)} PCS TOTAL', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
+      ],
+    );
+    final reprintBtn = OutlinedButton(
+      onPressed: () async {
+        try {
+          await reprintDeliveryChallan(id);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to load Delivery Challan for reprint: $e')),
+            );
+          }
+        }
+      },
+      child: const Icon(Icons.print_outlined, size: 18),
+    );
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border), borderRadius: BorderRadius.circular(6)),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      child: narrow
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text('${row['party_name']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      color: const Color(0xFFE8ECF0),
-                      child: Text(type, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'SERIAL NO: ${row['serial_no']}  ·  DOC ID: ${row['doc_id']}  ·  DATE: ${_display('${row['document_date']}')}  ·  PO REF: ${row['po_ref_no']}',
-                  style: const TextStyle(fontSize: 10, color: teal, fontWeight: FontWeight.w600),
-                ),
-                if ('${row['vehicle_dispatch']}'.isNotEmpty)
-                  Text('DISPATCH LOGISTICS VEHICLE: ${row['vehicle_dispatch']}',
-                      style: const TextStyle(fontSize: 9.5, color: Color(0xFF748094))),
+                details,
+                const SizedBox(height: 8),
+                amounts,
+                const SizedBox(height: 8),
+                reprintBtn,
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: details),
+                amounts,
+                const SizedBox(width: 10),
+                reprintBtn,
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-              Text('${pcs.toStringAsFixed(0)} PCS TOTAL', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
-            ],
-          ),
-          const SizedBox(width: 10),
-          OutlinedButton(
-            onPressed: () async {
-              try {
-                await reprintDeliveryChallan(id);
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to load Delivery Challan for reprint: $e')),
-                  );
-                }
-              }
-            },
-            child: const Icon(Icons.print_outlined, size: 18),
-          ),
-        ],
-      ),
     );
   }
 
