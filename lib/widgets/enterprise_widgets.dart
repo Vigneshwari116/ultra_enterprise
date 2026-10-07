@@ -16,6 +16,28 @@ const purple = Color(0xFF6E5CC7);
 /// Minimum content width to show transaction form sections 1 & 2 side-by-side.
 const formTwoColumnMinWidth = 640.0;
 
+/// Shared layout breakpoints for web / responsive layouts.
+class AppBreakpoints {
+  static const compact = 520.0;
+  static const narrow = 720.0;
+  static const formStack = formTwoColumnMinWidth;
+  static const navOverlay = 900.0;
+  static const masterStack = 960.0;
+  static const wide = 1100.0;
+
+  static bool isCompact(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < compact;
+
+  static bool isNarrow(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < narrow;
+
+  static bool shouldStackFormSections(BoxConstraints constraints) =>
+      constraints.maxWidth < formStack;
+
+  static bool shouldStackMasterPanels(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < masterStack;
+}
+
 /// One metric tile for a dashboard, matching the accent-bar + icon layout.
 class MetricCard extends StatelessWidget {
   final String label;

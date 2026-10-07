@@ -495,28 +495,14 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
             width: double.infinity,
             color: const Color(0xFF19232C),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('PURCHASE ORDER PLACEMENT ENGINE',
-                          style: TextStyle(color: Color(0xFF2FE6E0), fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: .4)),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 22,
-                        runSpacing: 6,
-                        children: [
-                          enterpriseStatMini('TOTAL QTY', totalQty.toStringAsFixed(0)),
-                          enterpriseStatMini('TAXABLE VAL', taxable.toStringAsFixed(2)),
-                          enterpriseStatMini('GST TOTAL', gstTotal.toStringAsFixed(2)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+            child: enterpriseTerminalHeader(
+              title: 'PURCHASE ORDER PLACEMENT ENGINE',
+              stats: [
+                enterpriseStatMini('TOTAL QTY', totalQty.toStringAsFixed(0)),
+                enterpriseStatMini('TAXABLE VAL', taxable.toStringAsFixed(2)),
+                enterpriseStatMini('GST TOTAL', gstTotal.toStringAsFixed(2)),
+              ],
+              actions: [
                 OutlinedButton(
                   onPressed: () async {
                     directoryRows = await repo.purchaseOrdersWithParty();
@@ -527,20 +513,12 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                     side: const BorderSide(color: Colors.white24),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
-                  child: const Text('VIEW PO DIRECTORY HISTORY', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
-                ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('₹ ${total.toStringAsFixed(2)}',
-                        style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 2),
-                    const Text('ESTIMATED PROCUREMENT COST',
-                        style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: .4)),
-                  ],
+                  child: const Text('VIEW PO DIRECTORY HISTORY',
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
                 ),
               ],
+              totalAmount: '₹ ${total.toStringAsFixed(2)}',
+              totalLabel: 'ESTIMATED PROCUREMENT COST',
             ),
           ),
           Padding(

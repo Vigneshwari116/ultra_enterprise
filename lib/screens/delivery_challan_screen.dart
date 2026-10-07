@@ -547,82 +547,21 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
             width: double.infinity,
             color: const Color(0xFF19232C),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final narrow = constraints.maxWidth < formTwoColumnMinWidth;
-                final typeButtons = Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _typeBtn('DC INWARD', DcKind.inward, accent),
-                    _typeBtn('DC OUTWARD', DcKind.outward, accent),
-                    _typeBtn('PROFORMA', DcKind.proforma, accent),
-                  ],
-                );
-                final totalBlock = Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('₹ ${grandTotal.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                            color: Color(0xFFF4D53A),
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900)),
-                    const Text('NET GRAND VALUE',
-                        style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w700)),
-                  ],
-                );
-                final stats = Wrap(
-                  spacing: 16,
-                  runSpacing: 4,
-                  children: [
-                    enterpriseStatMini('TOTAL PCS', totalPcs.toStringAsFixed(0)),
-                    enterpriseStatMini('TAXABLE', baseValue.toStringAsFixed(2)),
-                    enterpriseStatMini('TOTAL TAX', taxTotal.toStringAsFixed(2)),
-                  ],
-                );
-                if (narrow) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(kind.headerTitle,
-                          style: TextStyle(
-                              color: accent,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 8),
-                      stats,
-                      const SizedBox(height: 10),
-                      typeButtons,
-                      const SizedBox(height: 10),
-                      Align(alignment: Alignment.centerLeft, child: totalBlock),
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(kind.headerTitle,
-                              style: TextStyle(
-                                  color: accent,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w900)),
-                          const SizedBox(height: 8),
-                          stats,
-                        ],
-                      ),
-                    ),
-                    typeButtons,
-                    const SizedBox(width: 14),
-                    totalBlock,
-                  ],
-                );
-              },
+            child: enterpriseTerminalHeader(
+              title: kind.headerTitle,
+              titleColor: accent,
+              stats: [
+                enterpriseStatMini('TOTAL PCS', totalPcs.toStringAsFixed(0)),
+                enterpriseStatMini('TAXABLE', baseValue.toStringAsFixed(2)),
+                enterpriseStatMini('TOTAL TAX', taxTotal.toStringAsFixed(2)),
+              ],
+              actions: [
+                _typeBtn('DC INWARD', DcKind.inward, accent),
+                _typeBtn('DC OUTWARD', DcKind.outward, accent),
+                _typeBtn('PROFORMA', DcKind.proforma, accent),
+              ],
+              totalAmount: '₹ ${grandTotal.toStringAsFixed(2)}',
+              totalLabel: 'NET GRAND VALUE',
             ),
           ),
           Padding(
@@ -632,7 +571,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
               children: [
                 LayoutBuilder(
                   builder: (context, c) {
-                    final stacked = c.maxWidth < formTwoColumnMinWidth;
+                    final stacked = AppBreakpoints.shouldStackFormSections(c);
                     final s1 = enterprisePlainSection(
                       title: 'SECTION 1: CONSIGNMENT METADATA',
                       children: [

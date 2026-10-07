@@ -307,30 +307,42 @@ class _AppShellState extends State<AppShell> {
                   ],
                 ),
               ),
-              if (MediaQuery.sizeOf(context).width >= 520) ...[
-                const Text(
-                  'ULTRA ENGINEERING',
-                  style: TextStyle(
-                    color: navy,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (MediaQuery.sizeOf(context).width >= AppBreakpoints.compact) ...[
+                      Flexible(
+                        child: Text(
+                          'ULTRA ENGINEERING',
+                          style: const TextStyle(
+                            color: navy,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    if (MediaQuery.sizeOf(context).width >= 600) ...[
+                      const Text(
+                        'SUPERUSER',
+                        style: TextStyle(
+                          color: teal,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    const CircleAvatar(
+                      radius: 17,
+                      backgroundColor: navy,
+                      child: Icon(Icons.person, size: 17, color: Colors.white),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-              ],
-              const Text(
-                'SUPERUSER',
-                style: TextStyle(
-                  color: teal,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(width: 10),
-              CircleAvatar(
-                radius: 17,
-                backgroundColor: navy,
-                child: const Icon(Icons.person, size: 17, color: Colors.white),
               ),
             ],
           ),

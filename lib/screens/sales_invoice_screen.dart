@@ -327,52 +327,17 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
           width: double.infinity,
           color: const Color(0xFF19232C),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('COMMERCIAL SALES TERMINAL',
-                      style: TextStyle(
-                          color: Color(0xFF2FE6E0),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .4)),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    enterpriseStatMini(
-                        'TOTAL PCS',
-                        rows
-                            .fold<double>(0, (s, r) => s + r.qty)
-                            .toStringAsFixed(0)),
-                    const SizedBox(width: 22),
-                    enterpriseStatMini('TAXABLE NET', taxable.toStringAsFixed(2)),
-                    const SizedBox(width: 22),
-                    enterpriseStatMini('COMPOUND GST',
-                        (cgst + sgst + igst).toStringAsFixed(2)),
-                  ]),
-                ],
-              ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('₹${netPayable.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          color: Color(0xFFF4D53A),
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  const Text('NET PAYABLE VALUE',
-                      style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: .4)),
-                ],
-              ),
+          child: enterpriseTerminalHeader(
+            title: 'COMMERCIAL SALES TERMINAL',
+            stats: [
+              enterpriseStatMini(
+                  'TOTAL PCS',
+                  rows.fold<double>(0, (s, r) => s + r.qty).toStringAsFixed(0)),
+              enterpriseStatMini('TAXABLE NET', taxable.toStringAsFixed(2)),
+              enterpriseStatMini('COMPOUND GST', (cgst + sgst + igst).toStringAsFixed(2)),
             ],
+            totalAmount: '₹${netPayable.toStringAsFixed(2)}',
+            totalLabel: 'NET PAYABLE VALUE',
           ),
         ),
         Padding(

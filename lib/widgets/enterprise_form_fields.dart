@@ -224,22 +224,13 @@ Widget enterpriseInsetDateField({
   );
 }
 
-/// [SingleChildScrollView] child: forces full viewport width for matrices/footers.
+/// Vertical stack for transaction pages. Avoids forcing [minWidth] so web layouts
+/// do not overflow horizontally; wide tables use [enterpriseMatrixScroller].
 Widget enterpriseScrollColumn({required List<Widget> children}) {
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      final minW = constraints.maxWidth.isFinite && constraints.maxWidth > 0
-          ? constraints.maxWidth
-          : MediaQuery.sizeOf(context).width;
-      return ConstrainedBox(
-        constraints: BoxConstraints(minWidth: minW),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: children,
-        ),
-      );
-    },
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: children,
   );
 }
 
@@ -318,44 +309,150 @@ Widget enterpriseValueWordsFooter({
     return wordsBar;
   }
 
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(child: wordsBar),
-      const SizedBox(width: 10),
-      SizedBox(
-        width: 200,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF19232C),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                chargeLabel,
-                style: const TextStyle(color: Colors.white54, fontSize: 10.5, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              TextField(
-                controller: chargeController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                onChanged: onChargeChanged,
-                textAlign: TextAlign.right,
-                textInputAction: TextInputAction.done,
-                minLines: 1,
-                maxLines: 1,
-                style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.2),
-                decoration: enterpriseInsetInputDecoration(onDarkPanel: true, multiline: true),
-              ),
-            ],
-          ),
+  final chargePanel = Container(
+    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+    decoration: BoxDecoration(
+      color: const Color(0xFF19232C),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          chargeLabel,
+          style: const TextStyle(color: Colors.white54, fontSize: 10.5, fontWeight: FontWeight.w700),
         ),
-      ),
-    ],
+        const SizedBox(height: 4),
+        TextField(
+          controller: chargeController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: onChargeChanged,
+          textAlign: TextAlign.right,
+          textInputAction: TextInputAction.done,
+          minLines: 1,
+          maxLines: 1,
+          style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.2),
+          decoration: enterpriseInsetInputDecoration(onDarkPanel: true, multiline: true),
+        ),
+      ],
+    ),
+  );
+
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final stack = constraints.maxWidth < AppBreakpoints.narrow;
+      if (stack) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            wordsBar,
+            const SizedBox(height: 10),
+            chargePanel,
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: wordsBar),
+          const SizedBox(width: 10),
+          SizedBox(width: 200, child: chargePanel),
+        ],
+      );
+    },
+  );
+}
+
+/// Dark transaction header used on sales/purchase/PO screens — stacks on narrow web.
+Widget enterpriseTerminalHeader({
+  required String title,
+  required List<Widget> stats,
+  required String totalAmount,
+  required String totalLabel,
+  List<Widget> actions = const [],
+  Color titleColor = const Color(0xFF2FE6E0),
+}) {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final narrow = constraints.maxWidth < AppBreakpoints.narrow;
+      final statsWrap = Wrap(spacing: 18, runSpacing: 6, children: stats);
+      final totalBlock = Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            totalAmount,
+            style: const TextStyle(
+              color: Color(0xFFF4D53A),
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            totalLabel,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: .4,
+            ),
+          ),
+        ],
+      );
+
+      if (narrow) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: titleColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .4,
+              ),
+            ),
+            const SizedBox(height: 10),
+            statsWrap,
+            if (actions.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(spacing: 8, runSpacing: 8, children: actions),
+            ],
+            const SizedBox(height: 10),
+            Align(alignment: Alignment.centerLeft, child: totalBlock),
+          ],
+        );
+      }
+
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: titleColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                statsWrap,
+              ],
+            ),
+          ),
+          ...actions.expand((w) => [w, const SizedBox(width: 8)]),
+          if (actions.isNotEmpty) const SizedBox(width: 8),
+          totalBlock,
+        ],
+      );
+    },
   );
 }
 

@@ -185,14 +185,10 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
     '${u['code']}'.toLowerCase().contains(q) ||
         '${u['name']}'.toLowerCase().contains(q)).toList();
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // LEFT: UOM REGISTRY TOKENS list
-        Container(
-          width: masterDirectoryWidth(context),
+    return masterSplitLayout(
+      context: context,
+      directory: Container(
           color: sidebarBg,
-          height: double.infinity,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -275,9 +271,7 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
             ],
           ),
         ),
-        // RIGHT: NEW UNIT PARAMETER form
-        Expanded(
-          child: Column(
+      form: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
@@ -290,9 +284,12 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
                   children: [
                     Container(width: 3, height: 18, color: navy),
                     const SizedBox(width: 10),
-                    Text(
+                    Flexible(
+                      child: Text(
                       selectedId == null ? 'NEW UNIT PARAMETER' : 'EDIT UNIT PARAMETER',
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     ),
                     const Spacer(),
                     if (selectedId != null) ...[
@@ -340,8 +337,6 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
               ),
             ],
           ),
-        ),
-      ],
     );
   }
 }
@@ -922,12 +917,9 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
     final batch = 'CUST-${DateTime.now().toString().substring(0, 10).replaceAll('-', '').substring(2)}';
     final editing = selectedId != null;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left: dark customer directory panel
-        Container(
-          width: masterDirectoryWidth(context),
+    return masterSplitLayout(
+      context: context,
+      directory: Container(
           color: sidebarBg,
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -989,9 +981,7 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
             ],
           ),
         ),
-        // Right: form
-        Expanded(
-          child: SingleChildScrollView(
+      form: SingleChildScrollView(
             padding: masterFormPadding(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -999,8 +989,11 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
                 Row(children: [
                   Container(width: 4, height: 18, color: navy),
                   const SizedBox(width: 10),
-                  Text(editing ? 'MODIFY CUSTOMER RECORD' : 'CUSTOMER MASTER SETUP',
+                  Flexible(
+                    child: Text(editing ? 'MODIFY CUSTOMER RECORD' : 'CUSTOMER MASTER SETUP',
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
+                  ),
                   if (editing) ...[
                     const SizedBox(width: 10),
                     Container(
@@ -1101,8 +1094,6 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
               ],
             ),
           ),
-        ),
-      ],
     );
   }
 
@@ -1374,12 +1365,9 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     final batch = 'SUPP-${DateTime.now().toString().substring(0, 10).replaceAll('-', '')}';
     final editing = selectedId != null;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left: dark supplier directory panel
-        Container(
-          width: masterDirectoryWidth(context),
+    return masterSplitLayout(
+      context: context,
+      directory: Container(
           color: sidebarBg,
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -1440,9 +1428,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
             ],
           ),
         ),
-        // Right: form
-        Expanded(
-          child: SingleChildScrollView(
+      form: SingleChildScrollView(
             padding: masterFormPadding(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1450,8 +1436,11 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
                 Row(children: [
                   Container(width: 4, height: 18, color: navy),
                   const SizedBox(width: 10),
-                  Text(editing ? 'MODIFY SUPPLIER RECORD' : 'SUPPLIER SETUP MATRIX',
+                  Flexible(
+                    child: Text(editing ? 'MODIFY SUPPLIER RECORD' : 'SUPPLIER SETUP MATRIX',
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
+                  ),
                   if (editing) ...[
                     const SizedBox(width: 10),
                     Container(
@@ -1567,8 +1556,6 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
               ],
             ),
           ),
-        ),
-      ],
     );
   }
 }
