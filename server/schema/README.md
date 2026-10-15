@@ -4,7 +4,9 @@ Handlers assume tables aligned with the Flutter SQLite schema in `lib/database/a
 
 Do **not** run destructive migrations on production. If a table is missing on VPS, add it manually to match the SQLite `CREATE TABLE` definitions before enabling the corresponding routes.
 
-Sales invoices and purchase voucher **POST** remain in the existing VPS `ultra_server` implementation.
+Accounting migration: `migrations/001_accounting.sql` (`ledgers`, `journal_entries`, `voucher_counters`, party ledger backfill).
+
+Sales invoice **POST** is implemented in `lib/routes/sales_invoices.dart` with automatic posting (`lib/accounting/post_sales.dart`).
 
 ## `units`
 
