@@ -5,7 +5,8 @@ Dart Shelf handlers for REST routes that the Flutter app expects but are **not**
 ## Design
 
 - **`registerMergedRoutes(router, conn)`** in `lib/register_merged_routes.dart` registers **only missing routes**.
-- Does **not** register `POST /api/sales-invoices` or `POST /api/purchase-vouchers` (already implemented on the VPS).
+- Registers `POST /api/sales-invoices` with FY voucher numbering and automatic journal posting (same DB transaction).
+- Purchase voucher POST with posting is added in a follow-up commit.
 - Adds **units** (`POST`, `PUT`, `DELETE`) and **products** (`POST`, `PUT`) write routes plus matching `GET` list handlers for local dev (VPS may already serve `GET`; register merge after existing routes so production list behavior stays unchanged).
 - Uses PostgreSQL transactions (`conn.runTx`) for multi-table saves.
 - Supplier party names are read from envelope `suppliers.data` JSON (`data::jsonb->>'supplier_name'`).
