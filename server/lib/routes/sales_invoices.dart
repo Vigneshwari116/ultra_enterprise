@@ -83,7 +83,8 @@ Future<Response> createSalesInvoice(Request request, Connection conn) async {
   final compoundGst = cgstTotal + sgstTotal + igstTotal;
   final voucherDate = FinancialYear.parseVoucherDate(body['transaction_date']);
 
-  return await conn.runTx((tx) async {
+  try {
+    return await conn.runTx((tx) async {
     final allocated = await allocateVoucherNumber(
       session: tx,
       voucherType: VoucherTypes.sales,
@@ -207,5 +208,8 @@ Future<Response> createSalesInvoice(Request request, Connection conn) async {
         'voucher_no_display': allocated.display,
       },
     }, status: 201);
-  });
+    });
+  } catch (e) {
+    return jsonError('Sales invoice save failed: $e', status: 400);
+  }
 }
