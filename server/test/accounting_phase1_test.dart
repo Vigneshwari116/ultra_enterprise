@@ -355,7 +355,65 @@ void main() {
     print('TOTAL debit=${m['dr']} credit=${m['cr']}');
   });
 
-  test('FY rollover: 31 Mar vs 1 Apr reset series', () async {
+  test('legacy DB with invoice_no 1..208 allocates 209 and FY display', () async {
+    await conn!.execute('''
+      INSERT INTO sales_invoices (
+        uuid, invoice_no, customer_id, transaction_date,
+        taxable_total, cgst_total, sgst_total, igst_total,
+        compound_gst_total, fwd_charge, grand_total, status
+      )
+      SELECT
+        gen_random_uuid(),
+        gs,
+        1,
+        '2025-06-01'::timestamptz,
+        0, 0, 0, 0,
+        0, 0, 0,
+        'POSTED'
+      FROM generate_series(1, 208) AS gs
+    ''');
+    await conn!.execute('SELECT sync_global_voucher_sequences()');
+
+    final res = await postSales({
+      'customer_id': 1,
+      'state_zone_id': 1,
+      'transaction_date': '2026-10-15',
+      'taxable_total': 100,
+      'cgst_total': 9,
+      'sgst_total': 9,
+      'igst_total': 0,
+      'fwd_charge': 0,
+      'grand_total': 118,
+      'items': [
+        {
+          ...baseItem(),
+          'rate': 100,
+          'taxable': 100,
+          'cgst': 9,
+          'sgst': 9,
+          'total': 118,
+        }
+      ],
+    });
+    expect(res.statusCode, 201);
+    final body = jsonDecode(await res.readAsString()) as Map<String, dynamic>;
+    final inv = body['invoice'] as Map<String, dynamic>;
+    expect(inv['invoice_no'], 209);
+    expect(inv['voucher_no_display'], 'SAL-26-27-1');
+
+    final row = await conn!.execute('''
+      SELECT invoice_no, voucher_no_display, compound_gst_total, grand_total,
+        taxable_total + cgst_total + sgst_total + igst_total + fwd_charge AS expected_grand
+      FROM sales_invoices WHERE invoice_no = 209
+    ''');
+    final m = row.first.toColumnMap();
+    expect(m['voucher_no_display'], 'SAL-26-27-1');
+    expect(_asNum(m['compound_gst_total']), 18);
+    expect(_asNum(m['grand_total']), _asNum(m['expected_grand']));
+    expect(_asNum(m['grand_total']), 118);
+  });
+
+  test('FY rollover: display resets; global invoice_no does not', () async {
     await postSales({
       'customer_id': 1,
       'state_zone_id': 1,
@@ -398,12 +456,14 @@ void main() {
         }
       ],
     });
-    final displays = await conn!.execute(
-      'SELECT voucher_no_display FROM sales_invoices ORDER BY transaction_date',
-    );
-    final labels = displays.map((r) => '${r.first}').toList();
-    expect(labels[0], 'SAL-25-26-1');
-    expect(labels[1], 'SAL-26-27-1');
+    final rows = await conn!.execute('''
+      SELECT invoice_no, voucher_no_display
+      FROM sales_invoices ORDER BY transaction_date
+    ''');
+    expect(rows[0].toColumnMap()['voucher_no_display'], 'SAL-25-26-1');
+    expect(rows[1].toColumnMap()['voucher_no_display'], 'SAL-26-27-1');
+    expect(rows[0].toColumnMap()['invoice_no'], 1);
+    expect(rows[1].toColumnMap()['invoice_no'], 2);
     final counters = await conn!.execute(
       "SELECT fy, last_no FROM voucher_counters WHERE voucher_type = 'SAL' ORDER BY fy",
     );

@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../services/ultra_repository.dart';
+import '../utils/sales_invoice_display.dart';
 import 'invoice.dart';
 import 'ultra_print_helpers.dart';
 
@@ -120,7 +121,7 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
               ]),
               for (final r in sorted)
                 pw.TableRow(children: [
-                  _c('${r['invoice_no'] ?? '-'}'),
+                  _c(salesInvoiceDisplayNo(r)),
                   _c(_fmtDate(r['transaction_date']?.toString())),
                   _c('${r['customer_name'] ?? '-'}'),
                   _c(_money(toDouble(r['taxable_total'])), right: true),
@@ -197,7 +198,7 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
   final roundOff = toDouble(inv['round_off'], fallback: 0);
   return InvoiceData(
     kind: UltraBillKind.taxInvoice,
-    invoiceNo: '${inv['invoice_no'] ?? ''}',
+    invoiceNo: salesInvoiceDisplayNo(inv),
     date: _fmtInvoicePrintDate(inv['transaction_date'] as String?),
     custPo: '${inv['po_no'] ?? ''}',
     poDate: _fmtInvoicePrintDate(inv['po_date'] as String?),

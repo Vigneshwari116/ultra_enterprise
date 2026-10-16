@@ -81,6 +81,60 @@ ALTER TABLE sales_invoices
 ALTER TABLE sales_invoices
   ADD COLUMN IF NOT EXISTS fwd_charge NUMERIC(18, 2) NOT NULL DEFAULT 0;
 
+-- ---------------------------------------------------------------------------
+-- Global internal numbers (never reset per FY); display uses voucher_counters.
+-- ---------------------------------------------------------------------------
+
+CREATE SEQUENCE IF NOT EXISTS sales_invoice_number_seq;
+CREATE SEQUENCE IF NOT EXISTS purchase_voucher_number_seq;
+CREATE SEQUENCE IF NOT EXISTS receipt_voucher_number_seq;
+CREATE SEQUENCE IF NOT EXISTS payment_voucher_number_seq;
+CREATE SEQUENCE IF NOT EXISTS expense_voucher_number_seq;
+CREATE SEQUENCE IF NOT EXISTS salary_voucher_number_seq;
+
+CREATE OR REPLACE FUNCTION sync_global_voucher_sequences() RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  m bigint;
+BEGIN
+  SELECT COALESCE(MAX(invoice_no), 0) INTO m FROM sales_invoices;
+  PERFORM setval('sales_invoice_number_seq', GREATEST(m, 1), m > 0);
+
+  IF to_regclass('public.purchase_vouchers') IS NOT NULL THEN
+    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM purchase_vouchers;
+    PERFORM setval('purchase_voucher_number_seq', GREATEST(m, 1), m > 0);
+  END IF;
+
+  IF to_regclass('public.receipts') IS NOT NULL THEN
+    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM receipts;
+    PERFORM setval('receipt_voucher_number_seq', GREATEST(m, 1), m > 0);
+  END IF;
+
+  IF to_regclass('public.payments') IS NOT NULL THEN
+    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM payments;
+    PERFORM setval('payment_voucher_number_seq', GREATEST(m, 1), m > 0);
+  END IF;
+
+  IF to_regclass('public.expense_vouchers') IS NOT NULL THEN
+    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM expense_vouchers;
+    PERFORM setval('expense_voucher_number_seq', GREATEST(m, 1), m > 0);
+  END IF;
+
+  IF to_regclass('public.salary_vouchers') IS NOT NULL THEN
+    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM salary_vouchers;
+    PERFORM setval('salary_voucher_number_seq', GREATEST(m, 1), m > 0);
+  END IF;
+END;
+$$;
+
+SELECT sync_global_voucher_sequences();
+
+-- Align with VPS: invoice_no is globally unique when present.
+CREATE UNIQUE INDEX IF NOT EXISTS sales_invoices_invoice_no_key
+  ON sales_invoices (invoice_no)
+  WHERE invoice_no IS NOT NULL;
+
 ALTER TABLE purchase_vouchers
   ADD COLUMN IF NOT EXISTS voucher_no_display TEXT;
 

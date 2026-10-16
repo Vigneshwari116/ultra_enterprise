@@ -4,6 +4,7 @@ import '../widgets/adjustment_note_document.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/journal_summary_report.dart';
+import '../utils/sales_invoice_display.dart';
 import '../widgets/sales_report.dart';
 
 final reportsCenterKey = GlobalKey<SalesReportsScreenState>();
@@ -122,6 +123,8 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
       if (selectedCustomer != null && selectedCustomer!.isNotEmpty && r['customer_name'] != selectedCustomer) return false;
       if (q.isEmpty) return true;
       return '${r['invoice_no']}'.toLowerCase().contains(q) ||
+          '${r['voucher_no_display']}'.toLowerCase().contains(q) ||
+          salesInvoiceDisplayNo(r).toLowerCase().contains(q) ||
           '${r['customer_name']}'.toLowerCase().contains(q) ||
           '${r['uuid']}'.toLowerCase().contains(q);
     }).toList();
@@ -692,7 +695,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                 Text('${r['customer_name']}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _navy)),
                 const SizedBox(height: 4),
                 Text(
-                  'SERIAL NO: ${r['invoice_no'] ?? '-'}  •  RECORDING DATE: ${_date(r['transaction_date'])}',
+                  'SERIAL NO: ${salesInvoiceDisplayNo(r)}  •  RECORDING DATE: ${_date(r['transaction_date'])}',
                   style: const TextStyle(fontSize: 8, color: Color(0xFF748094)),
                 ),
                 const SizedBox(height: 8),
@@ -720,7 +723,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text('SERIAL NO: ${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 8.5, color: _teal, fontWeight: FontWeight.w700)),
+                        Text('SERIAL NO: ${salesInvoiceDisplayNo(r)}', style: const TextStyle(fontSize: 8.5, color: _teal, fontWeight: FontWeight.w700)),
                         const SizedBox(width: 8),
                         Text('•  RECORDING DATE: ${_date(r['transaction_date'])}', style: const TextStyle(fontSize: 8, color: Color(0xFF748094))),
                       ],
@@ -836,7 +839,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFE7EBF0)))),
       child: Row(children: [
-        Expanded(flex: 1, child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
+        Expanded(flex: 1, child: Text(salesInvoiceDisplayNo(r), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
         Expanded(flex: 1, child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))),
         Expanded(flex: 4, child: Text('${r['customer_name']}', style: const TextStyle(fontSize: 9))),
         Expanded(child: Text('${_asDouble(r['taxable_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
@@ -882,7 +885,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                 color: Colors.white,
                 child: Column(children: [
                   Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), child: const Row(children: [Expanded(child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('TXN TYPE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('REF / INVOICE ID', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(flex: 3, child: Text('PARTICULARS / NARRATION ENTRY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('DEBIT (DR) [+]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF2B8ED2)))), Expanded(child: Text('CREDIT (CR) [-]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _green))), Expanded(child: Text('BALANCE (₹)', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy)))])),
-                  ...rows.map((r) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE7EBF0)))), child: Row(children: [Expanded(child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))), Expanded(child: Container(alignment: Alignment.centerLeft, child: const Text('SALES', style: TextStyle(fontSize: 8, color: _green, fontWeight: FontWeight.w700)))), Expanded(child: Text('${r['invoice_no'] ?? '-'}', style: const TextStyle(fontSize: 9))), Expanded(flex: 3, child: Text('SALES INVOICE FOR ${r['customer_name']}', style: const TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))), Expanded(child: const Text('-', style: TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9)))]))),
+                  ...rows.map((r) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE7EBF0)))), child: Row(children: [Expanded(child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))), Expanded(child: Container(alignment: Alignment.centerLeft, child: const Text('SALES', style: TextStyle(fontSize: 8, color: _green, fontWeight: FontWeight.w700)))), Expanded(child: Text(salesInvoiceDisplayNo(r), style: const TextStyle(fontSize: 9))), Expanded(flex: 3, child: Text('SALES INVOICE FOR ${r['customer_name']}', style: const TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))), Expanded(child: const Text('-', style: TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9)))]))),
                 ]),
               ),
             ),

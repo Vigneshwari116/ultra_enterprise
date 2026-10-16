@@ -17,6 +17,13 @@ DROP TABLE IF EXISTS suppliers CASCADE;
 DROP TABLE IF EXISTS ledger_accounts CASCADE;
 DROP TABLE IF EXISTS state_zones CASCADE;
 
+DROP SEQUENCE IF EXISTS sales_invoice_number_seq CASCADE;
+DROP SEQUENCE IF EXISTS purchase_voucher_number_seq CASCADE;
+DROP SEQUENCE IF EXISTS receipt_voucher_number_seq CASCADE;
+DROP SEQUENCE IF EXISTS payment_voucher_number_seq CASCADE;
+DROP SEQUENCE IF EXISTS expense_voucher_number_seq CASCADE;
+DROP SEQUENCE IF EXISTS salary_voucher_number_seq CASCADE;
+
 CREATE TABLE state_zones (
   id   SERIAL PRIMARY KEY,
   name TEXT NOT NULL
