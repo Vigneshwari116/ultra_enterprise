@@ -165,6 +165,45 @@ void main() {
         ],
       };
 
+  test('POST sales-invoices allows round-off up to 1 rupee', () async {
+    final res = await post('/api/sales-invoices', {
+      'customer_id': 1,
+      'state_zone_id': 1,
+      'transaction_date': '2026-10-20',
+      'taxable_total': 1000,
+      'cgst_total': 90,
+      'sgst_total': 90,
+      'igst_total': 0,
+      'fwd_charge': 0,
+      'grand_total': 1181,
+      'items': [
+        {
+          'product_id': 1,
+          'description': 'round-off line',
+          'hsn': '8471',
+          'quantity': 1,
+          'rate': 1000,
+          'taxable': 1000,
+          'cgst': 90,
+          'sgst': 90,
+          'total': 1180,
+        }
+      ],
+    });
+    await _expectStatus(res, 201);
+    final c = conn!;
+    final round = await c.execute('''
+      SELECT j.debit, j.credit
+      FROM journal_entries j
+      JOIN ledgers l ON l.id = j.ledger_id
+      WHERE j.voucher_type = 'SAL' AND l.system_key = 'ROUND_OFF'
+      ORDER BY j.id DESC LIMIT 1
+    ''');
+    expect(round, isNotEmpty);
+    final m = round.first.toColumnMap();
+    expect(_pgNumeric(m['credit']), 1);
+  });
+
   test('POST sales-invoices on VPS-shaped schema', () async {
     final res = await post('/api/sales-invoices', {
       'customer_id': 1,

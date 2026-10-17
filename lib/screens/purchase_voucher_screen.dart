@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../config/ultra_config.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
@@ -69,7 +70,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
     products = await repo.products();
     units = await repo.units();
     openOrders = await repo.openPurchaseOrders();
-    voucherNo = '${await repo.nextPurchaseVoucherNo()}';
+    if (UltraConfig.persistLocally) {
+      voucherNo = '${await repo.nextPurchaseVoucherNo()}';
+    } else {
+      voucherNo = 'Assigned on save';
+    }
     voucherNoController.text = voucherNo;
     _reconcileSupplierSelection();
     if (mounted) setState(() {});
