@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'purchase_order_document.dart';
 
+import '../utils/voucher_display.dart';
 import 'purchase_voucher_document.dart';
 
 // ============================================================
@@ -159,8 +160,7 @@ Future<void> printPurchaseAuditReport(
     records.add({
       ...voucher,
       '_record_type': 'PURCHASE VOUCHER',
-      '_display_no': voucher['supplier_invoice_no'] ??
-          'PV-${voucher['voucher_no'] ?? voucher['id']}',
+      '_display_no': purchaseVoucherDisplayNo(voucher),
       '_display_party': voucher['party_name'] ?? '-',
       '_display_date': voucher['voucher_date'],
     });

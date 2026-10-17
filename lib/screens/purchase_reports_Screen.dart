@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../utils/api_errors.dart';
 import '../utils/party_opening.dart';
+import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_Report.dart';
@@ -141,7 +142,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ...v,
         '_record_type': 'PURCHASE VOUCHER',
         '_display_no':
-            v['supplier_invoice_no'] ?? 'PV-${v['voucher_no'] ?? v['id']}',
+            purchaseVoucherDisplayNo(v),
         '_display_date': v['voucher_date'],
         '_display_party': v['party_name'] ?? '-',
       });
@@ -683,7 +684,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ...v,
         '_record_type': 'PURCHASE VOUCHER',
         '_display_no':
-            v['supplier_invoice_no'] ?? 'PV-${v['voucher_no'] ?? v['id']}',
+            purchaseVoucherDisplayNo(v),
         '_display_party': v['party_name'] ?? '-',
       });
     }
@@ -1024,7 +1025,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       entries.add({
         'date': v['voucher_date'],
         'type': 'PURCHASE',
-        'ref': 'PV-${v['voucher_no']}',
+        'ref': purchaseVoucherDisplayNo(v),
         'narration': v['supplier_invoice_no'] ?? '-',
         'debit': 0.0,
         'credit': _numValue(v['grand_total']),

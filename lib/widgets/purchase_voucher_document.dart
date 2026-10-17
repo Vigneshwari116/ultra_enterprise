@@ -1,18 +1,7 @@
 import '../services/ultra_repository.dart';
+import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import 'ultra_print_helpers.dart';
-
-String _voucherBillNo(Map<String, dynamic> voucher) {
-  final no = voucher['voucher_no'];
-  if (no != null && '$no'.trim().isNotEmpty) return 'PV-$no';
-  final uuid = '${voucher['uuid'] ?? ''}';
-  final year = DateTime.tryParse('${voucher['voucher_date']}')?.year ??
-      DateTime.now().year;
-  if (uuid.length >= 6) {
-    return 'PV-$year-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
-  }
-  return 'PV-$year-${voucher['id'] ?? ''}';
-}
 
 Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
   final bundle =
@@ -55,7 +44,7 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
       'PURCHASE VOUCHER',
       duplicateLabel: 'DUPLICATE PURCHASE VOUCHER COPY',
     ),
-    invoiceNo: _voucherBillNo(v),
+    invoiceNo: purchaseVoucherDisplayNo(v),
     date: ultraFmtDate(v['voucher_date'] as String?),
     custPo: '${v['supplier_invoice_no'] ?? ''}',
     poDate: ultraFmtDate(v['supplier_invoice_date'] as String?),

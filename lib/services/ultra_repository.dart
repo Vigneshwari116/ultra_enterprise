@@ -825,14 +825,156 @@ class UltraRepository {
     return await _getList('/api/adjustment-notes');
   }
 
+  Map<String, dynamic> _voucherSaveMeta(dynamic decoded) {
+    final row = _asRow(decoded);
+    for (final key in ['receipt', 'payment', 'voucher']) {
+      final nested = row[key];
+      if (nested is Map) {
+        return Map<String, dynamic>.from(nested);
+      }
+    }
+    return row;
+  }
+
   Future<int> insertReceipt(Map<String, dynamic> row) async {
     if (UltraConfig.persistLocally) return _db.insertReceipt(row);
     return _idFromResponse(await _api.post('/api/receipts', row));
   }
 
+  Future<Map<String, dynamic>> saveReceipt(Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      final id = await _db.insertReceipt(row);
+      return {'id': id};
+    }
+    return _voucherSaveMeta(await _api.post('/api/receipts', row));
+  }
+
+  Future<void> updateReceipt(int id, Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      await _db.db.update('receipts', row, where: 'id = ?', whereArgs: [id]);
+      return;
+    }
+    await _api.put('/api/receipts/$id', row);
+  }
+
+  Future<void> deleteReceipt(int id) async {
+    if (UltraConfig.persistLocally) {
+      await _db.db.delete('receipts', where: 'id = ?', whereArgs: [id]);
+      return;
+    }
+    await _api.delete('/api/receipts/$id');
+  }
+
   Future<int> insertPayment(Map<String, dynamic> row) async {
     if (UltraConfig.persistLocally) return _db.insertPayment(row);
     return _idFromResponse(await _api.post('/api/payments', row));
+  }
+
+  Future<Map<String, dynamic>> savePayment(Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      final id = await _db.insertPayment(row);
+      return {'id': id};
+    }
+    return _voucherSaveMeta(await _api.post('/api/payments', row));
+  }
+
+  Future<void> updatePayment(int id, Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      await _db.db.update('payments', row, where: 'id = ?', whereArgs: [id]);
+      return;
+    }
+    await _api.put('/api/payments/$id', row);
+  }
+
+  Future<void> deletePayment(int id) async {
+    if (UltraConfig.persistLocally) {
+      await _db.db.delete('payments', where: 'id = ?', whereArgs: [id]);
+      return;
+    }
+    await _api.delete('/api/payments/$id');
+  }
+
+  Future<List<Map<String, dynamic>>> expenseLedgers() async {
+    if (UltraConfig.persistLocally) return [];
+    return await _getList('/api/expense-ledgers');
+  }
+
+  Future<List<Map<String, dynamic>>> expenseVouchers() async {
+    if (UltraConfig.persistLocally) return [];
+    return await _getList('/api/expense-vouchers');
+  }
+
+  Future<Map<String, dynamic>> saveExpenseVoucher(Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      throw StateError('Expense vouchers require server mode');
+    }
+    return _voucherSaveMeta(await _api.post('/api/expense-vouchers', row));
+  }
+
+  Future<void> updateExpenseVoucher(int id, Map<String, dynamic> row) async {
+    await _api.put('/api/expense-vouchers/$id', row);
+  }
+
+  Future<void> deleteExpenseVoucher(int id) async {
+    await _api.delete('/api/expense-vouchers/$id');
+  }
+
+  Future<List<Map<String, dynamic>>> salaryVouchers() async {
+    if (UltraConfig.persistLocally) return [];
+    return await _getList('/api/salary-vouchers');
+  }
+
+  Future<Map<String, dynamic>> saveSalaryVoucher(Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      throw StateError('Salary vouchers require server mode');
+    }
+    return _voucherSaveMeta(await _api.post('/api/salary-vouchers', row));
+  }
+
+  Future<void> updateSalaryVoucher(int id, Map<String, dynamic> row) async {
+    await _api.put('/api/salary-vouchers/$id', row);
+  }
+
+  Future<void> deleteSalaryVoucher(int id) async {
+    await _api.delete('/api/salary-vouchers/$id');
+  }
+
+  Future<Map<String, dynamic>> reportPartyLedger({
+    required String partyKind,
+    required int partyId,
+    String? from,
+    String? to,
+  }) async {
+    final q = <String>[
+      'party_kind=${Uri.encodeQueryComponent(partyKind)}',
+      'party_id=$partyId',
+    ];
+    if (from != null && from.isNotEmpty) q.add('from=${Uri.encodeQueryComponent(from)}');
+    if (to != null && to.isNotEmpty) q.add('to=${Uri.encodeQueryComponent(to)}');
+    return Map<String, dynamic>.from(
+      _asRow(await _api.get('/api/reports/party-ledger?${q.join('&')}')),
+    );
+  }
+
+  Future<Map<String, dynamic>> reportTrialBalance({String? from, String? to}) async {
+    final q = <String>[];
+    if (from != null && from.isNotEmpty) q.add('from=${Uri.encodeQueryComponent(from)}');
+    if (to != null && to.isNotEmpty) q.add('to=${Uri.encodeQueryComponent(to)}');
+    final path = q.isEmpty ? '/api/reports/trial-balance' : '/api/reports/trial-balance?${q.join('&')}';
+    return Map<String, dynamic>.from(_asRow(await _api.get(path)));
+  }
+
+  Future<Map<String, dynamic>> reportCashBankBook({
+    required String cashBank,
+    String? from,
+    String? to,
+  }) async {
+    final q = <String>['cash_bank=${Uri.encodeQueryComponent(cashBank)}'];
+    if (from != null && from.isNotEmpty) q.add('from=${Uri.encodeQueryComponent(from)}');
+    if (to != null && to.isNotEmpty) q.add('to=${Uri.encodeQueryComponent(to)}');
+    return Map<String, dynamic>.from(
+      _asRow(await _api.get('/api/reports/cash-bank-book?${q.join('&')}')),
+    );
   }
 
   Future<List<Map<String, dynamic>>> allReceipts() async {
