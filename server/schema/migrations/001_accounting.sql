@@ -102,17 +102,54 @@ BEGIN
   PERFORM setval('sales_invoice_number_seq', GREATEST(m, 1), m > 0);
 
   IF to_regclass('public.purchase_vouchers') IS NOT NULL THEN
-    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM purchase_vouchers;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'purchase_vouchers' AND column_name = 'data'
+    ) THEN
+      SELECT COALESCE(MAX((data::jsonb->>'voucher_no')::bigint), 0) INTO m
+      FROM purchase_vouchers;
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'purchase_vouchers' AND column_name = 'voucher_no'
+    ) THEN
+      SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM purchase_vouchers;
+    ELSE
+      m := 0;
+    END IF;
     PERFORM setval('purchase_voucher_number_seq', GREATEST(m, 1), m > 0);
   END IF;
 
   IF to_regclass('public.receipts') IS NOT NULL THEN
-    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM receipts;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'data'
+    ) THEN
+      SELECT COALESCE(MAX((data::jsonb->>'voucher_no')::bigint), 0) INTO m FROM receipts;
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'voucher_no'
+    ) THEN
+      SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM receipts;
+    ELSE
+      m := 0;
+    END IF;
     PERFORM setval('receipt_voucher_number_seq', GREATEST(m, 1), m > 0);
   END IF;
 
   IF to_regclass('public.payments') IS NOT NULL THEN
-    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM payments;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'data'
+    ) THEN
+      SELECT COALESCE(MAX((data::jsonb->>'voucher_no')::bigint), 0) INTO m FROM payments;
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'voucher_no'
+    ) THEN
+      SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM payments;
+    ELSE
+      m := 0;
+    END IF;
     PERFORM setval('payment_voucher_number_seq', GREATEST(m, 1), m > 0);
   END IF;
 
@@ -139,24 +176,10 @@ ALTER TABLE purchase_vouchers
   ADD COLUMN IF NOT EXISTS voucher_no_display TEXT;
 
 ALTER TABLE receipts
-  ADD COLUMN IF NOT EXISTS voucher_no INTEGER;
-
-ALTER TABLE receipts
-  ADD COLUMN IF NOT EXISTS voucher_no_display TEXT;
-
-ALTER TABLE receipts
-  ADD COLUMN IF NOT EXISTS cash_bank TEXT NOT NULL DEFAULT 'CASH'
-    CHECK (cash_bank IN ('CASH', 'BANK'));
-
-ALTER TABLE payments
-  ADD COLUMN IF NOT EXISTS voucher_no INTEGER;
-
-ALTER TABLE payments
   ADD COLUMN IF NOT EXISTS voucher_no_display TEXT;
 
 ALTER TABLE payments
-  ADD COLUMN IF NOT EXISTS cash_bank TEXT NOT NULL DEFAULT 'CASH'
-    CHECK (cash_bank IN ('CASH', 'BANK'));
+  ADD COLUMN IF NOT EXISTS voucher_no_display TEXT;
 
 CREATE TABLE IF NOT EXISTS expense_vouchers (
   id                 BIGSERIAL PRIMARY KEY,
@@ -207,7 +230,8 @@ VALUES
   ('Input IGST', 'asset', 'INPUT_IGST'),
   ('Freight & Charges', 'income', 'FREIGHT'),
   ('Salary', 'expense', 'SALARY'),
-  ('Expenses', 'expense', 'EXPENSES')
+  ('Expenses', 'expense', 'EXPENSES'),
+  ('Round Off', 'expense', 'ROUND_OFF')
 ON CONFLICT (system_key) DO NOTHING;
 
 -- One-time copy from legacy ledger_accounts (backup table left untouched).

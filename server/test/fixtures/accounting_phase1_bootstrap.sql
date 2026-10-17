@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS expense_vouchers CASCADE;
 DROP TABLE IF EXISTS salary_vouchers CASCADE;
 DROP TABLE IF EXISTS receipts CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
+DROP TABLE IF EXISTS purchase_voucher_items CASCADE;
 DROP TABLE IF EXISTS purchase_vouchers CASCADE;
 DROP TABLE IF EXISTS products CASCADE;
 DROP TABLE IF EXISTS units CASCADE;
@@ -58,6 +59,9 @@ CREATE TABLE suppliers (
   data       JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+INSERT INTO suppliers (id, status, data)
+VALUES (1, 'ACTIVE', '{"supplier_name":"Phase1 Test Supplier"}'::jsonb);
 
 CREATE TABLE ledger_accounts (
   id          SERIAL PRIMARY KEY,
@@ -130,8 +134,16 @@ CREATE TABLE sales_invoice_items (
 CREATE TABLE purchase_vouchers (
   id SERIAL PRIMARY KEY,
   uuid UUID NOT NULL DEFAULT gen_random_uuid(),
-  voucher_no INTEGER,
-  status TEXT DEFAULT 'POSTED'
+  status TEXT DEFAULT 'POSTED',
+  data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  voucher_no_display TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE purchase_voucher_items (
+  id SERIAL PRIMARY KEY,
+  voucher_id INT REFERENCES purchase_vouchers (id) ON DELETE CASCADE,
+  data JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE TABLE receipts (

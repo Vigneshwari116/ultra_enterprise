@@ -68,6 +68,36 @@ void main() {
     );
   }
 
+  Future<Response> postPurchase(Map<String, dynamic> body) async {
+    final router = Router();
+    registerMergedRoutes(router, conn!);
+    return router.call(
+      Request(
+        'POST',
+        Uri.parse('http://127.0.0.1/api/purchase-vouchers'),
+        body: jsonEncode(body),
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+  }
+
+  Map<String, dynamic> vpsPurchaseItem() => {
+        'hsn': '7412',
+        'uom': 'NOS',
+        'cgst': 101.25,
+        'igst': 0.0,
+        'rate': 25.0,
+        'sgst': 101.25,
+        'total': 1328.0,
+        'taxable': 1250.0,
+        'quantity': 50.0,
+        'product_id': 1,
+        'description': '6 DIA QRC RK',
+        'cgst_percent': 9.0,
+        'igst_percent': 18.0,
+        'sgst_percent': 9.0,
+      };
+
   Map<String, dynamic> baseItem() => {
         'product_id': 1,
         'description': 'Test line',
@@ -411,6 +441,46 @@ void main() {
     expect(_asNum(m['compound_gst_total']), 18);
     expect(_asNum(m['grand_total']), _asNum(m['expected_grand']));
     expect(_asNum(m['grand_total']), 118);
+
+    final fyBody = {
+      'customer_id': 1,
+      'state_zone_id': 1,
+      'taxable_total': 100,
+      'cgst_total': 9,
+      'sgst_total': 9,
+      'igst_total': 0,
+      'fwd_charge': 0,
+      'grand_total': 118,
+      'items': [
+        {
+          ...baseItem(),
+          'rate': 100,
+          'taxable': 100,
+          'cgst': 9,
+          'sgst': 9,
+          'total': 118,
+        }
+      ],
+    };
+    expect(
+      (await postSales({...fyBody, 'transaction_date': '2026-03-31'})).statusCode,
+      201,
+    );
+    expect(
+      (await postSales({...fyBody, 'transaction_date': '2026-04-01'})).statusCode,
+      201,
+    );
+    final fyRows = await conn!.execute('''
+      SELECT invoice_no, voucher_no_display
+      FROM sales_invoices
+      WHERE invoice_no >= 210
+      ORDER BY transaction_date
+    ''');
+    expect(fyRows.length, 2);
+    expect(fyRows[0].toColumnMap()['invoice_no'], 210);
+    expect(fyRows[0].toColumnMap()['voucher_no_display'], 'SAL-25-26-1');
+    expect(fyRows[1].toColumnMap()['invoice_no'], 211);
+    expect(fyRows[1].toColumnMap()['voucher_no_display'], 'SAL-26-27-1');
   });
 
   test('FY rollover: display resets; global invoice_no does not', () async {
@@ -468,5 +538,116 @@ void main() {
       "SELECT fy, last_no FROM voucher_counters WHERE voucher_type = 'SAL' ORDER BY fy",
     );
     expect(counters.length, 2);
+  });
+
+  test('purchase VPS JSON: header totals post; item sums ignored', () async {
+    await conn!.execute('''
+      INSERT INTO purchase_vouchers (uuid, status, data)
+      SELECT
+        gen_random_uuid(),
+        'POSTED',
+        jsonb_build_object(
+          'voucher_no', gs,
+          'supplier_id', 1,
+          'voucher_date', '2025-01-01',
+          'taxable_total', 0,
+          'cgst_total', 0,
+          'sgst_total', 0,
+          'igst_total', 0,
+          'grand_total', 0,
+          'status', 'POSTED'
+        )
+      FROM generate_series(1, 261) AS gs
+    ''');
+    await conn!.execute('SELECT sync_global_voucher_sequences()');
+
+    final res = await postPurchase({
+      'uuid': 'PURCHASE:262',
+      'status': 'POSTED',
+      'supplier_id': 1,
+      'voucher_date': '2026-08-10',
+      'taxable_total': 1100.0,
+      'cgst_total': 99.0,
+      'sgst_total': 99.0,
+      'igst_total': 0.0,
+      'grand_total': 1298.0,
+      'purchase_order_id': null,
+      'supplier_invoice_no': 'SRP/32814',
+      'supplier_invoice_date': '2026-08-10',
+      'items': [vpsPurchaseItem()],
+    });
+    expect(res.statusCode, 201);
+    final decoded = jsonDecode(await res.readAsString()) as Map<String, dynamic>;
+    final voucher = decoded['voucher'] as Map<String, dynamic>;
+    expect(voucher['voucher_no'], 262);
+    expect(voucher['voucher_no_display'], 'PUR-26-27-1');
+
+    final stored = await conn!.execute(
+      Sql.named('''
+      SELECT data::jsonb->>'voucher_no' AS voucher_no, voucher_no_display
+      FROM purchase_vouchers WHERE id = @id
+    '''),
+      parameters: {'id': voucher['id']},
+    );
+    final row = stored.first.toColumnMap();
+    expect(row['voucher_no'], '262');
+    expect(row['voucher_no_display'], 'PUR-26-27-1');
+
+    final lines = await conn!.execute('''
+      SELECT l.name, j.debit, j.credit
+      FROM journal_entries j
+      JOIN ledgers l ON l.id = j.ledger_id
+      WHERE j.voucher_type = 'PUR' AND j.voucher_no = 262
+      ORDER BY l.name
+    ''');
+    final map = <String, Map<String, double>>{};
+    for (final r in lines) {
+      final m = r.toColumnMap();
+      map['${m['name']}'] = {
+        'dr': _asNum(m['debit']),
+        'cr': _asNum(m['credit']),
+      };
+    }
+    expect(map['Purchase']!['dr'], 1100);
+    expect(map['Input CGST']!['dr'], 99);
+    expect(map['Input SGST']!['dr'], 99);
+    expect(map['Phase1 Test Supplier']!['cr'], 1298);
+    expect(map.containsKey('Round Off'), isFalse);
+  });
+
+  test('purchase round-off within 1 rupee', () async {
+    final res = await postPurchase({
+      'supplier_id': 1,
+      'voucher_date': '2026-08-11',
+      'taxable_total': 100,
+      'cgst_total': 9,
+      'sgst_total': 9,
+      'igst_total': 0,
+      'grand_total': 118.5,
+      'status': 'POSTED',
+      'items': [
+        {
+          'product_id': 1,
+          'description': 'line',
+          'quantity': 1,
+          'rate': 100,
+          'taxable': 100,
+          'cgst': 9,
+          'sgst': 9,
+          'total': 118.5,
+        }
+      ],
+    });
+    expect(res.statusCode, 201);
+    final lines = await conn!.execute('''
+      SELECT l.name, j.debit, j.credit
+      FROM journal_entries j
+      JOIN ledgers l ON l.id = j.ledger_id
+      WHERE j.voucher_type = 'PUR'
+      ORDER BY j.id DESC
+      LIMIT 10
+    ''');
+    final names = lines.map((r) => '${r.toColumnMap()['name']}').toSet();
+    expect(names.contains('Round Off'), isTrue);
   });
 }

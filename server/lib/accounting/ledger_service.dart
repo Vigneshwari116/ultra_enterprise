@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:postgres/postgres.dart';
 
 class LedgerIds {
@@ -14,6 +16,7 @@ class LedgerIds {
   final int freight;
   final int salary;
   final int expenses;
+  final int roundOff;
 
   LedgerIds({
     required this.cash,
@@ -29,6 +32,7 @@ class LedgerIds {
     required this.freight,
     required this.salary,
     required this.expenses,
+    required this.roundOff,
   });
 }
 
@@ -58,7 +62,53 @@ Future<LedgerIds> loadSystemLedgerIds(Session session) async {
     freight: await ledgerIdBySystemKey(session, 'FREIGHT'),
     salary: await ledgerIdBySystemKey(session, 'SALARY'),
     expenses: await ledgerIdBySystemKey(session, 'EXPENSES'),
+    roundOff: await ledgerIdBySystemKey(session, 'ROUND_OFF'),
   );
+}
+
+Future<int> ensureSupplierLedger(Session session, int supplierId) async {
+  final existing = await session.execute(
+    Sql.named(
+      'SELECT id FROM ledgers WHERE party_kind = \'SUPPLIER\' AND party_id = @id',
+    ),
+    parameters: {'id': supplierId},
+  );
+  if (existing.isNotEmpty) return (existing.first.first as num).toInt();
+
+  final sup = await session.execute(
+    Sql.named('SELECT data::text AS data FROM suppliers WHERE id = @id'),
+    parameters: {'id': supplierId},
+  );
+  if (sup.isEmpty) throw StateError('Supplier not found: $supplierId');
+  final dataRaw = sup.first.toColumnMap()['data'];
+  Map<String, dynamic> data = {};
+  if (dataRaw is String && dataRaw.trim().isNotEmpty) {
+    try {
+      data = Map<String, dynamic>.from(
+        (jsonDecode(dataRaw) as Map).map((k, v) => MapEntry('$k', v)),
+      );
+    } catch (_) {}
+  }
+  final name = '${data['supplier_name'] ?? 'Supplier $supplierId}';
+  final dr = (data['opening_balance_dr'] as num?)?.toDouble() ?? 0;
+  final cr = (data['opening_balance_cr'] as num?)?.toDouble() ?? 0;
+  final opening = dr >= cr ? dr - cr : cr - dr;
+  final openingType = dr >= cr ? 'dr' : 'cr';
+
+  final inserted = await session.execute(
+    Sql.named('''
+      INSERT INTO ledgers (name, group_type, party_kind, party_id, opening_balance, opening_type)
+      VALUES (@name, 'liability', 'SUPPLIER', @party_id, @opening_balance, @opening_type)
+      RETURNING id
+    '''),
+    parameters: {
+      'name': name,
+      'party_id': supplierId,
+      'opening_balance': opening,
+      'opening_type': openingType,
+    },
+  );
+  return (inserted.first.first as num).toInt();
 }
 
 Future<int> ensureCustomerLedger(Session session, int customerId) async {
