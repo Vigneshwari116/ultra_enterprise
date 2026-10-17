@@ -8,6 +8,12 @@ Accounting migration: `migrations/001_accounting.sql` (`ledgers`, `journal_entri
 
 Sales invoice **POST** is implemented in `lib/routes/sales_invoices.dart` with automatic posting (`lib/accounting/post_sales.dart`).
 
+**Numbering:** `invoice_no` is allocated from `sales_invoice_number_seq` (global, never reset per FY). User-facing `voucher_no_display` (e.g. `SAL-26-27-1`) comes from `voucher_counters` and resets each FY. Migration `001_accounting.sql` defines sequences and `sync_global_voucher_sequences()` to `setval` past existing `MAX` values (including `purchase_vouchers.data->>'voucher_no'` on the VPS envelope schema).
+
+**Purchase POST** (`/api/purchase-vouchers`): stores header fields in `purchase_vouchers.data` JSON; posting uses header totals only (`post_purchase.dart`). Item lines are stored in `purchase_voucher_items.data` for print/stock only.
+
+**Party opening balances:** Customers use `customers.opening_balance_dr` / `opening_balance_cr`, synced to `ledgers` on save. Suppliers have **no** opening fields in `suppliers.data`; migration creates supplier party ledgers at **0**. Set opening via `PUT /api/party-ledgers/opening` (`party_kind`, `party_id`, `opening_balance`, `opening_type`).
+
 ## `units`
 
 Columns used by merged routes:

@@ -27,6 +27,10 @@ registerMergedRoutes(router, conn);
 
 Or run from repo root: `./scripts/vps_deploy_merge.sh` (requires `VPS_SSH_PRIVATE_KEY`).
 
+## Docker test on VPS (`ultra_copy`)
+
+See [deploy/VPS_ULTRA_COPY_TEST.md](deploy/VPS_ULTRA_COPY_TEST.md) — `docker compose` on `127.0.0.1:3004`, container `ultra_api_test`.
+
 ## Local run (full merged routes only)
 
 ```bash

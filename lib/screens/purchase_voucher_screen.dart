@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../config/ultra_config.dart';
 import '../services/ultra_repository.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../utils/api_errors.dart';
 import '../widgets/transaction_line_math.dart';
 import 'product_catalog_refresh.dart';
 
@@ -68,7 +70,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
     products = await repo.products();
     units = await repo.units();
     openOrders = await repo.openPurchaseOrders();
-    voucherNo = '${await repo.nextPurchaseVoucherNo()}';
+    if (UltraConfig.persistLocally) {
+      voucherNo = '${await repo.nextPurchaseVoucherNo()}';
+    } else {
+      voucherNo = 'Assigned on save';
+    }
     voucherNoController.text = voucherNo;
     _reconcileSupplierSelection();
     if (mounted) setState(() {});
@@ -207,7 +213,6 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
     try {
       await repo.createPurchaseVoucher({
         'uuid': uuid,
-        'voucher_no': int.tryParse(voucherNo),
         'voucher_date': voucherDate,
         'supplier_invoice_no': supplierInvoiceNo.text,
         'supplier_invoice_date': supplierInvoiceDate,
@@ -223,8 +228,10 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Server save failed: $e')),
+        await showReadableErrorDialog(
+          context,
+          title: 'Could not save purchase voucher',
+          error: e,
         );
       }
       return;

@@ -2,16 +2,16 @@ import 'dart:io' show Platform;
 
 import 'package:postgres/postgres.dart';
 
+import '../database_connection.dart';
+
 /// Primary app database (vouchers, masters).
-Connection openPrimaryConnection() {
+Future<Connection> openPrimaryConnectionAsync() {
   final url = Platform.environment['DATABASE_URL'];
   if (url == null || url.isEmpty) {
     throw StateError('DATABASE_URL is required');
   }
-  return Connection.openFromUrl(url);
+  return openDatabaseFromUrl(url);
 }
-
-Future<Connection> openPrimaryConnectionAsync() => openPrimaryConnection();
 
 /// Accounting tables (ledgers, journal_entries). Defaults to primary DB.
 Future<Connection> openAccountsConnection() async {
@@ -22,7 +22,7 @@ Future<Connection> openAccountsConnection() async {
   if (url == null || url.isEmpty) {
     throw StateError('DATABASE_URL or ACCOUNTS_DATABASE_URL is required');
   }
-  return Connection.openFromUrl(url);
+  return openDatabaseFromUrl(url);
 }
 
 bool accountsUsesSeparateDatabase() {

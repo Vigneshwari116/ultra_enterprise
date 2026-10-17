@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../config/ultra_config.dart';
 import '../database/app_database.dart';
 import '../services/ultra_repository.dart';
+import '../utils/sales_invoice_display.dart';
 import '../widgets/enterprise_widgets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -75,7 +76,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final started = DateTime.tryParse('${inv['transaction_date'] ?? ''}');
       final days = started == null ? 0 : DateTime.now().difference(started).inDays;
       rows.add(_ProjectRow(
-        projectNo: inv['invoice_no'] != null ? 'PRJ-${inv['invoice_no']}' : 'N/A',
+        projectNo: salesInvoiceDisplayNo(inv) != '-'
+            ? 'PRJ-${salesInvoiceDisplayNo(inv)}'
+            : 'N/A',
         client: client,
         quantity: '1',
         runningDays: '$days Days',

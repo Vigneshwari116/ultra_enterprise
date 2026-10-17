@@ -56,6 +56,12 @@ CREATE TABLE IF NOT EXISTS voucher_counters (
   PRIMARY KEY (voucher_type, fy)
 );
 
+-- Global internal numbers (invoice_no, voucher_no). Updated in the same TX as saves.
+CREATE TABLE IF NOT EXISTS global_number_counters (
+  counter_key TEXT PRIMARY KEY,
+  last_no     BIGINT NOT NULL DEFAULT 0
+);
+
 -- Cross-database safety: voucher saved on primary DB, posting retried if accounts DB fails.
 CREATE TABLE IF NOT EXISTS accounting_posting_outbox (
   id           BIGSERIAL PRIMARY KEY,
@@ -81,28 +87,117 @@ ALTER TABLE sales_invoices
 ALTER TABLE sales_invoices
   ADD COLUMN IF NOT EXISTS fwd_charge NUMERIC(18, 2) NOT NULL DEFAULT 0;
 
+-- ---------------------------------------------------------------------------
+-- Global internal numbers (never reset per FY); display uses voucher_counters.
+-- ---------------------------------------------------------------------------
+
+CREATE SEQUENCE IF NOT EXISTS sales_invoice_number_seq;
+CREATE SEQUENCE IF NOT EXISTS purchase_voucher_number_seq;
+CREATE SEQUENCE IF NOT EXISTS receipt_voucher_number_seq;
+CREATE SEQUENCE IF NOT EXISTS payment_voucher_number_seq;
+CREATE SEQUENCE IF NOT EXISTS expense_voucher_number_seq;
+CREATE SEQUENCE IF NOT EXISTS salary_voucher_number_seq;
+
+CREATE OR REPLACE FUNCTION sync_global_voucher_sequences() RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  m bigint;
+BEGIN
+  SELECT COALESCE(MAX(invoice_no), 0) INTO m FROM sales_invoices;
+  PERFORM setval('sales_invoice_number_seq', GREATEST(m, 1), m > 0);
+  INSERT INTO global_number_counters (counter_key, last_no) VALUES ('sales_invoice_number_seq', m)
+  ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
+
+  IF to_regclass('public.purchase_vouchers') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'purchase_vouchers' AND column_name = 'data'
+    ) THEN
+      SELECT COALESCE(MAX((data::jsonb->>'voucher_no')::bigint), 0) INTO m
+      FROM purchase_vouchers;
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'purchase_vouchers' AND column_name = 'voucher_no'
+    ) THEN
+      SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM purchase_vouchers;
+    ELSE
+      m := 0;
+    END IF;
+    PERFORM setval('purchase_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('purchase_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
+  END IF;
+
+  IF to_regclass('public.receipts') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'data'
+    ) THEN
+      SELECT COALESCE(MAX((data::jsonb->>'voucher_no')::bigint), 0) INTO m FROM receipts;
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'receipts' AND column_name = 'voucher_no'
+    ) THEN
+      SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM receipts;
+    ELSE
+      m := 0;
+    END IF;
+    PERFORM setval('receipt_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('receipt_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
+  END IF;
+
+  IF to_regclass('public.payments') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'data'
+    ) THEN
+      SELECT COALESCE(MAX((data::jsonb->>'voucher_no')::bigint), 0) INTO m FROM payments;
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'payments' AND column_name = 'voucher_no'
+    ) THEN
+      SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM payments;
+    ELSE
+      m := 0;
+    END IF;
+    PERFORM setval('payment_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('payment_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
+  END IF;
+
+  IF to_regclass('public.expense_vouchers') IS NOT NULL THEN
+    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM expense_vouchers;
+    PERFORM setval('expense_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('expense_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
+  END IF;
+
+  IF to_regclass('public.salary_vouchers') IS NOT NULL THEN
+    SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM salary_vouchers;
+    PERFORM setval('salary_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('salary_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
+  END IF;
+END;
+$$;
+
+SELECT sync_global_voucher_sequences();
+
+-- Align with VPS: invoice_no is globally unique when present.
+CREATE UNIQUE INDEX IF NOT EXISTS sales_invoices_invoice_no_key
+  ON sales_invoices (invoice_no)
+  WHERE invoice_no IS NOT NULL;
+
 ALTER TABLE purchase_vouchers
   ADD COLUMN IF NOT EXISTS voucher_no_display TEXT;
 
 ALTER TABLE receipts
-  ADD COLUMN IF NOT EXISTS voucher_no INTEGER;
-
-ALTER TABLE receipts
-  ADD COLUMN IF NOT EXISTS voucher_no_display TEXT;
-
-ALTER TABLE receipts
-  ADD COLUMN IF NOT EXISTS cash_bank TEXT NOT NULL DEFAULT 'CASH'
-    CHECK (cash_bank IN ('CASH', 'BANK'));
-
-ALTER TABLE payments
-  ADD COLUMN IF NOT EXISTS voucher_no INTEGER;
-
-ALTER TABLE payments
   ADD COLUMN IF NOT EXISTS voucher_no_display TEXT;
 
 ALTER TABLE payments
-  ADD COLUMN IF NOT EXISTS cash_bank TEXT NOT NULL DEFAULT 'CASH'
-    CHECK (cash_bank IN ('CASH', 'BANK'));
+  ADD COLUMN IF NOT EXISTS voucher_no_display TEXT;
 
 CREATE TABLE IF NOT EXISTS expense_vouchers (
   id                 BIGSERIAL PRIMARY KEY,
@@ -153,28 +248,9 @@ VALUES
   ('Input IGST', 'asset', 'INPUT_IGST'),
   ('Freight & Charges', 'income', 'FREIGHT'),
   ('Salary', 'expense', 'SALARY'),
-  ('Expenses', 'expense', 'EXPENSES')
+  ('Expenses', 'expense', 'EXPENSES'),
+  ('Round Off', 'expense', 'ROUND_OFF')
 ON CONFLICT (system_key) DO NOTHING;
-
--- One-time copy from legacy ledger_accounts (backup table left untouched).
-INSERT INTO ledgers (name, group_type, opening_balance, opening_type)
-SELECT
-  la.name,
-  CASE
-    WHEN la.head ILIKE '%income%' OR la.group_name ILIKE '%income%' THEN 'income'
-    WHEN la.head ILIKE '%liab%' OR la.group_name ILIKE '%liab%' THEN 'liability'
-    WHEN la.head ILIKE '%asset%' OR la.group_name ILIKE '%asset%' THEN 'asset'
-    ELSE 'expense'
-  END,
-  GREATEST(COALESCE(la.dr_amount, 0), COALESCE(la.cr_amount, 0)),
-  CASE
-    WHEN COALESCE(la.dr_amount, 0) >= COALESCE(la.cr_amount, 0) THEN 'dr'
-    ELSE 'cr'
-  END
-FROM ledger_accounts la
-WHERE NOT EXISTS (
-  SELECT 1 FROM ledgers l WHERE lower(l.name) = lower(la.name)
-);
 
 -- Party ledgers from existing masters (opening from party master).
 INSERT INTO ledgers (name, group_type, party_kind, party_id, opening_balance, opening_type)
@@ -203,19 +279,8 @@ SELECT
   'liability',
   'SUPPLIER',
   s.id,
-  CASE
-    WHEN COALESCE((s.data::jsonb->>'opening_balance_dr')::numeric, 0)
-         >= COALESCE((s.data::jsonb->>'opening_balance_cr')::numeric, 0)
-      THEN COALESCE((s.data::jsonb->>'opening_balance_dr')::numeric, 0)
-           - COALESCE((s.data::jsonb->>'opening_balance_cr')::numeric, 0)
-    ELSE COALESCE((s.data::jsonb->>'opening_balance_cr')::numeric, 0)
-         - COALESCE((s.data::jsonb->>'opening_balance_dr')::numeric, 0)
-  END,
-  CASE
-    WHEN COALESCE((s.data::jsonb->>'opening_balance_dr')::numeric, 0)
-         >= COALESCE((s.data::jsonb->>'opening_balance_cr')::numeric, 0) THEN 'dr'
-    ELSE 'cr'
-  END
+  0,
+  'cr'
 FROM suppliers s
 WHERE NOT EXISTS (
   SELECT 1 FROM ledgers l WHERE l.party_kind = 'SUPPLIER' AND l.party_id = s.id

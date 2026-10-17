@@ -1176,8 +1176,8 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
   final pincodeCtrl = TextEditingController();
   final gstinCtrl = TextEditingController();
   final panCtrl = TextEditingController();
-  final openCrCtrl = TextEditingController(text: '0');
-  final openDrCtrl = TextEditingController(text: '0');
+  final openAmtCtrl = TextEditingController(text: '0');
+  String _openingSide = 'cr';
   final bankNameCtrl = TextEditingController();
   final bankAccCtrl = TextEditingController();
   final ifscCtrl = TextEditingController();
@@ -1192,7 +1192,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
   @override
   void initState() {
     super.initState();
-    _focus = List.generate(20, (_) => FocusNode());
+    _focus = List.generate(19, (_) => FocusNode());
     searchCtrl.addListener(() => setState(() {}));
     load();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1208,7 +1208,7 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     }
     for (final c in [
       nameCtrl, contactCtrl, mobileCtrl, emailCtrl, addressCtrl, cityCtrl, pincodeCtrl, gstinCtrl,
-      panCtrl, openCrCtrl, openDrCtrl, bankNameCtrl, bankAccCtrl, ifscCtrl, branchCtrl,
+      panCtrl, openAmtCtrl, bankNameCtrl, bankAccCtrl, ifscCtrl, branchCtrl,
       shipNameCtrl, shipAddressCtrl, shipCityCtrl, shipPincodeCtrl, shipAltCodeCtrl,
     ]) {
       c.dispose();
@@ -1246,13 +1246,13 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
       shipCityCtrl, shipPincodeCtrl, shipAltCodeCtrl]) {
       c.clear();
     }
-    openCrCtrl.text = '0';
-    openDrCtrl.text = '0';
+    openAmtCtrl.text = '0';
+    _openingSide = 'cr';
     setState(() => selectedId = null);
     _focus[0].requestFocus();
   }
 
-  void _loadIntoForm(Map<String, dynamic> s) {
+  Future<void> _loadIntoForm(Map<String, dynamic> s) async {
     nameCtrl.text = '${s['supplier_name'] ?? ''}';
     contactCtrl.text = '${s['contact_name'] ?? ''}';
     mobileCtrl.text = '${s['primary_mobile'] ?? ''}';
@@ -1262,8 +1262,6 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     pincodeCtrl.text = '${s['postal_pincode'] ?? ''}';
     gstinCtrl.text = '${s['gstin'] ?? ''}';
     panCtrl.text = '${s['pan_no'] ?? ''}';
-    openCrCtrl.text = '${s['opening_balance_cr'] ?? 0}';
-    openDrCtrl.text = '${s['opening_balance_dr'] ?? 0}';
     bankNameCtrl.text = '${s['bank_name'] ?? ''}';
     bankAccCtrl.text = '${s['bank_account_no'] ?? ''}';
     ifscCtrl.text = '${s['ifsc_code'] ?? ''}';
@@ -1273,7 +1271,17 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     shipCityCtrl.text = '${s['shipping_city'] ?? ''}';
     shipPincodeCtrl.text = '${s['shipping_pincode'] ?? ''}';
     shipAltCodeCtrl.text = '${s['shipping_alt_code'] ?? ''}';
-    setState(() => selectedId = s['id'] as int);
+    final sid = s['id'] as int;
+    setState(() => selectedId = sid);
+    await _loadPartyOpening(sid);
+  }
+
+  Future<void> _loadPartyOpening(int supplierId) async {
+    final ledger = await UltraRepository.instance.partyLedgerOpening('SUPPLIER', supplierId);
+    final bal = (ledger['opening_balance'] as num?)?.toDouble() ?? 0;
+    final side = '${ledger['opening_type'] ?? 'cr'}'.toLowerCase();
+    openAmtCtrl.text = bal == 0 ? '0' : bal.toString();
+    if (mounted) setState(() => _openingSide = side == 'dr' ? 'dr' : 'cr');
   }
 
   Map<String, dynamic> _formToRow() => {
@@ -1286,8 +1294,6 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     'postal_pincode': pincodeCtrl.text,
     'gstin': gstinCtrl.text,
     'pan_no': panCtrl.text,
-    'opening_balance_cr': double.tryParse(openCrCtrl.text) ?? 0,
-    'opening_balance_dr': double.tryParse(openDrCtrl.text) ?? 0,
     'bank_name': bankNameCtrl.text,
     'bank_account_no': bankAccCtrl.text,
     'ifsc_code': ifscCtrl.text,
@@ -1306,17 +1312,27 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
       return;
     }
     final existingId = selectedId;
+    final openingAmt = double.tryParse(openAmtCtrl.text) ?? 0;
+    final openingType = _openingSide;
+    int savedId;
     if (existingId == null) {
-      await UltraRepository.instance.insertSupplier({
+      savedId = await UltraRepository.instance.insertSupplier({
         'supplier_code': 'SUPP-${DateTime.now().millisecondsSinceEpoch % 100000}',
         ..._formToRow(),
       });
       _notify('Supplier saved.');
       _clearForm();
     } else {
+      savedId = existingId;
       await UltraRepository.instance.updateSupplier(existingId, _formToRow());
       _notify('Supplier updated.');
     }
+    await UltraRepository.instance.setPartyLedgerOpening(
+      partyKind: 'SUPPLIER',
+      partyId: savedId,
+      openingBalance: openingAmt,
+      openingType: openingType,
+    );
     await refreshMountedProductCatalogs();
     await load();
     if (existingId != null) {
@@ -1552,12 +1568,24 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
                 const SizedBox(height: 8),
                 masterRow2(
                   context,
-                  _supplierField(13, 'OPENING BALANCE (CR)', openCrCtrl,
-                      style: const TextStyle(color: green, fontWeight: FontWeight.w800),
+                  _supplierField(13, 'OPENING BALANCE (AMOUNT)', openAmtCtrl,
+                      style: const TextStyle(color: navy, fontWeight: FontWeight.w800),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true)),
-                  _supplierField(14, 'OPENING BALANCE (DR)', openDrCtrl,
-                      style: const TextStyle(color: red, fontWeight: FontWeight.w800),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 18),
+                    child: DropdownButtonFormField<String>(
+                      value: _openingSide,
+                      decoration: const InputDecoration(
+                        labelText: 'OPENING SIDE',
+                        isDense: true,
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'cr', child: Text('Cr (payable)')),
+                        DropdownMenuItem(value: 'dr', child: Text('Dr (advance)')),
+                      ],
+                      onChanged: (v) => setState(() => _openingSide = v ?? 'cr'),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 ExpansionTile(
@@ -1568,15 +1596,15 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
                     const SizedBox(height: 8),
                     masterRow2(
                       context,
-                      _supplierField(15, 'CONSIGNED CONSIGNMENT DELIVERY NAME', shipNameCtrl),
-                      _supplierField(16, 'SHIPPING DELIVERY ADDRESS', shipAddressCtrl),
+                      _supplierField(14, 'CONSIGNED CONSIGNMENT DELIVERY NAME', shipNameCtrl),
+                      _supplierField(15, 'SHIPPING DELIVERY ADDRESS', shipAddressCtrl),
                     ),
                     const SizedBox(height: 8),
                     masterRow3(
                       context,
-                      _supplierField(17, 'SHIPPING CITY', shipCityCtrl),
-                      _supplierField(18, 'SHIPPING PINCODE', shipPincodeCtrl),
-                      _supplierField(19, 'SHIPPING ALTERNATE CODE', shipAltCodeCtrl),
+                      _supplierField(16, 'SHIPPING CITY', shipCityCtrl),
+                      _supplierField(17, 'SHIPPING PINCODE', shipPincodeCtrl),
+                      _supplierField(18, 'SHIPPING ALTERNATE CODE', shipAltCodeCtrl),
                     ),
                     const SizedBox(height: 8),
                   ],

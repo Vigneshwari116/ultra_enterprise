@@ -270,6 +270,8 @@ class UltraRepository {
 
   Map<String, dynamic> _mapSalesInvoiceToApi(Map<String, dynamic> body) {
     final out = Map<String, dynamic>.from(body);
+    out.remove('invoice_no');
+    out.remove('voucher_no_display');
     final zone = out.remove('state_zone');
     if (zone != null && out['state_zone_id'] == null) {
       final id = _stateZoneIdByLabel['$zone'] ??
@@ -398,6 +400,67 @@ class UltraRepository {
     if (UltraConfig.persistLocally) return _db.updateSupplier(id, row);
     await _api.put('/api/suppliers/$id', row);
     return id;
+  }
+
+  Future<Map<String, dynamic>> partyLedgerOpening(String partyKind, int partyId) async {
+    if (UltraConfig.persistLocally) {
+      if (partyKind.toUpperCase() == 'SUPPLIER') {
+        final s = await supplierById(partyId);
+        final cr = (s?['opening_balance_cr'] as num?)?.toDouble() ?? 0;
+        final dr = (s?['opening_balance_dr'] as num?)?.toDouble() ?? 0;
+        if (cr >= dr && cr > 0) {
+          return {
+            'party_kind': 'SUPPLIER',
+            'party_id': partyId,
+            'opening_balance': cr - dr,
+            'opening_type': 'cr',
+          };
+        }
+        if (dr > cr) {
+          return {
+            'party_kind': 'SUPPLIER',
+            'party_id': partyId,
+            'opening_balance': dr - cr,
+            'opening_type': 'dr',
+          };
+        }
+      }
+      return {
+        'party_kind': partyKind.toUpperCase(),
+        'party_id': partyId,
+        'opening_balance': 0,
+        'opening_type': partyKind.toUpperCase() == 'SUPPLIER' ? 'cr' : 'dr',
+      };
+    }
+    final raw = await _safeGet(
+      '/api/party-ledgers?party_kind=${partyKind.toUpperCase()}&party_id=$partyId',
+    );
+    return Map<String, dynamic>.from(_asRow(raw) ?? {});
+  }
+
+  Future<void> setPartyLedgerOpening({
+    required String partyKind,
+    required int partyId,
+    required double openingBalance,
+    required String openingType,
+  }) async {
+    if (UltraConfig.persistLocally) {
+      if (partyKind.toUpperCase() == 'SUPPLIER') {
+        final dr = openingType.toLowerCase() == 'dr' ? openingBalance : 0.0;
+        final cr = openingType.toLowerCase() == 'cr' ? openingBalance : 0.0;
+        await _db.updateSupplier(partyId, {
+          'opening_balance_dr': dr,
+          'opening_balance_cr': cr,
+        });
+      }
+      return;
+    }
+    await _api.put('/api/party-ledgers/opening', {
+      'party_kind': partyKind.toUpperCase(),
+      'party_id': partyId,
+      'opening_balance': openingBalance,
+      'opening_type': openingType.toLowerCase(),
+    });
   }
 
   Future<List<Map<String, dynamic>>> products() async {
@@ -674,7 +737,10 @@ class UltraRepository {
       if (poId != null) await markPurchaseOrderReceived(poId);
       return id;
     }
-    return _idFromResponse(await _api.post('/api/purchase-vouchers', body));
+    final apiBody = Map<String, dynamic>.from(body);
+    apiBody.remove('voucher_no');
+    apiBody.remove('voucher_no_display');
+    return _idFromResponse(await _api.post('/api/purchase-vouchers', apiBody));
   }
 
   Future<int> nextPurchaseVoucherNo() async {
