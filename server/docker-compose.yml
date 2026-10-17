@@ -1,0 +1,33 @@
+# Test API against ultra_copy on the VPS host Postgres (port 55432).
+# Does not touch production ultra_api / ports — bind only on loopback.
+#
+# Before first start:
+#   1. Create shared network if needed: docker network create shared
+#   2. Copy .env.example to .env and set DATABASE_URL credentials
+#   3. Apply accounting migration once: psql "$DATABASE_URL" -f schema/migrations/001_accounting.sql
+#
+# Start: docker compose up -d --build
+# Logs:  docker compose logs -f ultra_api_test
+
+services:
+  ultra_api_test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ultra_api_test
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:3004:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - shared
+
+networks:
+  shared:
+    external: true
+    name: ${DOCKER_NETWORK:-shared}
