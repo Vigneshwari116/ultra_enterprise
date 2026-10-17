@@ -55,14 +55,23 @@ class AllocatedVoucherNumber {
   });
 }
 
-/// Next value from a whitelisted global sequence (same transaction as save).
+/// Next global internal number (transactional — rolls back if the save tx aborts).
+///
+/// Uses [global_number_counters], not PostgreSQL sequences (nextval is not rolled back).
 Future<int> nextGlobalSequenceValue({
   required Session session,
   required String sequenceName,
 }) async {
   _assertAllowedSequence(sequenceName);
   final rows = await session.execute(
-    "SELECT nextval('$sequenceName'::regclass)",
+    Sql.named('''
+      INSERT INTO global_number_counters (counter_key, last_no)
+      VALUES (@key, 1)
+      ON CONFLICT (counter_key) DO UPDATE
+        SET last_no = global_number_counters.last_no + 1
+      RETURNING last_no
+    '''),
+    parameters: {'key': sequenceName},
   );
   return (rows.first.first as num).toInt();
 }

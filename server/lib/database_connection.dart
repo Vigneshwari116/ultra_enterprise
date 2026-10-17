@@ -1,6 +1,9 @@
 import 'package:postgres/postgres.dart';
 
 /// Opens PostgreSQL using [DATABASE_URL], honouring `sslmode` query parameter.
+///
+/// postgres 3.5.x supports only [SslMode.disable], [SslMode.require], and
+/// [SslMode.verifyFull]. Mapping: verify-ca → verifyFull; prefer/default → require.
 Future<Connection> openDatabaseFromUrl(String url) async {
   final uri = Uri.parse(url);
   final sslMode = _sslModeFromQuery(uri.queryParameters['sslmode']);
@@ -33,13 +36,12 @@ SslMode _sslModeFromQuery(String? sslmode) {
       return SslMode.disable;
     case 'require':
       return SslMode.require;
-    case 'verify-ca':
-      return SslMode.verifyCa;
     case 'verify-full':
       return SslMode.verifyFull;
+    case 'verify-ca':
+      return SslMode.verifyFull;
     case 'prefer':
-      return SslMode.prefer;
     default:
-      return SslMode.prefer;
+      return SslMode.require;
   }
 }

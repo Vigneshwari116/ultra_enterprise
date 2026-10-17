@@ -56,6 +56,12 @@ CREATE TABLE IF NOT EXISTS voucher_counters (
   PRIMARY KEY (voucher_type, fy)
 );
 
+-- Global internal numbers (invoice_no, voucher_no). Updated in the same TX as saves.
+CREATE TABLE IF NOT EXISTS global_number_counters (
+  counter_key TEXT PRIMARY KEY,
+  last_no     BIGINT NOT NULL DEFAULT 0
+);
+
 -- Cross-database safety: voucher saved on primary DB, posting retried if accounts DB fails.
 CREATE TABLE IF NOT EXISTS accounting_posting_outbox (
   id           BIGSERIAL PRIMARY KEY,
@@ -100,6 +106,8 @@ DECLARE
 BEGIN
   SELECT COALESCE(MAX(invoice_no), 0) INTO m FROM sales_invoices;
   PERFORM setval('sales_invoice_number_seq', GREATEST(m, 1), m > 0);
+  INSERT INTO global_number_counters (counter_key, last_no) VALUES ('sales_invoice_number_seq', m)
+  ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
 
   IF to_regclass('public.purchase_vouchers') IS NOT NULL THEN
     IF EXISTS (
@@ -117,6 +125,8 @@ BEGIN
       m := 0;
     END IF;
     PERFORM setval('purchase_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('purchase_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
   END IF;
 
   IF to_regclass('public.receipts') IS NOT NULL THEN
@@ -134,6 +144,8 @@ BEGIN
       m := 0;
     END IF;
     PERFORM setval('receipt_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('receipt_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
   END IF;
 
   IF to_regclass('public.payments') IS NOT NULL THEN
@@ -151,16 +163,22 @@ BEGIN
       m := 0;
     END IF;
     PERFORM setval('payment_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('payment_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
   END IF;
 
   IF to_regclass('public.expense_vouchers') IS NOT NULL THEN
     SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM expense_vouchers;
     PERFORM setval('expense_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('expense_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
   END IF;
 
   IF to_regclass('public.salary_vouchers') IS NOT NULL THEN
     SELECT COALESCE(MAX(voucher_no), 0) INTO m FROM salary_vouchers;
     PERFORM setval('salary_voucher_number_seq', GREATEST(m, 1), m > 0);
+    INSERT INTO global_number_counters (counter_key, last_no) VALUES ('salary_voucher_number_seq', m)
+    ON CONFLICT (counter_key) DO UPDATE SET last_no = GREATEST(global_number_counters.last_no, EXCLUDED.last_no);
   END IF;
 END;
 $$;
