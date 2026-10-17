@@ -19,9 +19,9 @@ Columns listed per statement after PR #21 VPS fixes.
 | Location | SQL | Table | Columns |
 |----------|-----|-------|---------|
 | list receipts | `SELECT id, uuid, kind, data, voucher_no_display, created_at FROM receipts` | receipts | id, uuid, kind, data, voucher_no_display, created_at |
-| create receipt | `INSERT INTO receipts (uuid, kind, data, created_at) VALUES (...)` | receipts | uuid, kind, data, created_at |
+| create receipt | `INSERT INTO receipts (uuid, kind, data, voucher_no_display, created_at) VALUES (...)` | receipts | uuid, kind, data, voucher_no_display, created_at |
 | list payments | `SELECT id, uuid, kind, data, voucher_no_display, created_at FROM payments` | payments | id, uuid, kind, data, voucher_no_display, created_at |
-| create payment | `INSERT INTO payments (uuid, kind, data, created_at) VALUES (...)` | payments | uuid, kind, data, created_at |
+| create payment | `INSERT INTO payments (uuid, kind, data, voucher_no_display, created_at) VALUES (...)` | payments | uuid, kind, data, voucher_no_display, created_at |
 | passbook | reads `receipts.data`, `payments.data` JSON keys; joins `customers`, `suppliers` | receipts, payments, customers, suppliers | envelope data + customer_name / supplier data |
 
 ## `masters.dart` (suppliers)

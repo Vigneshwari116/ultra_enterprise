@@ -16,13 +16,15 @@ double _asNum(dynamic v) =>
     v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
 
 void main() {
-  final dbUrl =
+  final dbUrlEnv =
       Platform.environment['TEST_DATABASE_URL'] ?? Platform.environment['DATABASE_URL'];
 
-  if (dbUrl == null || dbUrl.isEmpty) {
+  if (dbUrlEnv == null || dbUrlEnv.isEmpty) {
     test('skipped without TEST_DATABASE_URL', () {}, skip: 'Set TEST_DATABASE_URL');
     return;
   }
+
+  final String dbUrl = dbUrlEnv;
 
   Connection? conn;
   final repoRoot = Directory.current.path.endsWith('server')
@@ -36,7 +38,7 @@ void main() {
   Future<void> runPsqlFile(String path) async {
     final result = await Process.run(
       'psql',
-      [dbUrl!, '-v', 'ON_ERROR_STOP=1', '-q', '-f', path],
+      [dbUrl, '-v', 'ON_ERROR_STOP=1', '-q', '-f', path],
     );
     if (result.exitCode != 0) {
       throw StateError(
@@ -49,7 +51,7 @@ void main() {
     await runPsqlFile(bootstrapPath);
     await runPsqlFile(migrationPath);
     await runPsqlFile(migrationPath); // idempotent second apply
-    conn = await openDatabaseFromUrl(dbUrl!);
+    conn = await openDatabaseFromUrl(dbUrl);
   });
 
   tearDown(() async {
@@ -264,7 +266,7 @@ void main() {
 
   test('ten concurrent saves get unique sequential numbers', () async {
     Future<Response> postOnOwnConn() async {
-      final c = await openDatabaseFromUrl(dbUrl!);
+      final c = await openDatabaseFromUrl(dbUrl);
       try {
         final router = Router();
         registerMergedRoutes(router, c);

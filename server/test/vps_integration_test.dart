@@ -8,6 +8,8 @@ import 'package:test/test.dart';
 import 'package:ultra_api_server/database_connection.dart';
 import 'package:ultra_api_server/register_merged_routes.dart';
 
+import 'test_fixture_paths.dart';
+
 String _databaseNameFromUrl(String url) {
   final path = Uri.parse(url).path;
   if (path.isEmpty || path == '/') return '';
@@ -39,12 +41,11 @@ void main() {
 
   _assertTestDatabaseOnly(testDbUrl);
 
-  final fixturesDir = Directory('${File(Platform.script.toFilePath()).parent.path}/fixtures');
-  final resetPath = '${fixturesDir.path}/reset_test_schema.sql';
-  final schemaPath = '${fixturesDir.path}/vps_ultra_enterprise_schema.sql';
-  final seedPath = '${fixturesDir.path}/vps_ultra_enterprise_seed.sql';
-  final migrationPath =
-      '${Directory(Platform.script.toFilePath()).parent.parent.parent.path}/schema/migrations/001_accounting.sql';
+  final fixturesDir = vpsFixturesDir();
+  final resetPath = '$fixturesDir/reset_test_schema.sql';
+  final schemaPath = '$fixturesDir/vps_ultra_enterprise_schema.sql';
+  final seedPath = '$fixturesDir/vps_ultra_enterprise_seed.sql';
+  final migrationPath = vpsMigrationPath();
 
   Connection? conn;
 
@@ -231,5 +232,71 @@ void main() {
     final secondNo = (body2['voucher'] as Map)['voucher_no'];
 
     expect(secondNo, firstNo + 1);
+  });
+
+  test('POST receipt posts Dr Cash Cr Customer', () async {
+    final res = await post('/api/receipts', {
+      'customer_id': 1,
+      'receipt_date': '2026-10-21',
+      'amount': 500,
+      'narration': 'test receipt',
+      'cash_bank': 'CASH',
+    });
+    expect(res.statusCode, 201, reason: await res.readAsString());
+
+    final c = conn;
+    final lines = await c!.execute('''
+      SELECT l.name, j.debit, j.credit
+      FROM journal_entries j
+      JOIN ledgers l ON l.id = j.ledger_id
+      WHERE j.voucher_type = 'REC'
+      ORDER BY l.name
+    ''');
+    final map = <String, Map<String, double>>{};
+    for (final r in lines) {
+      final m = r.toColumnMap();
+      map['${m['name']}'] = {
+        'dr': (m['debit'] as num?)?.toDouble() ?? 0,
+        'cr': (m['credit'] as num?)?.toDouble() ?? 0,
+      };
+    }
+    expect(map['Cash']!['dr'], 500);
+    expect(map['VPS Test Customer']!['cr'], 500);
+  });
+
+  test('POST payment posts Dr Supplier Cr Cash (default cash_bank)', () async {
+    final res = await post('/api/payments', {
+      'supplier_id': 1,
+      'payment_date': '2026-10-22',
+      'amount': 300,
+      'payment_mode': 'CASH',
+      'reference_no': '',
+      'narration': 'test payment',
+    });
+    expect(res.statusCode, 201, reason: await res.readAsString());
+
+    final c = conn;
+    final stored = await c!.execute(
+      "SELECT data::jsonb->>'cash_bank' AS cb FROM payments ORDER BY id DESC LIMIT 1",
+    );
+    expect(stored.first.toColumnMap()['cb'], 'CASH');
+
+    final lines = await c.execute('''
+      SELECT l.name, j.debit, j.credit
+      FROM journal_entries j
+      JOIN ledgers l ON l.id = j.ledger_id
+      WHERE j.voucher_type = 'PAY'
+      ORDER BY l.name
+    ''');
+    final map = <String, Map<String, double>>{};
+    for (final r in lines) {
+      final m = r.toColumnMap();
+      map['${m['name']}'] = {
+        'dr': (m['debit'] as num?)?.toDouble() ?? 0,
+        'cr': (m['credit'] as num?)?.toDouble() ?? 0,
+      };
+    }
+    expect(map['Cash']!['cr'], 300);
+    expect(map['VPS Test Supplier']!['dr'], 300);
   });
 }

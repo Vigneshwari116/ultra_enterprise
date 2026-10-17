@@ -5,6 +5,10 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../accounting/fy.dart';
+import '../accounting/post_payment.dart';
+import '../accounting/post_receipt.dart';
+import '../accounting/voucher_numbering.dart';
 import '../http.dart';
 import '../json_util.dart';
 
@@ -16,6 +20,12 @@ void registerCashTransactionRoutes(Router router, Connection conn) {
   router.get('/api/payments', (_) => listPayments(conn));
   router.post('/api/payments', (r) => createPayment(r, conn));
   router.get('/api/cash-passbook', (_) => cashPassbook(conn));
+}
+
+String _normalizeCashBank(Map<String, dynamic> body) {
+  final raw = '${body['cash_bank'] ?? body['payment_mode'] ?? 'CASH'}'.toUpperCase();
+  if (raw == 'BANK') return 'BANK';
+  return 'CASH';
 }
 
 Future<Response> listReceipts(Connection conn) async {
@@ -36,28 +46,66 @@ Future<Response> createReceipt(Request request, Connection conn) async {
   if (amount <= 0) return jsonError('amount must be greater than zero');
   if (body['customer_id'] == null) return jsonError('customer_id is required');
 
-  final payload = jsonEncode({
-    'customer_id': body['customer_id'],
-    'receipt_date': body['receipt_date'],
-    'amount': amount,
-    'narration': body['narration'],
-    'created_at': body['created_at'] ?? DateTime.now().toUtc().toIso8601String(),
-  });
+  final cashBank = _normalizeCashBank(body);
+  final voucherDate = FinancialYear.parseVoucherDate(body['receipt_date']);
 
-  final result = await conn.execute(
-    Sql.named('''
-      INSERT INTO receipts (uuid, kind, data, created_at)
-      VALUES (@uuid, 'RECEIPT', @data, COALESCE(@created_at::timestamptz, NOW()))
-      RETURNING id
-    '''),
-    parameters: {
-      'uuid': _uuid.v4(),
-      'data': payload,
-      'created_at': body['created_at'],
-    },
-  );
-  final id = result.first.first;
-  return jsonOk({'id': id}, status: 201);
+  try {
+    return await conn.runTx((tx) async {
+      final allocated = await allocateVoucherNumber(
+        session: tx,
+        voucherType: VoucherTypes.receipt,
+        voucherDate: voucherDate,
+      );
+
+      final headerJson = <String, dynamic>{
+        'customer_id': body['customer_id'],
+        'receipt_date': body['receipt_date'],
+        'amount': amount,
+        'narration': body['narration'],
+        'cash_bank': cashBank,
+        'voucher_no': allocated.sequence,
+        'created_at': body['created_at'] ?? DateTime.now().toUtc().toIso8601String(),
+      };
+
+      final result = await tx.execute(
+        Sql.named('''
+          INSERT INTO receipts (uuid, kind, data, voucher_no_display, created_at)
+          VALUES (@uuid, 'RECEIPT', @data, @voucher_no_display, COALESCE(@created_at::timestamptz, NOW()))
+          RETURNING id
+        '''),
+        parameters: {
+          'uuid': _uuid.v4(),
+          'data': jsonEncode(headerJson),
+          'voucher_no_display': allocated.display,
+          'created_at': body['created_at'],
+        },
+      );
+      final receiptId = (result.first.first as num).toInt();
+
+      await postReceipt(
+        session: tx,
+        receiptId: receiptId,
+        customerId: (body['customer_id'] as num).toInt(),
+        voucherDate: voucherDate,
+        voucherNo: allocated.sequence,
+        voucherNoDisplay: allocated.display,
+        amount: amount,
+        cashBank: cashBank,
+        narration: body['narration']?.toString(),
+      );
+
+      return jsonOk({
+        'id': receiptId,
+        'receipt': {
+          'id': receiptId,
+          'voucher_no': allocated.sequence,
+          'voucher_no_display': allocated.display,
+        },
+      }, status: 201);
+    });
+  } catch (e) {
+    return jsonError('Receipt save failed: $e', status: 400);
+  }
 }
 
 Future<Response> listPayments(Connection conn) async {
@@ -78,30 +126,68 @@ Future<Response> createPayment(Request request, Connection conn) async {
   if (amount <= 0) return jsonError('amount must be greater than zero');
   if (body['supplier_id'] == null) return jsonError('supplier_id is required');
 
-  final payload = jsonEncode({
-    'supplier_id': body['supplier_id'],
-    'payment_date': body['payment_date'],
-    'amount': amount,
-    'payment_mode': body['payment_mode'] ?? 'CASH',
-    'reference_no': body['reference_no'] ?? '',
-    'narration': body['narration'],
-    'created_at': body['created_at'] ?? DateTime.now().toUtc().toIso8601String(),
-  });
+  final cashBank = _normalizeCashBank(body);
+  final voucherDate = FinancialYear.parseVoucherDate(body['payment_date']);
 
-  final result = await conn.execute(
-    Sql.named('''
-      INSERT INTO payments (uuid, kind, data, created_at)
-      VALUES (@uuid, 'PAYMENT', @data, COALESCE(@created_at::timestamptz, NOW()))
-      RETURNING id
-    '''),
-    parameters: {
-      'uuid': _uuid.v4(),
-      'data': payload,
-      'created_at': body['created_at'],
-    },
-  );
-  final id = result.first.first;
-  return jsonOk({'id': id}, status: 201);
+  try {
+    return await conn.runTx((tx) async {
+      final allocated = await allocateVoucherNumber(
+        session: tx,
+        voucherType: VoucherTypes.payment,
+        voucherDate: voucherDate,
+      );
+
+      final headerJson = <String, dynamic>{
+        'supplier_id': body['supplier_id'],
+        'payment_date': body['payment_date'],
+        'amount': amount,
+        'payment_mode': body['payment_mode'] ?? cashBank,
+        'reference_no': body['reference_no'] ?? '',
+        'narration': body['narration'],
+        'cash_bank': cashBank,
+        'voucher_no': allocated.sequence,
+        'created_at': body['created_at'] ?? DateTime.now().toUtc().toIso8601String(),
+      };
+
+      final result = await tx.execute(
+        Sql.named('''
+          INSERT INTO payments (uuid, kind, data, voucher_no_display, created_at)
+          VALUES (@uuid, 'PAYMENT', @data, @voucher_no_display, COALESCE(@created_at::timestamptz, NOW()))
+          RETURNING id
+        '''),
+        parameters: {
+          'uuid': _uuid.v4(),
+          'data': jsonEncode(headerJson),
+          'voucher_no_display': allocated.display,
+          'created_at': body['created_at'],
+        },
+      );
+      final paymentId = (result.first.first as num).toInt();
+
+      await postPayment(
+        session: tx,
+        paymentId: paymentId,
+        supplierId: (body['supplier_id'] as num).toInt(),
+        voucherDate: voucherDate,
+        voucherNo: allocated.sequence,
+        voucherNoDisplay: allocated.display,
+        amount: amount,
+        cashBank: cashBank,
+        narration: body['narration']?.toString(),
+      );
+
+      return jsonOk({
+        'id': paymentId,
+        'payment': {
+          'id': paymentId,
+          'voucher_no': allocated.sequence,
+          'voucher_no_display': allocated.display,
+        },
+      }, status: 201);
+    });
+  } catch (e) {
+    return jsonError('Payment save failed: $e', status: 400);
+  }
 }
 
 Future<Response> cashPassbook(Connection conn) async {
