@@ -513,7 +513,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
             const SizedBox(height: 4),
             Text(
               '${isPo ? 'PO NO' : 'VOUCHER NO'}: '
-              '${isPo ? (v['po_no'] ?? '-') : (v['voucher_no'] ?? '-')}'
+              '${isPo ? (v['po_no'] ?? '-') : purchaseVoucherDisplayNo(v)}'
               '  •  REF: $displayNo'
               '  •  DATE: ${_fmtDate(displayDate)}',
               style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFB8860B)),
@@ -1035,7 +1035,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       entries.add({
         'date': p['payment_date'],
         'type': 'PAYMENT',
-        'ref': p['reference_no'] ?? '-',
+        'ref': paymentDisplayNo(p),
         'narration': p['narration'] ?? '-',
         'debit': _numValue(p['amount']),
         'credit': 0.0,
