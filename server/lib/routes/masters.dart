@@ -5,8 +5,10 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../accounting/ledger_service.dart';
 import '../http.dart';
 import '../json_util.dart';
+import '../supplier_data.dart';
 
 const _uuid = Uuid();
 
@@ -51,7 +53,8 @@ Future<Response> createCustomer(Request request, Connection conn) async {
     ),
     parameters: _customerParams(body, code),
   );
-  final id = result.first.first;
+  final id = (result.first.first as num).toInt();
+  await syncCustomerPartyLedgerFromMaster(conn, id);
   return jsonOk({'id': id, 'customer': {'id': id}}, status: 201);
 }
 
@@ -95,6 +98,8 @@ Future<Response> updateCustomer(Request request, Connection conn, int id) async 
       'bank_identifier_name = COALESCE(@bank_identifier_name, bank_identifier_name), '
       'bank_account_no = COALESCE(@bank_account_no, bank_account_no), '
       'shipping_address = COALESCE(@shipping_address, shipping_address), '
+      'opening_balance_cr = COALESCE(@opening_balance_cr, opening_balance_cr), '
+      'opening_balance_dr = COALESCE(@opening_balance_dr, opening_balance_dr), '
       'updated_at = NOW() WHERE id = @id RETURNING id',
     ),
     parameters: {
@@ -109,9 +114,12 @@ Future<Response> updateCustomer(Request request, Connection conn, int id) async 
       'bank_identifier_name': body['bank_identifier_name'] ?? body['bank_name'],
       'bank_account_no': body['bank_account_no'],
       'shipping_address': body['shipping_address'],
+      'opening_balance_cr': body['opening_balance_cr'],
+      'opening_balance_dr': body['opening_balance_dr'],
     },
   );
   if (updated.isEmpty) return jsonError('Customer not found: $id', status: 404);
+  await syncCustomerPartyLedgerFromMaster(conn, id);
   return jsonOk({'id': id});
 }
 
@@ -130,14 +138,19 @@ Future<Response> createSupplier(Request request, Connection conn) async {
   if ('${body['supplier_name'] ?? ''}'.trim().isEmpty) {
     return jsonError('supplier_name is required');
   }
-  final payload = jsonEncode(body);
-  final result = await conn.execute(
-    Sql.named(
-      "INSERT INTO suppliers (uuid, status, data) VALUES (@uuid, 'ACTIVE', @data::jsonb) RETURNING id",
-    ),
-    parameters: {'uuid': _uuid.v4(), 'data': payload},
-  );
-  final id = result.first.first;
+  final clean = sanitizeSupplierData(body);
+  final payload = jsonEncode(clean);
+  final id = await conn.runTx((tx) async {
+    final result = await tx.execute(
+      Sql.named(
+        "INSERT INTO suppliers (uuid, status, data) VALUES (@uuid, 'ACTIVE', @data::jsonb) RETURNING id",
+      ),
+      parameters: {'uuid': _uuid.v4(), 'data': payload},
+    );
+    final sid = (result.first.first as num).toInt();
+    await ensureSupplierLedger(tx, sid);
+    return sid;
+  });
   return jsonOk({'id': id, 'supplier': {'id': id}}, status: 201);
 }
 
@@ -149,7 +162,7 @@ Future<Response> updateSupplier(Request request, Connection conn, int id) async 
   );
   if (existing.isEmpty) return jsonError('Supplier not found: $id', status: 404);
   final merged = flattenEnvelopeRow({'data': existing.first.toColumnMap()['data']});
-  merged.addAll(body);
+  merged.addAll(sanitizeSupplierData(body));
   final payload = jsonEncode(merged);
   await conn.execute(
     Sql.named('UPDATE suppliers SET data = @data::jsonb, status = COALESCE(@status, status) WHERE id = @id'),

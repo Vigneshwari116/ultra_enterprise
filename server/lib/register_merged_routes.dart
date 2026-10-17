@@ -1,6 +1,7 @@
 import 'package:postgres/postgres.dart';
 import 'package:shelf_router/shelf_router.dart';
 
+import 'routes/accounting_ledgers.dart';
 import 'routes/adjustment_notes.dart';
 import 'routes/cash_transactions.dart';
 import 'routes/delivery_challans.dart';
@@ -26,6 +27,7 @@ void registerMergedRoutes(Router router, Connection conn) {
   registerCashTransactionRoutes(router, conn);
   registerJournalRoutes(router, conn);
   registerLedgerRoutes(router, conn);
+  registerAccountingLedgerRoutes(router, conn);
   registerAdjustmentNoteRoutes(router, conn);
   registerMaterialTypeRoutes(router, conn);
   registerUnitRoutes(router, conn);

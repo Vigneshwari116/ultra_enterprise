@@ -90,25 +90,147 @@ Future<int> ensureSupplierLedger(Session session, int supplierId) async {
     } catch (_) {}
   }
   final name = '${data['supplier_name'] ?? 'Supplier $supplierId}';
-  final dr = (data['opening_balance_dr'] as num?)?.toDouble() ?? 0;
-  final cr = (data['opening_balance_cr'] as num?)?.toDouble() ?? 0;
-  final opening = dr >= cr ? dr - cr : cr - dr;
-  final openingType = dr >= cr ? 'dr' : 'cr';
 
   final inserted = await session.execute(
     Sql.named('''
       INSERT INTO ledgers (name, group_type, party_kind, party_id, opening_balance, opening_type)
-      VALUES (@name, 'liability', 'SUPPLIER', @party_id, @opening_balance, @opening_type)
+      VALUES (@name, 'liability', 'SUPPLIER', @party_id, 0, 'cr')
       RETURNING id
     '''),
     parameters: {
       'name': name,
       'party_id': supplierId,
-      'opening_balance': opening,
-      'opening_type': openingType,
     },
   );
   return (inserted.first.first as num).toInt();
+}
+
+/// Signed opening for reports: asset (customer) dr-positive; liability (supplier) cr-positive.
+double signedPartyOpeningBalance({
+  required String partyKind,
+  required double openingBalance,
+  required String openingType,
+}) {
+  final type = openingType.toLowerCase();
+  if (partyKind == 'SUPPLIER') {
+    return type == 'cr' ? openingBalance : -openingBalance;
+  }
+  return type == 'dr' ? openingBalance : -openingBalance;
+}
+
+Future<void> syncCustomerPartyLedgerFromMaster(Session session, int customerId) async {
+  final cust = await session.execute(
+    Sql.named(
+      'SELECT customer_name, opening_balance_dr, opening_balance_cr FROM customers WHERE id = @id',
+    ),
+    parameters: {'id': customerId},
+  );
+  if (cust.isEmpty) throw StateError('Customer not found: $customerId');
+  final row = cust.first.toColumnMap();
+  final dr = (row['opening_balance_dr'] as num?)?.toDouble() ?? 0;
+  final cr = (row['opening_balance_cr'] as num?)?.toDouble() ?? 0;
+  final opening = dr >= cr ? dr - cr : cr - dr;
+  final openingType = dr >= cr ? 'dr' : 'cr';
+
+  await upsertPartyLedgerOpening(
+    session: session,
+    partyKind: 'CUSTOMER',
+    partyId: customerId,
+    openingBalance: opening,
+    openingType: openingType,
+    partyName: '${row['customer_name']}',
+    syncCustomerMaster: false,
+  );
+}
+
+Future<void> upsertPartyLedgerOpening({
+  required Session session,
+  required String partyKind,
+  required int partyId,
+  required double openingBalance,
+  required String openingType,
+  String? partyName,
+  bool syncCustomerMaster = false,
+}) async {
+  final kind = partyKind.toUpperCase();
+  if (kind != 'CUSTOMER' && kind != 'SUPPLIER') {
+    throw ArgumentError('partyKind must be CUSTOMER or SUPPLIER');
+  }
+  final type = openingType.toLowerCase();
+  if (type != 'dr' && type != 'cr') {
+    throw ArgumentError('openingType must be dr or cr');
+  }
+
+  if (syncCustomerMaster && kind == 'CUSTOMER') {
+    final dr = type == 'dr' ? openingBalance : 0.0;
+    final cr = type == 'cr' ? openingBalance : 0.0;
+    await session.execute(
+      Sql.named('''
+        UPDATE customers
+        SET opening_balance_dr = @dr, opening_balance_cr = @cr, updated_at = NOW()
+        WHERE id = @id
+      '''),
+      parameters: {'id': partyId, 'dr': dr, 'cr': cr},
+    );
+  }
+
+  final groupType = kind == 'CUSTOMER' ? 'asset' : 'liability';
+  String name = partyName ?? '';
+  if (name.isEmpty) {
+    if (kind == 'CUSTOMER') {
+      final rows = await session.execute(
+        Sql.named('SELECT customer_name FROM customers WHERE id = @id'),
+        parameters: {'id': partyId},
+      );
+      if (rows.isEmpty) throw StateError('Customer not found: $partyId');
+      name = '${rows.first.first}';
+    } else {
+      final rows = await session.execute(
+        Sql.named('SELECT data::jsonb->>\'supplier_name\' AS n FROM suppliers WHERE id = @id'),
+        parameters: {'id': partyId},
+      );
+      if (rows.isEmpty) throw StateError('Supplier not found: $partyId');
+      name = '${rows.first.toColumnMap()['n'] ?? 'Supplier $partyId'}';
+    }
+  }
+
+  final updated = await session.execute(
+    Sql.named('''
+      UPDATE ledgers
+      SET opening_balance = @opening_balance,
+          opening_type = @opening_type,
+          name = @name,
+          updated_at = NOW()
+      WHERE party_kind = @party_kind AND party_id = @party_id
+      RETURNING id
+    '''),
+    parameters: {
+      'opening_balance': openingBalance,
+      'opening_type': type,
+      'name': name,
+      'party_kind': kind,
+      'party_id': partyId,
+    },
+  );
+  if (updated.isNotEmpty) return;
+
+  await session.execute(
+    Sql.named('''
+      INSERT INTO ledgers (
+        name, group_type, party_kind, party_id, opening_balance, opening_type
+      ) VALUES (
+        @name, @group_type, @party_kind, @party_id, @opening_balance, @opening_type
+      )
+    '''),
+    parameters: {
+      'name': name,
+      'group_type': groupType,
+      'party_kind': kind,
+      'party_id': partyId,
+      'opening_balance': openingBalance,
+      'opening_type': type,
+    },
+  );
 }
 
 Future<int> ensureCustomerLedger(Session session, int customerId) async {

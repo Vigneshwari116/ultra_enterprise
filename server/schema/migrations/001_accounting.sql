@@ -281,19 +281,8 @@ SELECT
   'liability',
   'SUPPLIER',
   s.id,
-  CASE
-    WHEN COALESCE((s.data::jsonb->>'opening_balance_dr')::numeric, 0)
-         >= COALESCE((s.data::jsonb->>'opening_balance_cr')::numeric, 0)
-      THEN COALESCE((s.data::jsonb->>'opening_balance_dr')::numeric, 0)
-           - COALESCE((s.data::jsonb->>'opening_balance_cr')::numeric, 0)
-    ELSE COALESCE((s.data::jsonb->>'opening_balance_cr')::numeric, 0)
-         - COALESCE((s.data::jsonb->>'opening_balance_dr')::numeric, 0)
-  END,
-  CASE
-    WHEN COALESCE((s.data::jsonb->>'opening_balance_dr')::numeric, 0)
-         >= COALESCE((s.data::jsonb->>'opening_balance_cr')::numeric, 0) THEN 'dr'
-    ELSE 'cr'
-  END
+  0,
+  'cr'
 FROM suppliers s
 WHERE NOT EXISTS (
   SELECT 1 FROM ledgers l WHERE l.party_kind = 'SUPPLIER' AND l.party_id = s.id
