@@ -17,9 +17,11 @@ Future<void> main() async {
   final conn = await openDatabaseFromUrl(Env.databaseUrl);
   final router = Router();
 
-  router.get('/health', (_) {
+  router.get('/health', (_) async {
+    final rows = await conn.execute('SELECT current_database() AS name');
+    final dbName = '${rows.first.toColumnMap()['name']}';
     return Response.ok(
-      jsonEncode({'ok': true, 'database': 'ultra_enterprise'}),
+      jsonEncode({'ok': true, 'database': dbName}),
       headers: {'content-type': 'application/json'},
     );
   });

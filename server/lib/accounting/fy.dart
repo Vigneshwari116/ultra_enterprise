@@ -2,8 +2,6 @@
 class FinancialYear {
   FinancialYear._();
 
-  static const _kolkata = 'Asia/Kolkata';
-
   static DateTime toKolkata(DateTime utcOrLocal) {
     // Shelf handlers use UTC timestamps; normalize via offset for FY boundaries.
     // Dart 3.4+: use timezone package would be ideal; approximate with fixed +5:30 for FY date.

@@ -8,48 +8,88 @@ import 'package:test/test.dart';
 import 'package:ultra_api_server/database_connection.dart';
 import 'package:ultra_api_server/register_merged_routes.dart';
 
-/// Integration tests against VPS-shaped schema (see fixtures/vps_ultra_enterprise_schema.sql).
-void main() {
-  final dbUrl =
-      Platform.environment['TEST_DATABASE_URL'] ?? Platform.environment['DATABASE_URL'];
+String _databaseNameFromUrl(String url) {
+  final path = Uri.parse(url).path;
+  if (path.isEmpty || path == '/') return '';
+  return path.replaceFirst('/', '').split('/').first;
+}
 
-  if (dbUrl == null || dbUrl.isEmpty) {
-    test('skipped without TEST_DATABASE_URL', () {}, skip: 'Set TEST_DATABASE_URL');
+void _assertTestDatabaseOnly(String url) {
+  final db = _databaseNameFromUrl(url);
+  if (db == 'ultra_copy' || db == 'ultra_enterprise') {
+    throw StateError(
+      'Refusing to run: database "$db" is production-like. Use ultra_copy_test only.',
+    );
+  }
+  if (!db.endsWith('_test')) {
+    throw StateError(
+      'Refusing to run destructive fixture load: database "$db" must end with _test '
+      '(e.g. ultra_copy_test).',
+    );
+  }
+}
+
+/// Integration tests against production-shaped schema (vps_ultra_enterprise_schema.sql).
+void main() {
+  final testDbUrl = Platform.environment['TEST_DATABASE_URL'];
+  if (testDbUrl == null || testDbUrl.isEmpty) {
+    test('skipped without TEST_DATABASE_URL', () {}, skip: 'Set TEST_DATABASE_URL to ultra_copy_test');
     return;
   }
 
+  _assertTestDatabaseOnly(testDbUrl);
+
+  final fixturesDir = Directory('${File(Platform.script.toFilePath()).parent.path}/fixtures');
+  final resetPath = '${fixturesDir.path}/reset_test_schema.sql';
+  final schemaPath = '${fixturesDir.path}/vps_ultra_enterprise_schema.sql';
+  final seedPath = '${fixturesDir.path}/vps_ultra_enterprise_seed.sql';
+  final migrationPath =
+      '${Directory(Platform.script.toFilePath()).parent.parent.parent.path}/schema/migrations/001_accounting.sql';
+
   Connection? conn;
-  final repoRoot = Directory.current.path.endsWith('server')
-      ? Directory.current.parent
-      : Directory.current;
-  final schemaPath = '${repoRoot.path}/server/test/fixtures/vps_ultra_enterprise_schema.sql';
-  final seedPath = '${repoRoot.path}/server/test/fixtures/vps_ultra_enterprise_seed.sql';
-  final migrationPath = '${repoRoot.path}/server/schema/migrations/001_accounting.sql';
 
   Future<void> runPsqlFile(String path) async {
     final result = await Process.run(
       'psql',
-      [dbUrl!, '-v', 'ON_ERROR_STOP=1', '-q', '-f', path],
+      [testDbUrl, '-v', 'ON_ERROR_STOP=1', '-q', '-f', path],
     );
     if (result.exitCode != 0) {
       throw StateError('psql failed for $path: ${result.stderr}\n${result.stdout}');
     }
   }
 
+  setUpAll(() async {
+    final which = await Process.run('which', ['psql']);
+    if (which.exitCode != 0) {
+      throw StateError(
+        'psql not found on PATH. Install postgresql-client to run vps_integration_test.',
+      );
+    }
+    for (final path in [resetPath, schemaPath, seedPath, migrationPath]) {
+      if (!File(path).existsSync()) {
+        throw StateError('Missing fixture file: $path');
+      }
+    }
+  });
+
   setUp(() async {
+    await runPsqlFile(resetPath);
     await runPsqlFile(schemaPath);
     await runPsqlFile(seedPath);
     await runPsqlFile(migrationPath);
-    conn = await openDatabaseFromUrl(dbUrl!);
+    conn = await openDatabaseFromUrl(testDbUrl);
   });
 
   tearDown(() async {
     await conn?.close();
+    conn = null;
   });
 
   Future<Response> post(String path, Map<String, dynamic> body) async {
+    final c = conn;
+    if (c == null) throw StateError('no connection');
     final router = Router();
-    registerMergedRoutes(router, conn!);
+    registerMergedRoutes(router, c);
     return router.call(
       Request(
         'POST',
@@ -59,6 +99,28 @@ void main() {
       ),
     );
   }
+
+  Map<String, dynamic> _purchaseBody({required double grandTotal}) => {
+        'supplier_id': 1,
+        'voucher_date': '2026-08-10',
+        'taxable_total': 1100,
+        'cgst_total': 99,
+        'sgst_total': 99,
+        'igst_total': 0,
+        'grand_total': grandTotal,
+        'status': 'POSTED',
+        'supplier_invoice_no': 'T/1',
+        'items': [
+          {
+            'product_id': 1,
+            'description': 'item',
+            'quantity': 1,
+            'rate': 100,
+            'taxable': 100,
+            'total': 118,
+          }
+        ],
+      };
 
   test('POST sales-invoices on VPS-shaped schema', () async {
     final res = await post('/api/sales-invoices', {
@@ -86,7 +148,9 @@ void main() {
       ],
     });
     expect(res.statusCode, 201);
-    final journals = await conn!.execute(
+    final c = conn;
+    expect(c, isNotNull);
+    final journals = await c!.execute(
       "SELECT COUNT(*) FROM journal_entries WHERE voucher_type = 'SAL'",
     );
     expect((journals.first.first as num) > 0, isTrue);
@@ -120,49 +184,52 @@ void main() {
     });
     expect(res.statusCode, 201, reason: await res.readAsString());
 
-    final items = await conn!.execute('SELECT parent_id, data FROM purchase_voucher_items');
+    final c = conn;
+    final items = await c!.execute('SELECT parent_id, data FROM purchase_voucher_items');
     expect(items.length, 1);
     expect(items.first.toColumnMap()['parent_id'], isNotNull);
 
-    final purJ = await conn!.execute(
+    final purJ = await c.execute(
       "SELECT COUNT(*) FROM journal_entries WHERE voucher_type = 'PUR'",
     );
     expect((purJ.first.first as num) > 0, isTrue);
   });
 
   test('failed purchase save leaves no voucher, items, or journal rows', () async {
-    final beforePv = await conn!.execute('SELECT COUNT(*) FROM purchase_vouchers');
-    final beforeIt = await conn!.execute('SELECT COUNT(*) FROM purchase_voucher_items');
-    final beforeJe = await conn!.execute('SELECT COUNT(*) FROM journal_entries');
+    final c = conn!;
+    final beforePv = await c.execute('SELECT COUNT(*) FROM purchase_vouchers');
+    final beforeIt = await c.execute('SELECT COUNT(*) FROM purchase_voucher_items');
+    final beforeJe = await c.execute('SELECT COUNT(*) FROM journal_entries');
 
-    final res = await post('/api/purchase-vouchers', {
-      'supplier_id': 1,
-      'voucher_date': '2026-08-11',
-      'taxable_total': 100,
-      'cgst_total': 9,
-      'sgst_total': 9,
-      'igst_total': 0,
-      'grand_total': 9999,
-      'status': 'POSTED',
-      'items': [
-        {
-          'product_id': 1,
-          'description': 'bad total',
-          'quantity': 1,
-          'rate': 100,
-          'taxable': 100,
-          'total': 118,
-        }
-      ],
-    });
+    final res = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 9999));
     expect(res.statusCode, 400);
 
-    final afterPv = await conn!.execute('SELECT COUNT(*) FROM purchase_vouchers');
-    final afterIt = await conn!.execute('SELECT COUNT(*) FROM purchase_voucher_items');
-    final afterJe = await conn!.execute('SELECT COUNT(*) FROM journal_entries');
+    final afterPv = await c.execute('SELECT COUNT(*) FROM purchase_vouchers');
+    final afterIt = await c.execute('SELECT COUNT(*) FROM purchase_voucher_items');
+    final afterJe = await c.execute('SELECT COUNT(*) FROM journal_entries');
 
     expect(afterPv.first.first, beforePv.first.first);
     expect(afterIt.first.first, beforeIt.first.first);
     expect(afterJe.first.first, beforeJe.first.first);
+  });
+
+  test('failed then successful purchase gets consecutive voucher_no', () async {
+    final fail = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 9999));
+    expect(fail.statusCode, 400);
+
+    final ok = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298));
+    expect(ok.statusCode, 201);
+    final body = jsonDecode(await ok.readAsString()) as Map<String, dynamic>;
+    final firstNo = (body['voucher'] as Map)['voucher_no'];
+
+    final ok2 = await post('/api/purchase-vouchers', {
+      ..._purchaseBody(grandTotal: 1298),
+      'supplier_invoice_no': 'T/2',
+    });
+    expect(ok2.statusCode, 201);
+    final body2 = jsonDecode(await ok2.readAsString()) as Map<String, dynamic>;
+    final secondNo = (body2['voucher'] as Map)['voucher_no'];
+
+    expect(secondNo, firstNo + 1);
   });
 }
