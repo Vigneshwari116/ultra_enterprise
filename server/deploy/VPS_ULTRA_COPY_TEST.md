@@ -5,7 +5,7 @@ Standalone test container **`ultra_api_test`** on loopback **3004**. Production 
 ## Prerequisites on VPS
 
 1. **Database** `ultra_copy` reachable on the host at `127.0.0.1:55432` (or adjust URL).
-2. **One-time migration** on `ultra_copy` (idempotent):
+2. **One-time migration** on `ultra_copy` (idempotent; no `ledger_accounts` copy block — see [MIGRATION_IDEMPOTENCY.md](./MIGRATION_IDEMPOTENCY.md)):
 
 ```bash
 psql "postgresql://USER:PASS@127.0.0.1:55432/ultra_copy" \

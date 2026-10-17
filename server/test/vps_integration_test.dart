@@ -10,6 +10,8 @@ import 'package:ultra_api_server/register_merged_routes.dart';
 
 import 'test_fixture_paths.dart';
 
+double _pgNumeric(dynamic v) => double.tryParse('$v') ?? 0;
+
 String _databaseNameFromUrl(String url) {
   final path = Uri.parse(url).path;
   if (path.isEmpty || path == '/') return '';
@@ -67,7 +69,7 @@ void main() {
       );
     }
     for (final path in [resetPath, schemaPath, seedPath, migrationPath]) {
-      if (!File(path).existsSync()) {
+      if (FileSystemEntity.typeSync(path) == FileSystemEntityType.notFound) {
         throw StateError('Missing fixture file: $path');
       }
     }
@@ -155,6 +157,18 @@ void main() {
       "SELECT COUNT(*) FROM journal_entries WHERE voucher_type = 'SAL'",
     );
     expect((journals.first.first as num) > 0, isTrue);
+
+    final dateRows = await c!.execute('''
+      SELECT j.date::text AS journal_date, si.transaction_date::text AS voucher_date
+      FROM journal_entries j
+      JOIN sales_invoices si ON si.id = j.source_id
+      WHERE j.voucher_type = 'SAL'
+      ORDER BY j.id
+      LIMIT 1
+    ''');
+    final dm = dateRows.first.toColumnMap();
+    expect(dm['journal_date'], dm['voucher_date']);
+    expect(dm['journal_date'], '2026-10-20');
   });
 
   test('POST purchase-vouchers uses parent_id + data text items', () async {
@@ -194,6 +208,15 @@ void main() {
       "SELECT COUNT(*) FROM journal_entries WHERE voucher_type = 'PUR'",
     );
     expect((purJ.first.first as num) > 0, isTrue);
+
+    final dateRows = await c.execute('''
+      SELECT j.date::text AS journal_date
+      FROM journal_entries j
+      WHERE j.voucher_type = 'PUR'
+      ORDER BY j.id
+      LIMIT 1
+    ''');
+    expect(dateRows.first.toColumnMap()['journal_date'], '2026-08-10');
   });
 
   test('failed purchase save leaves no voucher, items, or journal rows', () async {
@@ -256,8 +279,8 @@ void main() {
     for (final r in lines) {
       final m = r.toColumnMap();
       map['${m['name']}'] = {
-        'dr': (m['debit'] as num?)?.toDouble() ?? 0,
-        'cr': (m['credit'] as num?)?.toDouble() ?? 0,
+        'dr': _pgNumeric(m['debit']),
+        'cr': _pgNumeric(m['credit']),
       };
     }
     expect(map['Cash']!['dr'], 500);
@@ -292,8 +315,8 @@ void main() {
     for (final r in lines) {
       final m = r.toColumnMap();
       map['${m['name']}'] = {
-        'dr': (m['debit'] as num?)?.toDouble() ?? 0,
-        'cr': (m['credit'] as num?)?.toDouble() ?? 0,
+        'dr': _pgNumeric(m['debit']),
+        'cr': _pgNumeric(m['credit']),
       };
     }
     expect(map['Cash']!['cr'], 300);

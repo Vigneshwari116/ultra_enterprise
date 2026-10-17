@@ -1,18 +1,24 @@
 import 'dart:io';
 
+/// Candidate absolute paths for [relativePath] when `dart test` runs from repo root or `server/`.
+List<String> buildServerRelativePathCandidates(String cwd, String relativePath) {
+  return <String>[
+    '$cwd/$relativePath',
+    if (!cwd.endsWith('server')) '$cwd/server/$relativePath',
+  ];
+}
+
+bool serverRelativePathExists(String absolutePath) =>
+    FileSystemEntity.typeSync(absolutePath) != FileSystemEntityType.notFound;
+
 /// Resolve a repo-relative path when `dart test` runs from `server/` or repo root.
 String resolveServerRelativePath(String relativePath) {
   final tried = <String>[];
   final cwd = Directory.current.path;
 
-  final candidates = <String>[
-    '$cwd/$relativePath',
-    if (cwd.endsWith('server')) '$cwd/$relativePath' else '$cwd/server/$relativePath',
-  ];
-
-  for (final path in candidates) {
+  for (final path in buildServerRelativePathCandidates(cwd, relativePath)) {
     tried.add(path);
-    if (File(path).existsSync()) return path;
+    if (serverRelativePathExists(path)) return path;
   }
 
   throw StateError(
