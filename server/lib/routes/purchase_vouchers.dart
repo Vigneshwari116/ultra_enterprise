@@ -25,7 +25,7 @@ void registerPurchaseVoucherRoutes(Router router, Connection conn) {
 
 Future<Response> listPurchaseVouchers(Connection conn) async {
   final rows = await conn.execute('''
-    SELECT id, uuid, status, data::text AS data, voucher_no_display, created_at
+    SELECT id, uuid, status, data, voucher_no_display, created_at
     FROM purchase_vouchers
     ORDER BY id DESC
   ''');
@@ -38,7 +38,7 @@ Future<Response> listPurchaseVouchers(Connection conn) async {
 Future<Response> getPurchaseVoucherById(Connection conn, int id) async {
   final headerRows = await conn.execute(
     Sql.named(
-      'SELECT id, uuid, status, data::text AS data, voucher_no_display, created_at '
+      'SELECT id, uuid, status, data, voucher_no_display, created_at '
       'FROM purchase_vouchers WHERE id = @id',
     ),
     parameters: {'id': id},
@@ -59,7 +59,7 @@ Future<Response> getPurchaseVoucherById(Connection conn, int id) async {
   final supplierId = voucher['supplier_id'];
   if (supplierId != null) {
     final supRows = await conn.execute(
-      Sql.named('SELECT id, data::text AS data FROM suppliers WHERE id = @id'),
+      Sql.named('SELECT id, data FROM suppliers WHERE id = @id'),
       parameters: {'id': supplierId},
     );
     if (supRows.isNotEmpty) {
@@ -97,8 +97,8 @@ Future<Response> getPurchaseVoucherById(Connection conn, int id) async {
 
   final itemRows = await conn.execute(
     Sql.named(
-      'SELECT id, voucher_id, data::text AS data FROM purchase_voucher_items '
-      'WHERE voucher_id = @id ORDER BY id',
+      'SELECT id, parent_id, data FROM purchase_voucher_items '
+      'WHERE parent_id = @id ORDER BY id',
     ),
     parameters: {'id': id},
   );
@@ -180,17 +180,11 @@ Future<Response> createPurchaseVoucher(Request request, Connection conn) async {
       final result = await tx.execute(
         Sql.named('''
           INSERT INTO purchase_vouchers (uuid, status, data, voucher_no_display, created_at)
-          VALUES (
-            COALESCE(@uuid::uuid, gen_random_uuid()),
-            @status,
-            @data::jsonb,
-            @voucher_no_display,
-            NOW()
-          )
+          VALUES (@uuid, @status, @data, @voucher_no_display, NOW())
           RETURNING id
         '''),
         parameters: {
-          'uuid': headerJson['uuid'],
+          'uuid': '${headerJson['uuid']}',
           'status': status,
           'data': jsonEncode(headerJson),
           'voucher_no_display': allocated.display,
@@ -201,11 +195,11 @@ Future<Response> createPurchaseVoucher(Request request, Connection conn) async {
       for (final it in items) {
         await tx.execute(
           Sql.named('''
-            INSERT INTO purchase_voucher_items (voucher_id, data)
-            VALUES (@voucher_id, @data::jsonb)
+            INSERT INTO purchase_voucher_items (parent_id, data)
+            VALUES (@parent_id, @data)
           '''),
           parameters: {
-            'voucher_id': voucherId,
+            'parent_id': voucherId,
             'data': jsonEncode(_itemToJson(it)),
           },
         );

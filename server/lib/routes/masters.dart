@@ -125,7 +125,7 @@ Future<Response> updateCustomer(Request request, Connection conn, int id) async 
 
 Future<Response> getSupplier(Connection conn, int id) async {
   final rows = await conn.execute(
-    Sql.named('SELECT id, uuid, status, data::text AS data, created_at FROM suppliers WHERE id = @id'),
+    Sql.named('SELECT id, uuid, status, data, created_at FROM suppliers WHERE id = @id'),
     parameters: {'id': id},
   );
   if (rows.isEmpty) return jsonError('Supplier not found: $id', status: 404);
@@ -143,7 +143,7 @@ Future<Response> createSupplier(Request request, Connection conn) async {
   final id = await conn.runTx((tx) async {
     final result = await tx.execute(
       Sql.named(
-        "INSERT INTO suppliers (uuid, status, data) VALUES (@uuid, 'ACTIVE', @data::jsonb) RETURNING id",
+        "INSERT INTO suppliers (uuid, status, data) VALUES (@uuid, 'ACTIVE', @data) RETURNING id",
       ),
       parameters: {'uuid': _uuid.v4(), 'data': payload},
     );
@@ -157,7 +157,7 @@ Future<Response> createSupplier(Request request, Connection conn) async {
 Future<Response> updateSupplier(Request request, Connection conn, int id) async {
   final body = await readJsonObject(request);
   final existing = await conn.execute(
-    Sql.named('SELECT data::text AS data FROM suppliers WHERE id = @id'),
+    Sql.named('SELECT data FROM suppliers WHERE id = @id'),
     parameters: {'id': id},
   );
   if (existing.isEmpty) return jsonError('Supplier not found: $id', status: 404);
@@ -165,7 +165,7 @@ Future<Response> updateSupplier(Request request, Connection conn, int id) async 
   merged.addAll(sanitizeSupplierData(body));
   final payload = jsonEncode(merged);
   await conn.execute(
-    Sql.named('UPDATE suppliers SET data = @data::jsonb, status = COALESCE(@status, status) WHERE id = @id'),
+    Sql.named('UPDATE suppliers SET data = @data, status = COALESCE(@status, status) WHERE id = @id'),
     parameters: {'id': id, 'data': payload, 'status': body['status']},
   );
   return jsonOk({'id': id});

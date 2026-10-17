@@ -2,6 +2,7 @@ import '../widgets/purchase_order_document.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/party_opening.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_Report.dart';
@@ -82,12 +83,14 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
   }
 
   double get netOpeningPayable {
+    // Aggregate opening from party ledgers when loaded on each supplier map.
     return suppliers.fold(
       0.0,
       (s, sup) =>
           s +
-          _numValue(sup['opening_balance_cr']) -
-          _numValue(sup['opening_balance_dr']),
+          _numValue(sup['_ledger_opening_signed'] ??
+              (_numValue(sup['opening_balance_cr']) -
+                  _numValue(sup['opening_balance_dr']))),
     );
   }
 
@@ -1008,8 +1011,8 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
     final sVouchers = await repo.purchaseVouchersForSupplier(supplierId);
     final sPayments = await repo.paymentsForSupplier(supplierId);
 
-    final opening = _numValue(supplier['opening_balance_dr']) -
-        _numValue(supplier['opening_balance_cr']);
+    final ledger = await repo.partyLedgerOpening('SUPPLIER', supplierId);
+    final opening = signedPartyOpeningFromLedger(ledger, 'SUPPLIER');
 
     final entries = <Map<String, dynamic>>[];
     for (final v in sVouchers) {

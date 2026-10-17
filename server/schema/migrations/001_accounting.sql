@@ -234,26 +234,6 @@ VALUES
   ('Round Off', 'expense', 'ROUND_OFF')
 ON CONFLICT (system_key) DO NOTHING;
 
--- One-time copy from legacy ledger_accounts (backup table left untouched).
-INSERT INTO ledgers (name, group_type, opening_balance, opening_type)
-SELECT
-  la.name,
-  CASE
-    WHEN la.head ILIKE '%income%' OR la.group_name ILIKE '%income%' THEN 'income'
-    WHEN la.head ILIKE '%liab%' OR la.group_name ILIKE '%liab%' THEN 'liability'
-    WHEN la.head ILIKE '%asset%' OR la.group_name ILIKE '%asset%' THEN 'asset'
-    ELSE 'expense'
-  END,
-  GREATEST(COALESCE(la.dr_amount, 0), COALESCE(la.cr_amount, 0)),
-  CASE
-    WHEN COALESCE(la.dr_amount, 0) >= COALESCE(la.cr_amount, 0) THEN 'dr'
-    ELSE 'cr'
-  END
-FROM ledger_accounts la
-WHERE NOT EXISTS (
-  SELECT 1 FROM ledgers l WHERE lower(l.name) = lower(la.name)
-);
-
 -- Party ledgers from existing masters (opening from party master).
 INSERT INTO ledgers (name, group_type, party_kind, party_id, opening_balance, opening_type)
 SELECT

@@ -5,6 +5,7 @@ import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:test/test.dart';
+import 'package:ultra_api_server/database_connection.dart';
 import 'package:ultra_api_server/register_merged_routes.dart';
 
 /// Accounting phase-1 integration tests (migration + sales POST + journals).
@@ -48,7 +49,7 @@ void main() {
     await runPsqlFile(bootstrapPath);
     await runPsqlFile(migrationPath);
     await runPsqlFile(migrationPath); // idempotent second apply
-    conn = await Connection.openFromUrl(dbUrl!);
+    conn = await openDatabaseFromUrl(dbUrl!);
   });
 
   tearDown(() async {
@@ -107,6 +108,17 @@ void main() {
         'taxable': 5000,
         'total': 5000,
       };
+
+  test('supplier party ledgers start at zero opening (not in supplier JSON)', () async {
+    final rows = await conn!.execute('''
+      SELECT opening_balance, opening_type
+      FROM ledgers WHERE party_kind = 'SUPPLIER' AND party_id = 1
+    ''');
+    expect(rows, isNotEmpty);
+    final m = rows.first.toColumnMap();
+    expect(_asNum(m['opening_balance']), 0);
+    expect(m['opening_type'], 'cr');
+  });
 
   test('migration creates ledgers and journal tables', () async {
     final ledgers = await conn!.execute('SELECT COUNT(*) FROM ledgers');
@@ -252,7 +264,7 @@ void main() {
 
   test('ten concurrent saves get unique sequential numbers', () async {
     Future<Response> postOnOwnConn() async {
-      final c = await Connection.openFromUrl(dbUrl!);
+      final c = await openDatabaseFromUrl(dbUrl!);
       try {
         final router = Router();
         registerMergedRoutes(router, c);

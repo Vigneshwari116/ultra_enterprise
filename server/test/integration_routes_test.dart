@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:postgres/postgres.dart';
+import 'package:ultra_api_server/database_connection.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:test/test.dart';
@@ -20,7 +21,7 @@ void main() {
     late Connection conn;
 
     setUp(() async {
-      conn = await Connection.openFromUrl(dbUrl);
+      conn = await openDatabaseFromUrl(dbUrl);
     });
 
     tearDown(() async {

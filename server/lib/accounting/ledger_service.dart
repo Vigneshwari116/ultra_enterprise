@@ -76,7 +76,7 @@ Future<int> ensureSupplierLedger(Session session, int supplierId) async {
   if (existing.isNotEmpty) return (existing.first.first as num).toInt();
 
   final sup = await session.execute(
-    Sql.named('SELECT data::text AS data FROM suppliers WHERE id = @id'),
+    Sql.named('SELECT data FROM suppliers WHERE id = @id'),
     parameters: {'id': supplierId},
   );
   if (sup.isEmpty) throw StateError('Supplier not found: $supplierId');
@@ -89,7 +89,7 @@ Future<int> ensureSupplierLedger(Session session, int supplierId) async {
       );
     } catch (_) {}
   }
-  final name = '${data['supplier_name'] ?? 'Supplier $supplierId}';
+  final name = '${data['supplier_name'] ?? 'Supplier $supplierId'}';
 
   final inserted = await session.execute(
     Sql.named('''

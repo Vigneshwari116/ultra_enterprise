@@ -142,8 +142,8 @@ CREATE TABLE purchase_vouchers (
 
 CREATE TABLE purchase_voucher_items (
   id SERIAL PRIMARY KEY,
-  voucher_id INT REFERENCES purchase_vouchers (id) ON DELETE CASCADE,
-  data JSONB NOT NULL DEFAULT '{}'::jsonb
+  parent_id INT REFERENCES purchase_vouchers (id) ON DELETE CASCADE,
+  data TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE receipts (
