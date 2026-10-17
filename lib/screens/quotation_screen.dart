@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
@@ -62,17 +63,21 @@ class _QuotationScreenState extends State<QuotationScreen> {
   }
 
   Future<void> load() async {
-    customers = await repo.customers();
-    suppliers = await repo.suppliers();
-    units = await repo.units();
-    serial = '${await repo.nextQuotationSerial()}';
-    historyRows = await repo.quotationsWithParty();
-    if (!partyIsSupplier && customers.isNotEmpty) {
-      partyId = customers.first['id'] as int;
-      _fillParty(customers.first);
-    } else if (partyIsSupplier && suppliers.isNotEmpty) {
-      partyId = suppliers.first['id'] as int;
-      _fillParty(suppliers.first);
+    try {
+      customers = await repo.customers();
+      suppliers = await repo.suppliers();
+      units = await repo.units();
+      serial = '${await repo.nextQuotationSerial()}';
+      historyRows = await repo.quotationsWithParty();
+      if (!partyIsSupplier && customers.isNotEmpty) {
+        partyId = customers.first['id'] as int;
+        _fillParty(customers.first);
+      } else if (partyIsSupplier && suppliers.isNotEmpty) {
+        partyId = suppliers.first['id'] as int;
+        _fillParty(suppliers.first);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() {});
   }
@@ -98,11 +103,6 @@ class _QuotationScreenState extends State<QuotationScreen> {
   Future<void> _pickDate(String iso, ValueChanged<String> on) async {
     final picked = await pickCompactDate(context, initialDate: DateTime.tryParse(iso) ?? DateTime.now());
     if (picked != null) on(formatIsoDate(picked));
-  }
-
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
   String _refForRow(Map<String, dynamic> q) {

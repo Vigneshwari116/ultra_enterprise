@@ -2,6 +2,7 @@ import '../widgets/purchase_order_document.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../utils/party_opening.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
@@ -44,16 +45,20 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
 
   Future<void> load() async {
     setState(() => loading = true);
-    vouchers = await repo.purchaseVouchersWithParty();
-    purchaseOrders = await repo.purchaseOrdersWithParty();
-    payments = await repo.allPayments();
-    suppliers = await repo.suppliers();
+    try {
+      vouchers = await repo.purchaseVouchersWithParty();
+      purchaseOrders = await repo.purchaseOrdersWithParty();
+      payments = await repo.allPayments();
+      suppliers = await repo.suppliers();
 
-    if (selectedSupplierId == null && suppliers.isNotEmpty) {
-      selectedSupplierId = suppliers.first['id'] as int;
-    }
-    if (selectedSupplierId != null) {
-      _ledgerWiseFuture = _computeLedgerWise(selectedSupplierId!);
+      if (selectedSupplierId == null && suppliers.isNotEmpty) {
+        selectedSupplierId = suppliers.first['id'] as int;
+      }
+      if (selectedSupplierId != null) {
+        _ledgerWiseFuture = _computeLedgerWise(selectedSupplierId!);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() => loading = false);
   }

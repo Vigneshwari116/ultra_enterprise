@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/csv_import.dart';
 import '../widgets/enterprise_widgets.dart';
@@ -88,7 +89,11 @@ class _UnitMasterScreenState extends State<UnitMasterScreen> {
   }
 
   Future<void> load() async {
-    data = await UltraRepository.instance.units();
+    try {
+      data = await UltraRepository.instance.units();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -383,7 +388,11 @@ class _LedgerMasterScreenState extends State<LedgerMasterScreen> {
   }
 
   Future<void> _loadLedgers() async {
-    _ledgers = await UltraRepository.instance.ledgerAccounts();
+    try {
+      _ledgers = await UltraRepository.instance.ledgerAccounts();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -773,7 +782,14 @@ class _CustomerMasterScreenState extends State<CustomerMasterScreen>{
     super.dispose();
   }
 
-  Future<void> load() async { data = await UltraRepository.instance.customers(); if(mounted) setState((){}); }
+  Future<void> load() async {
+    try {
+      data = await UltraRepository.instance.customers();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
+    if (mounted) setState(() {});
+  }
 
   Widget _customerField(
     int index,
@@ -1149,7 +1165,14 @@ class ProductMasterScreen extends StatefulWidget {
 class _ProductMasterScreenState extends State<ProductMasterScreen>{
   List<Map<String,dynamic>> data=[];
   @override void initState(){super.initState();load();}
-  Future<void> load()async{data=await UltraRepository.instance.products();if(mounted)setState((){});}
+  Future<void> load() async {
+    try {
+      data = await UltraRepository.instance.products();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
+    if (mounted) setState(() {});
+  }
   Future<void> add()async{
     final n=TextEditingController(), code=TextEditingController(), hsn=TextEditingController(), rate=TextEditingController(text:'0');
     await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('ADD MATERIAL'),content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:code,decoration:const InputDecoration(labelText:'PRODUCT CODE')),TextField(controller:n,decoration:const InputDecoration(labelText:'PRODUCT NAME')),TextField(controller:hsn,decoration:const InputDecoration(labelText:'HSN')),TextField(controller:rate,decoration:const InputDecoration(labelText:'RATE'))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('CANCEL')),ElevatedButton(onPressed:()async{await UltraRepository.instance.insertProduct({'product_code':code.text,'product_name':n.text,'unit_id':1,'hsn':hsn.text,'rate':double.tryParse(rate.text)??0,'opening_stock':0,'current_stock':0});if(context.mounted)Navigator.pop(context);await load();},child:const Text('SAVE'))]));
@@ -1216,7 +1239,14 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
     super.dispose();
   }
 
-  Future<void> load() async { data = await UltraRepository.instance.suppliers(); if(mounted) setState((){}); }
+  Future<void> load() async {
+    try {
+      data = await UltraRepository.instance.suppliers();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
+    if (mounted) setState(() {});
+  }
 
   Widget _supplierField(
     int index,
@@ -1277,11 +1307,16 @@ class _SupplierMasterScreenState extends State<SupplierMasterScreen>{
   }
 
   Future<void> _loadPartyOpening(int supplierId) async {
-    final ledger = await UltraRepository.instance.partyLedgerOpening('SUPPLIER', supplierId);
-    final bal = (ledger['opening_balance'] as num?)?.toDouble() ?? 0;
-    final side = '${ledger['opening_type'] ?? 'cr'}'.toLowerCase();
-    openAmtCtrl.text = bal == 0 ? '0' : bal.toString();
-    if (mounted) setState(() => _openingSide = side == 'dr' ? 'dr' : 'cr');
+    try {
+      final ledger =
+          await UltraRepository.instance.partyLedgerOpening('SUPPLIER', supplierId);
+      final bal = (ledger['opening_balance'] as num?)?.toDouble() ?? 0;
+      final side = '${ledger['opening_type'] ?? 'cr'}'.toLowerCase();
+      openAmtCtrl.text = bal == 0 ? '0' : bal.toString();
+      if (mounted) setState(() => _openingSide = side == 'dr' ? 'dr' : 'cr');
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
   }
 
   Map<String, dynamic> _formToRow() => {

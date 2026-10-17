@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../widgets/adjustment_note_document.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
@@ -18,7 +19,6 @@ abstract class SalesReportsScreenState extends State<SalesReportsScreen> {
 }
 
 const _navy = Color(0xFF122746);
-const _navy2 = Color(0xFF19385F);
 const _pageBg = Color(0xFFF1F4F8);
 const _border = Color(0xFFD8DEE7);
 const _green = Color(0xFF2FAE55);
@@ -76,26 +76,38 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
 
   Future<void> _loadJournal() async {
     setState(() => loading = true);
-    journalLines = await UltraRepository.instance.journalSummaryLines();
+    try {
+      journalLines = await UltraRepository.instance.journalSummaryLines();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() => loading = false);
   }
 
   Future<void> _loadNotes() async {
     setState(() => loading = true);
-    adjustmentNotes = await UltraRepository.instance.adjustmentNotesWithParty();
+    try {
+      adjustmentNotes = await UltraRepository.instance.adjustmentNotesWithParty();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() => loading = false);
   }
 
   Future<void> _load() async {
     setState(() => loading = true);
-    final rows = await UltraRepository.instance.salesInvoicesWithParty();
-    final cs = await UltraRepository.instance.customers();
-    if (!mounted) return;
-    setState(() {
-      invoices = rows;
-      customers = cs;
-      loading = false;
-    });
+    try {
+      final rows = await UltraRepository.instance.salesInvoicesWithParty();
+      final cs = await UltraRepository.instance.customers();
+      if (!mounted) return;
+      setState(() {
+        invoices = rows;
+        customers = cs;
+      });
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
+    if (mounted) setState(() => loading = false);
   }
 
   String _date(dynamic value) {

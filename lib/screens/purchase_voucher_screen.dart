@@ -66,23 +66,22 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   }
 
   Future<void> load() async {
-    suppliers = await repo.suppliers();
-    products = await repo.products();
-    units = await repo.units();
-    openOrders = await repo.openPurchaseOrders();
-    if (UltraConfig.persistLocally) {
-      voucherNo = '${await repo.nextPurchaseVoucherNo()}';
-    } else {
-      voucherNo = 'Assigned on save';
+    try {
+      suppliers = await repo.suppliers();
+      products = await repo.products();
+      units = await repo.units();
+      openOrders = await repo.openPurchaseOrders();
+      if (UltraConfig.persistLocally) {
+        voucherNo = '${await repo.nextPurchaseVoucherNo()}';
+      } else {
+        voucherNo = 'Assigned on save';
+      }
+      voucherNoController.text = voucherNo;
+      _reconcileSupplierSelection();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
-    voucherNoController.text = voucherNo;
-    _reconcileSupplierSelection();
     if (mounted) setState(() {});
-  }
-
-  int? _toInt(dynamic value) {
-    if (value is int) return value;
-    return int.tryParse('$value');
   }
 
   double _toDouble(dynamic value) {

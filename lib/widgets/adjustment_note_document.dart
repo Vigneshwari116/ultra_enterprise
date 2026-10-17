@@ -37,7 +37,7 @@ Future<InvoiceData?> adjustmentNoteInvoiceData(int noteId) async {
         description: '${it['description'] ?? ''}',
         hsnCode: '${it['hsn'] ?? ''}',
         qty: qty,
-        price: rate,
+        price: qty > 0 ? (ext ?? qty * rate) / qty : rate,
       );
     },
   ).toList();
