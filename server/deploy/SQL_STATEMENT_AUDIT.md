@@ -13,6 +13,21 @@ Columns listed per statement after PR #21 VPS fixes.
 | get items | `SELECT id, parent_id, data FROM purchase_voucher_items WHERE parent_id = @id` | purchase_voucher_items | id, parent_id, data |
 | create header | `INSERT INTO purchase_vouchers (uuid, status, data, voucher_no_display, created_at) VALUES (...)` | purchase_vouchers | uuid, status, data, voucher_no_display, created_at |
 | create item | `INSERT INTO purchase_voucher_items (parent_id, data) VALUES (...)` | purchase_voucher_items | parent_id, data |
+| update select | `SELECT uuid, status, data, voucher_no_display FROM purchase_vouchers WHERE id = @id` | purchase_vouchers | uuid, status, data, voucher_no_display |
+| update header | `UPDATE purchase_vouchers SET status = @status, data = @data WHERE id = @id` | purchase_vouchers | status, data |
+| update delete items | `DELETE FROM purchase_voucher_items WHERE parent_id = @id` | purchase_voucher_items | parent_id |
+| delete select | `SELECT data FROM purchase_vouchers WHERE id = @id` | purchase_vouchers | data |
+| delete header | `DELETE FROM purchase_vouchers WHERE id = @id RETURNING id` | purchase_vouchers | id |
+
+## `sales_invoices.dart`
+
+| Location | SQL | Table | Columns |
+|----------|-----|-------|---------|
+| update select | `SELECT invoice_no, voucher_no_display FROM sales_invoices WHERE id = @id` | sales_invoices | invoice_no, voucher_no_display |
+| update header | `UPDATE sales_invoices SET customer_id, transaction_date, ... WHERE id = @id` | sales_invoices | customer_id, transaction_date, po_no, po_date, state_zone_id, challan_dc_no, challan_dc_date, total_packages, vehicle_dispatch_mode, due_days, eway_bill_no, taxable_total, cgst_total, sgst_total, igst_total, compound_gst_total, fwd_charge, grand_total, status, updated_at |
+| update delete items | `DELETE FROM sales_invoice_items WHERE invoice_id = @id` | sales_invoice_items | invoice_id |
+| delete select | `SELECT invoice_no FROM sales_invoices WHERE id = @id` | sales_invoices | invoice_no |
+| delete header | `DELETE FROM sales_invoices WHERE id = @id RETURNING id` | sales_invoices | id |
 
 ## `cash_transactions.dart`
 
@@ -23,6 +38,14 @@ Columns listed per statement after PR #21 VPS fixes.
 | list payments | `SELECT id, uuid, kind, data, voucher_no_display, created_at FROM payments` | payments | id, uuid, kind, data, voucher_no_display, created_at |
 | create payment | `INSERT INTO payments (uuid, kind, data, voucher_no_display, created_at) VALUES (...)` | payments | uuid, kind, data, voucher_no_display, created_at |
 | passbook | reads `receipts.data`, `payments.data` JSON keys; joins `customers`, `suppliers` | receipts, payments, customers, suppliers | envelope data + customer_name / supplier data |
+| update receipt select | `SELECT uuid, data, voucher_no_display, created_at FROM receipts WHERE id = @id` | receipts | uuid, data, voucher_no_display, created_at |
+| update receipt | `UPDATE receipts SET data = @data WHERE id = @id` | receipts | data |
+| delete receipt select | `SELECT data FROM receipts WHERE id = @id` | receipts | data |
+| delete receipt | `DELETE FROM receipts WHERE id = @id RETURNING id` | receipts | id |
+| update payment select | `SELECT uuid, data, voucher_no_display, created_at FROM payments WHERE id = @id` | payments | uuid, data, voucher_no_display, created_at |
+| update payment | `UPDATE payments SET data = @data WHERE id = @id` | payments | data |
+| delete payment select | `SELECT data FROM payments WHERE id = @id` | payments | data |
+| delete payment | `DELETE FROM payments WHERE id = @id RETURNING id` | payments | id |
 
 ## `masters.dart` (suppliers)
 

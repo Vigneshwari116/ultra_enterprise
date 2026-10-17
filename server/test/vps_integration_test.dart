@@ -88,19 +88,48 @@ void main() {
     conn = null;
   });
 
-  Future<Response> post(String path, Map<String, dynamic> body) async {
+  Future<Response> _call(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
     final c = conn;
     if (c == null) throw StateError('no connection');
     final router = Router();
     registerMergedRoutes(router, c);
     return router.call(
       Request(
-        'POST',
+        method,
         Uri.parse('http://127.0.0.1$path'),
-        body: jsonEncode(body),
-        headers: {'content-type': 'application/json'},
+        body: body == null ? null : jsonEncode(body),
+        headers: body == null ? {} : {'content-type': 'application/json'},
       ),
     );
+  }
+
+  Future<Response> post(String path, Map<String, dynamic> body) =>
+      _call('POST', path, body: body);
+
+  Future<Response> put(String path, Map<String, dynamic> body) =>
+      _call('PUT', path, body: body);
+
+  Future<Response> delete(String path) => _call('DELETE', path);
+
+  Future<Map<String, double>> _journalTotals(
+    Connection c, {
+    required String voucherType,
+    required int voucherNo,
+  }) async {
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT COALESCE(SUM(debit), 0) AS dr, COALESCE(SUM(credit), 0) AS cr
+        FROM journal_entries
+        WHERE voucher_type = @type AND voucher_no = @no
+      '''),
+      parameters: {'type': voucherType, 'no': voucherNo},
+    );
+    final m = rows.first.toColumnMap();
+    return {'dr': _pgNumeric(m['dr']), 'cr': _pgNumeric(m['cr'])};
   }
 
   Map<String, dynamic> _purchaseBody({required double grandTotal}) => {
@@ -158,7 +187,7 @@ void main() {
     );
     expect((journals.first.first as num) > 0, isTrue);
 
-    final dateRows = await c!.execute('''
+    final dateRows = await c.execute('''
       SELECT j.date::text AS journal_date, si.transaction_date::text AS voucher_date
       FROM journal_entries j
       JOIN sales_invoices si ON si.id = j.source_id
@@ -321,5 +350,136 @@ void main() {
     }
     expect(map['Cash']!['cr'], 300);
     expect(map['VPS Test Supplier']!['dr'], 300);
+  });
+
+  test('PUT purchase-voucher re-posts journals and keeps voucher_no', () async {
+    final create = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298));
+    expect(create.statusCode, 201);
+    final created = jsonDecode(await create.readAsString()) as Map<String, dynamic>;
+    final voucherId = (created['id'] as num).toInt();
+    final voucherNo = (created['voucher'] as Map)['voucher_no'] as num;
+
+    final before = await _journalTotals(conn!, voucherType: 'PUR', voucherNo: voucherNo.toInt());
+    expect(before['dr'], before['cr']);
+
+    final update = await put(
+      '/api/purchase-vouchers/$voucherId',
+      {
+        ..._purchaseBody(grandTotal: 1198),
+        'taxable_total': 1000,
+        'cgst_total': 99,
+        'sgst_total': 99,
+        'supplier_invoice_no': 'T/updated',
+      },
+    );
+    expect(update.statusCode, 200, reason: await update.readAsString());
+    final updated = jsonDecode(await update.readAsString()) as Map<String, dynamic>;
+    expect((updated['voucher'] as Map)['voucher_no'], voucherNo);
+    expect((updated['voucher'] as Map)['voucher_no_display'], isNotNull);
+
+    final after = await _journalTotals(conn!, voucherType: 'PUR', voucherNo: voucherNo.toInt());
+    expect(after['dr'], after['cr']);
+    expect(after['dr'], 1198);
+    expect(after['dr'], isNot(before['dr']));
+  });
+
+  test('failed PUT purchase leaves original voucher and journals intact', () async {
+    final create = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298));
+    expect(create.statusCode, 201);
+    final created = jsonDecode(await create.readAsString()) as Map<String, dynamic>;
+    final voucherId = (created['id'] as num).toInt();
+    final voucherNo = ((created['voucher'] as Map)['voucher_no'] as num).toInt();
+
+    final beforeTotals = await _journalTotals(conn!, voucherType: 'PUR', voucherNo: voucherNo);
+    final beforeHdr = await conn!.execute(
+      Sql.named('SELECT data FROM purchase_vouchers WHERE id = @id'),
+      parameters: {'id': voucherId},
+    );
+    final beforeData = beforeHdr.first.first as String;
+
+    final bad = await put(
+      '/api/purchase-vouchers/$voucherId',
+      _purchaseBody(grandTotal: 9999),
+    );
+    expect(bad.statusCode, 400);
+
+    final afterTotals = await _journalTotals(conn!, voucherType: 'PUR', voucherNo: voucherNo);
+    expect(afterTotals['dr'], beforeTotals['dr']);
+    expect(afterTotals['cr'], beforeTotals['cr']);
+
+    final afterHdr = await conn!.execute(
+      Sql.named('SELECT data FROM purchase_vouchers WHERE id = @id'),
+      parameters: {'id': voucherId},
+    );
+    expect(afterHdr.first.first, beforeData);
+  });
+
+  test('DELETE purchase-voucher removes header, items, and journals', () async {
+    final create = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298));
+    expect(create.statusCode, 201);
+    final created = jsonDecode(await create.readAsString()) as Map<String, dynamic>;
+    final voucherId = (created['id'] as num).toInt();
+    final voucherNo = ((created['voucher'] as Map)['voucher_no'] as num).toInt();
+
+    final del = await delete('/api/purchase-vouchers/$voucherId');
+    expect(del.statusCode, 200);
+
+    final pv = await conn!.execute(
+      Sql.named('SELECT 1 FROM purchase_vouchers WHERE id = @id'),
+      parameters: {'id': voucherId},
+    );
+    expect(pv, isEmpty);
+    final items = await conn!.execute(
+      Sql.named('SELECT 1 FROM purchase_voucher_items WHERE parent_id = @id'),
+      parameters: {'id': voucherId},
+    );
+    expect(items, isEmpty);
+    final je = await _journalTotals(conn!, voucherType: 'PUR', voucherNo: voucherNo);
+    expect(je['dr'], 0);
+    expect(je['cr'], 0);
+  });
+
+  test('PUT receipt changes journal amounts; DELETE removes rows', () async {
+    final create = await post('/api/receipts', {
+      'customer_id': 1,
+      'receipt_date': '2026-10-21',
+      'amount': 500,
+      'narration': 'before',
+      'cash_bank': 'CASH',
+    });
+    expect(create.statusCode, 201);
+    final created = jsonDecode(await create.readAsString()) as Map<String, dynamic>;
+    final receiptId = (created['id'] as num).toInt();
+    final voucherNo = ((created['receipt'] as Map)['voucher_no'] as num).toInt();
+
+    final upd = await put('/api/receipts/$receiptId', {
+      'customer_id': 1,
+      'receipt_date': '2026-10-21',
+      'amount': 750,
+      'narration': 'after',
+      'cash_bank': 'CASH',
+    });
+    expect(upd.statusCode, 200);
+    final totals = await _journalTotals(conn!, voucherType: 'REC', voucherNo: voucherNo);
+    expect(totals['dr'], 750);
+    expect(totals['cr'], 750);
+
+    final del = await delete('/api/receipts/$receiptId');
+    expect(del.statusCode, 200);
+    final left = await conn!.execute(
+      Sql.named('SELECT 1 FROM receipts WHERE id = @id'),
+      parameters: {'id': receiptId},
+    );
+    expect(left, isEmpty);
+  });
+
+  test('PUT and DELETE return 404 for unknown id', () async {
+    expect((await delete('/api/purchase-vouchers/999999')).statusCode, 404);
+    expect((await delete('/api/receipts/999999')).statusCode, 404);
+    final bogusPut = await put(
+      '/api/purchase-vouchers/999999',
+      _purchaseBody(grandTotal: 1298),
+    );
+    expect(bogusPut.statusCode, 404);
   });
 }

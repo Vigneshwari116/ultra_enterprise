@@ -6,6 +6,7 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../accounting/fy.dart';
+import '../accounting/journal_writer.dart';
 import '../accounting/post_purchase.dart';
 import '../accounting/voucher_numbering.dart';
 import '../http.dart';
@@ -21,6 +22,16 @@ void registerPurchaseVoucherRoutes(Router router, Connection conn) {
     return getPurchaseVoucherById(conn, vid);
   });
   router.post('/api/purchase-vouchers', (r) => createPurchaseVoucher(r, conn));
+  router.put('/api/purchase-vouchers/<id>', (Request r, String id) async {
+    final vid = int.tryParse(id);
+    if (vid == null) return jsonError('Invalid purchase voucher id', status: 400);
+    return updatePurchaseVoucher(r, conn, vid);
+  });
+  router.delete('/api/purchase-vouchers/<id>', (Request _, String id) async {
+    final vid = int.tryParse(id);
+    if (vid == null) return jsonError('Invalid purchase voucher id', status: 400);
+    return deletePurchaseVoucher(conn, vid);
+  });
 }
 
 Future<Response> listPurchaseVouchers(Connection conn) async {
@@ -110,6 +121,12 @@ Future<Response> getPurchaseVoucherById(Connection conn, int id) async {
 }
 
 double _num(dynamic v) => (v as num?)?.toDouble() ?? double.tryParse('$v') ?? 0;
+
+Map<String, dynamic> _decodeHeaderData(dynamic data) {
+  if (data is String) return decodeJsonMap(data);
+  if (data is Map) return Map<String, dynamic>.from(data);
+  return {};
+}
 
 Map<String, dynamic> _itemToJson(Map<String, dynamic> it) => {
       'product_id': it['product_id'],
@@ -233,5 +250,169 @@ Future<Response> createPurchaseVoucher(Request request, Connection conn) async {
     });
   } catch (e) {
     return jsonError('Purchase voucher save failed: $e', status: 400);
+  }
+}
+
+Future<Response> updatePurchaseVoucher(
+  Request request,
+  Connection conn,
+  int id,
+) async {
+  final body = await readJsonObject(request);
+  final items = asItemList(body.remove('items'));
+  if (items.isEmpty) {
+    return jsonError('Purchase voucher must contain at least one item');
+  }
+  final supplierId = body['supplier_id'];
+  if (supplierId == null) return jsonError('supplier_id is required');
+
+  body.remove('voucher_no');
+  body.remove('voucher_no_display');
+
+  final taxableTotal = _num(body['taxable_total']);
+  final cgstTotal = _num(body['cgst_total']);
+  final sgstTotal = _num(body['sgst_total']);
+  final igstTotal = _num(body['igst_total']);
+  final freight = _num(body['freight'] ?? body['fwd_charge']);
+  final grandTotal = _num(body['grand_total']);
+  final status = '${body['status'] ?? 'POSTED'}';
+  final voucherDate = FinancialYear.parseVoucherDate(
+    body['voucher_date'] ?? body['transaction_date'],
+  );
+
+  try {
+    return await conn.runTx((tx) async {
+      final existing = await tx.execute(
+        Sql.named(
+          'SELECT uuid, status, data, voucher_no_display FROM purchase_vouchers WHERE id = @id',
+        ),
+        parameters: {'id': id},
+      );
+      if (existing.isEmpty) {
+        return jsonError('Purchase voucher not found: $id', status: 404);
+      }
+      final headerMap = existing.first.toColumnMap();
+      final priorData = _decodeHeaderData(headerMap['data']);
+      final voucherNo = (priorData['voucher_no'] as num).toInt();
+      final voucherNoDisplay = '${headerMap['voucher_no_display']}';
+      final envelopeUuid = '${headerMap['uuid']}';
+
+      final headerJson = <String, dynamic>{
+        'uuid': priorData['uuid'] ?? envelopeUuid,
+        'status': status,
+        'voucher_no': voucherNo,
+        'supplier_id': supplierId,
+        'voucher_date':
+            '${body['voucher_date'] ?? voucherDate.toIso8601String().split('T').first}',
+        'taxable_total': taxableTotal,
+        'cgst_total': cgstTotal,
+        'sgst_total': sgstTotal,
+        'igst_total': igstTotal,
+        'grand_total': grandTotal,
+        'purchase_order_id': body['purchase_order_id'],
+        'supplier_invoice_no': body['supplier_invoice_no'],
+        'supplier_invoice_date': body['supplier_invoice_date'],
+      };
+      if (freight != 0) {
+        headerJson['freight'] = freight;
+      }
+
+      await tx.execute(
+        Sql.named('''
+          UPDATE purchase_vouchers
+          SET status = @status, data = @data
+          WHERE id = @id
+        '''),
+        parameters: {
+          'id': id,
+          'status': status,
+          'data': jsonEncode(headerJson),
+        },
+      );
+
+      await tx.execute(
+        Sql.named('DELETE FROM purchase_voucher_items WHERE parent_id = @id'),
+        parameters: {'id': id},
+      );
+      for (final it in items) {
+        await tx.execute(
+          Sql.named('''
+            INSERT INTO purchase_voucher_items (parent_id, data)
+            VALUES (@parent_id, @data)
+          '''),
+          parameters: {
+            'parent_id': id,
+            'data': jsonEncode(_itemToJson(it)),
+          },
+        );
+      }
+
+      await deleteJournalForVoucher(
+        tx,
+        voucherType: VoucherTypes.purchase,
+        voucherNo: voucherNo,
+      );
+      if (status == 'POSTED') {
+        await postPurchaseVoucher(
+          session: tx,
+          purchaseVoucherId: id,
+          supplierId: (supplierId as num).toInt(),
+          voucherDate: voucherDate,
+          voucherNo: voucherNo,
+          voucherNoDisplay: voucherNoDisplay,
+          status: status,
+          taxableTotal: taxableTotal,
+          cgstTotal: cgstTotal,
+          sgstTotal: sgstTotal,
+          igstTotal: igstTotal,
+          freight: freight,
+          grandTotal: grandTotal,
+          narration: 'Purchase $voucherNoDisplay',
+        );
+      }
+
+      return jsonOk({
+        'id': id,
+        'voucher': {
+          'id': id,
+          'voucher_no': voucherNo,
+          'voucher_no_display': voucherNoDisplay,
+        },
+      });
+    });
+  } catch (e) {
+    return jsonError('Purchase voucher save failed: $e', status: 400);
+  }
+}
+
+Future<Response> deletePurchaseVoucher(Connection conn, int id) async {
+  try {
+    return await conn.runTx((tx) async {
+      final existing = await tx.execute(
+        Sql.named('SELECT data FROM purchase_vouchers WHERE id = @id'),
+        parameters: {'id': id},
+      );
+      if (existing.isEmpty) {
+        return jsonError('Purchase voucher not found: $id', status: 404);
+      }
+      final priorData = _decodeHeaderData(existing.first.first);
+      final voucherNo = (priorData['voucher_no'] as num).toInt();
+
+      await deleteJournalForVoucher(
+        tx,
+        voucherType: VoucherTypes.purchase,
+        voucherNo: voucherNo,
+      );
+      final deleted = await tx.execute(
+        Sql.named('DELETE FROM purchase_vouchers WHERE id = @id RETURNING id'),
+        parameters: {'id': id},
+      );
+      if (deleted.isEmpty) {
+        return jsonError('Purchase voucher not found: $id', status: 404);
+      }
+      return jsonOk({'id': id, 'deleted': true});
+    });
+  } catch (e) {
+    return jsonError('Purchase voucher delete failed: $e', status: 400);
   }
 }
