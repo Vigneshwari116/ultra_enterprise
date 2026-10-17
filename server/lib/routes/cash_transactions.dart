@@ -435,6 +435,8 @@ Future<Response> cashPassbook(Connection conn) async {
       (r.data::jsonb->>'receipt_date')::date AS entry_date,
       (r.data::jsonb->>'amount')::numeric AS amount,
       r.data::jsonb->>'narration' AS narration,
+      r.voucher_no_display,
+      (r.data::jsonb->>'voucher_no')::int AS voucher_no,
       c.customer_name AS party_name,
       'CUSTOMER' AS party_kind
     FROM receipts r
@@ -444,6 +446,8 @@ Future<Response> cashPassbook(Connection conn) async {
       (p.data::jsonb->>'payment_date')::date AS entry_date,
       (p.data::jsonb->>'amount')::numeric AS amount,
       p.data::jsonb->>'narration' AS narration,
+      p.voucher_no_display,
+      (p.data::jsonb->>'voucher_no')::int AS voucher_no,
       s.data::jsonb->>'supplier_name' AS party_name,
       'SUPPLIER' AS party_kind
     FROM payments p

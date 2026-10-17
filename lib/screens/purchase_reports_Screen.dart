@@ -2,7 +2,9 @@ import '../widgets/purchase_order_document.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../utils/party_opening.dart';
+import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_Report.dart';
@@ -44,16 +46,20 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
 
   Future<void> load() async {
     setState(() => loading = true);
-    vouchers = await repo.purchaseVouchersWithParty();
-    purchaseOrders = await repo.purchaseOrdersWithParty();
-    payments = await repo.allPayments();
-    suppliers = await repo.suppliers();
+    try {
+      vouchers = await repo.purchaseVouchersWithParty();
+      purchaseOrders = await repo.purchaseOrdersWithParty();
+      payments = await repo.allPayments();
+      suppliers = await repo.suppliers();
 
-    if (selectedSupplierId == null && suppliers.isNotEmpty) {
-      selectedSupplierId = suppliers.first['id'] as int;
-    }
-    if (selectedSupplierId != null) {
-      _ledgerWiseFuture = _computeLedgerWise(selectedSupplierId!);
+      if (selectedSupplierId == null && suppliers.isNotEmpty) {
+        selectedSupplierId = suppliers.first['id'] as int;
+      }
+      if (selectedSupplierId != null) {
+        _ledgerWiseFuture = _computeLedgerWise(selectedSupplierId!);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() => loading = false);
   }
@@ -136,7 +142,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ...v,
         '_record_type': 'PURCHASE VOUCHER',
         '_display_no':
-            v['supplier_invoice_no'] ?? 'PV-${v['voucher_no'] ?? v['id']}',
+            purchaseVoucherDisplayNo(v),
         '_display_date': v['voucher_date'],
         '_display_party': v['party_name'] ?? '-',
       });
@@ -507,7 +513,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
             const SizedBox(height: 4),
             Text(
               '${isPo ? 'PO NO' : 'VOUCHER NO'}: '
-              '${isPo ? (v['po_no'] ?? '-') : (v['voucher_no'] ?? '-')}'
+              '${isPo ? (v['po_no'] ?? '-') : purchaseVoucherDisplayNo(v)}'
               '  •  REF: $displayNo'
               '  •  DATE: ${_fmtDate(displayDate)}',
               style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFB8860B)),
@@ -678,7 +684,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ...v,
         '_record_type': 'PURCHASE VOUCHER',
         '_display_no':
-            v['supplier_invoice_no'] ?? 'PV-${v['voucher_no'] ?? v['id']}',
+            purchaseVoucherDisplayNo(v),
         '_display_party': v['party_name'] ?? '-',
       });
     }
@@ -1019,7 +1025,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       entries.add({
         'date': v['voucher_date'],
         'type': 'PURCHASE',
-        'ref': 'PV-${v['voucher_no']}',
+        'ref': purchaseVoucherDisplayNo(v),
         'narration': v['supplier_invoice_no'] ?? '-',
         'debit': 0.0,
         'credit': _numValue(v['grand_total']),
@@ -1029,7 +1035,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       entries.add({
         'date': p['payment_date'],
         'type': 'PAYMENT',
-        'ref': p['reference_no'] ?? '-',
+        'ref': paymentDisplayNo(p),
         'narration': p['narration'] ?? '-',
         'debit': _numValue(p['amount']),
         'credit': 0.0,

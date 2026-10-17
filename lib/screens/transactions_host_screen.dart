@@ -1,18 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
+import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
+import 'account_voucher_screens.dart';
 import 'product_catalog_refresh.dart';
 
 final transactionsHostKey = GlobalKey<TransactionsHostScreenState>();
 
-enum TxView { adjustment, cashBook, journal }
+enum TxView {
+  adjustment,
+  receipt,
+  payment,
+  expense,
+  salary,
+  cashBook,
+  journal,
+}
 
 abstract class TransactionsHostScreenState extends State<TransactionsHostScreen> {
   void showAdjustment();
+  void showReceipt();
+  void showPayment();
+  void showExpense();
+  void showSalary();
   void showCashBook();
   void showJournal();
 }
@@ -30,6 +45,14 @@ class _TransactionsHostScreenState extends TransactionsHostScreenState {
   @override
   void showAdjustment() => setState(() => view = TxView.adjustment);
   @override
+  void showReceipt() => setState(() => view = TxView.receipt);
+  @override
+  void showPayment() => setState(() => view = TxView.payment);
+  @override
+  void showExpense() => setState(() => view = TxView.expense);
+  @override
+  void showSalary() => setState(() => view = TxView.salary);
+  @override
   void showCashBook() => setState(() => view = TxView.cashBook);
   @override
   void showJournal() => setState(() => view = TxView.journal);
@@ -39,6 +62,10 @@ class _TransactionsHostScreenState extends TransactionsHostScreenState {
     return SizedBox.expand(
       child: switch (view) {
         TxView.adjustment => const _AdjustmentReturnPanel(),
+        TxView.receipt => const AccountVoucherPanel(kind: AccountVoucherKind.receipt),
+        TxView.payment => const AccountVoucherPanel(kind: AccountVoucherKind.payment),
+        TxView.expense => const AccountVoucherPanel(kind: AccountVoucherKind.expense),
+        TxView.salary => const AccountVoucherPanel(kind: AccountVoucherKind.salary),
         TxView.cashBook => const _CashBookPanel(),
         TxView.journal => const _JournalEntryPanel(),
       },
@@ -95,23 +122,31 @@ class _AdjustmentReturnPanelState extends State<_AdjustmentReturnPanel> {
   }
 
   Future<void> refreshProductCatalog() async {
-    products = await repo.products();
-    units = await repo.units();
+    try {
+      products = await repo.products();
+      units = await repo.units();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
   Future<void> load() async {
-    suppliers = await repo.suppliers();
-    customers = await repo.customers();
-    products = await repo.products();
-    units = await repo.units();
-    noteNo = '${await repo.nextAdjustmentNoteNo(isDebit ? 'DEBIT' : 'CREDIT')}';
-    if (isDebit && suppliers.isNotEmpty) {
-      partyId = suppliers.first['id'] as int;
-      _fillParty(suppliers.first);
-    } else if (!isDebit && customers.isNotEmpty) {
-      partyId = customers.first['id'] as int;
-      _fillParty(customers.first);
+    try {
+      suppliers = await repo.suppliers();
+      customers = await repo.customers();
+      products = await repo.products();
+      units = await repo.units();
+      noteNo = '${await repo.nextAdjustmentNoteNo(isDebit ? 'DEBIT' : 'CREDIT')}';
+      if (isDebit && suppliers.isNotEmpty) {
+        partyId = suppliers.first['id'] as int;
+        _fillParty(suppliers.first);
+      } else if (!isDebit && customers.isNotEmpty) {
+        partyId = customers.first['id'] as int;
+        _fillParty(customers.first);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() {});
   }
@@ -612,9 +647,13 @@ class _CashBookPanelState extends State<_CashBookPanel> {
   }
 
   Future<void> load() async {
-    customers = await repo.customers();
-    suppliers = await repo.suppliers();
-    passbook = await repo.cashPassbookEntries();
+    try {
+      customers = await repo.customers();
+      suppliers = await repo.suppliers();
+      passbook = await repo.cashPassbookEntries();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -914,7 +953,10 @@ class _CashBookPanelState extends State<_CashBookPanel> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('${e['party_name']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
-                Text('${e['entry_date']} | ${e['narration'] ?? ''}', style: const TextStyle(fontSize: 9.5, color: Color(0xFF748094))),
+                Text(
+                  '${voucherDisplayNo(e)} · ${e['entry_date']} | ${e['narration'] ?? ''}',
+                  style: const TextStyle(fontSize: 9.5, color: Color(0xFF748094)),
+                ),
               ],
             ),
           ),

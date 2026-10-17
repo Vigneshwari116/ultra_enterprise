@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../widgets/enterprise_widgets.dart';
 
 class StockScreen extends StatefulWidget {
@@ -18,7 +19,11 @@ class _StockScreenState extends State<StockScreen> {
   }
 
   Future<void> load() async {
-    rows = await UltraRepository.instance.products();
+    try {
+      rows = await UltraRepository.instance.products();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 

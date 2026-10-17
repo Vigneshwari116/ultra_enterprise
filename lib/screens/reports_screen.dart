@@ -1,24 +1,36 @@
 import 'package:flutter/material.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../widgets/adjustment_note_document.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/journal_summary_report.dart';
 import '../utils/sales_invoice_display.dart';
+import '../widgets/financial_reports.dart';
 import '../widgets/sales_report.dart';
+import '../utils/voucher_display.dart';
 
 final reportsCenterKey = GlobalKey<SalesReportsScreenState>();
 
-enum ReportsCenterMode { sales, journalSummary, noteHistory }
+enum ReportsCenterMode {
+  sales,
+  journalSummary,
+  noteHistory,
+  partyLedger,
+  trialBalance,
+  cashBankBook,
+}
 
 abstract class SalesReportsScreenState extends State<SalesReportsScreen> {
   void showSalesReports();
   void showJournalSummary();
   void showDebitCreditHistory();
+  void showPartyLedger();
+  void showTrialBalance();
+  void showCashBankBook();
 }
 
 const _navy = Color(0xFF122746);
-const _navy2 = Color(0xFF19385F);
 const _pageBg = Color(0xFFF1F4F8);
 const _border = Color(0xFFD8DEE7);
 const _green = Color(0xFF2FAE55);
@@ -38,8 +50,17 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   List<Map<String, dynamic>> customers = [];
   List<Map<String, dynamic>> journalLines = [];
   List<Map<String, dynamic>> adjustmentNotes = [];
+  List<Map<String, dynamic>> partyLedgerLines = [];
+  List<Map<String, dynamic>> trialBalanceRows = [];
+  List<Map<String, dynamic>> cashBankLines = [];
+  List<Map<String, dynamic>> reportCustomers = [];
+  List<Map<String, dynamic>> reportSuppliers = [];
   String? selectedCustomer;
   String? noteTypeFilter;
+  String partyLedgerKind = 'CUSTOMER';
+  int? partyLedgerPartyId;
+  String cashBankFilter = 'CASH';
+  String? partyLedgerTitle;
   bool loading = true;
   final searchCtrl = TextEditingController();
   final journalSearchCtrl = TextEditingController();
@@ -61,6 +82,107 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   }
 
   @override
+  void showPartyLedger() {
+    setState(() => centerMode = ReportsCenterMode.partyLedger);
+    _loadPartyLedgerMasters();
+  }
+
+  @override
+  void showTrialBalance() {
+    setState(() => centerMode = ReportsCenterMode.trialBalance);
+    _loadTrialBalance();
+  }
+
+  @override
+  void showCashBankBook() {
+    setState(() => centerMode = ReportsCenterMode.cashBankBook);
+    _loadCashBankBook();
+  }
+
+  Future<void> _loadPartyLedgerMasters() async {
+    setState(() => loading = true);
+    try {
+      reportCustomers = await UltraRepository.instance.customers();
+      reportSuppliers = await UltraRepository.instance.suppliers();
+      if (partyLedgerPartyId == null && reportCustomers.isNotEmpty) {
+        partyLedgerPartyId = parseApiInt(reportCustomers.first['id']);
+      }
+      await _loadPartyLedger();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _loadPartyLedger() async {
+    if (partyLedgerPartyId == null) {
+      if (mounted) setState(() => loading = false);
+      return;
+    }
+    setState(() => loading = true);
+    try {
+      final from = fromDate == null ? null : _iso(fromDate!);
+      final to = toDate == null ? null : _iso(toDate!);
+      final data = await UltraRepository.instance.reportPartyLedger(
+        partyKind: partyLedgerKind,
+        partyId: partyLedgerPartyId!,
+        from: from,
+        to: to,
+      );
+      partyLedgerLines = (data['lines'] as List?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          [];
+      partyLedgerTitle = '${data['ledger_name'] ?? ''}';
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+      partyLedgerLines = [];
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> _loadTrialBalance() async {
+    setState(() => loading = true);
+    try {
+      final from = fromDate == null ? null : _iso(fromDate!);
+      final to = toDate == null ? null : _iso(toDate!);
+      final data = await UltraRepository.instance.reportTrialBalance(from: from, to: to);
+      trialBalanceRows = (data['rows'] as List?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          [];
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+      trialBalanceRows = [];
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> _loadCashBankBook() async {
+    setState(() => loading = true);
+    try {
+      final from = fromDate == null ? null : _iso(fromDate!);
+      final to = toDate == null ? null : _iso(toDate!);
+      final data = await UltraRepository.instance.reportCashBankBook(
+        cashBank: cashBankFilter,
+        from: from,
+        to: to,
+      );
+      cashBankLines = (data['lines'] as List?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          [];
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+      cashBankLines = [];
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  String _iso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  @override
   void initState() {
     super.initState();
     _load();
@@ -76,26 +198,38 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
 
   Future<void> _loadJournal() async {
     setState(() => loading = true);
-    journalLines = await UltraRepository.instance.journalSummaryLines();
+    try {
+      journalLines = await UltraRepository.instance.journalSummaryLines();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() => loading = false);
   }
 
   Future<void> _loadNotes() async {
     setState(() => loading = true);
-    adjustmentNotes = await UltraRepository.instance.adjustmentNotesWithParty();
+    try {
+      adjustmentNotes = await UltraRepository.instance.adjustmentNotesWithParty();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() => loading = false);
   }
 
   Future<void> _load() async {
     setState(() => loading = true);
-    final rows = await UltraRepository.instance.salesInvoicesWithParty();
-    final cs = await UltraRepository.instance.customers();
-    if (!mounted) return;
-    setState(() {
-      invoices = rows;
-      customers = cs;
-      loading = false;
-    });
+    try {
+      final rows = await UltraRepository.instance.salesInvoicesWithParty();
+      final cs = await UltraRepository.instance.customers();
+      if (!mounted) return;
+      setState(() {
+        invoices = rows;
+        customers = cs;
+      });
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
+    if (mounted) setState(() => loading = false);
   }
 
   String _date(dynamic value) {
@@ -178,7 +312,9 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
         children: [
           _topHeader(),
           Expanded(
-            child: loading && centerMode != ReportsCenterMode.sales
+            child: loading &&
+                    centerMode != ReportsCenterMode.sales &&
+                    centerMode != ReportsCenterMode.partyLedger
                 ? const Center(child: CircularProgressIndicator())
                 : _body(),
           ),
@@ -314,6 +450,9 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   Widget _body() {
     if (centerMode == ReportsCenterMode.journalSummary) return _journalSummaryView();
     if (centerMode == ReportsCenterMode.noteHistory) return _noteHistoryView();
+    if (centerMode == ReportsCenterMode.partyLedger) return _partyLedgerView();
+    if (centerMode == ReportsCenterMode.trialBalance) return _trialBalanceView();
+    if (centerMode == ReportsCenterMode.cashBankBook) return _cashBankBookView();
     if (loading) return const Center(child: CircularProgressIndicator());
     if (tab == 0) return _ledgerView();
     if (tab == 1) return _auditView();
@@ -850,6 +989,255 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
       ]),
     );
   }
+
+  Widget _accountingDateBar({required VoidCallback onApply}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      child: CompactDateRangeBar(
+        from: fromDate,
+        to: toDate,
+        onFromChanged: (d) {
+          _setFrom(d);
+          onApply();
+        },
+        onToChanged: (d) {
+          _setTo(d);
+          onApply();
+        },
+        onClear: () {
+          setState(() {
+            fromDate = null;
+            toDate = null;
+          });
+          onApply();
+        },
+      ),
+    );
+  }
+
+  Widget _partyLedgerView() {
+    final parties = partyLedgerKind == 'CUSTOMER' ? reportCustomers : reportSuppliers;
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+            child: Text('PARTY LEDGER — ${partyLedgerTitle ?? ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _navy)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                DropdownButton<String>(
+                  value: partyLedgerKind,
+                  items: const [
+                    DropdownMenuItem(value: 'CUSTOMER', child: Text('Customer')),
+                    DropdownMenuItem(value: 'SUPPLIER', child: Text('Supplier')),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() {
+                      partyLedgerKind = v;
+                      partyLedgerPartyId = null;
+                    });
+                    _loadPartyLedger();
+                  },
+                ),
+                DropdownButton<int>(
+                  value: partyLedgerPartyId,
+                  hint: const Text('Select party'),
+                  items: parties
+                      .map((p) => DropdownMenuItem(
+                            value: parseApiInt(p['id']),
+                            child: Text('${partyLedgerKind == 'CUSTOMER' ? p['customer_name'] : p['supplier_name']}'),
+                          ))
+                      .whereType<DropdownMenuItem<int>>()
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() => partyLedgerPartyId = v);
+                    _loadPartyLedger();
+                  },
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => printLedgerLinesReport(
+                    title: 'PARTY LEDGER',
+                    subtitle: partyLedgerTitle,
+                    lines: partyLedgerLines,
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+                  label: const Text('PRINT', style: TextStyle(fontSize: 9)),
+                ),
+              ],
+            ),
+          ),
+          _accountingDateBar(onApply: _loadPartyLedger),
+          if (loading)
+            const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
+          else if (partyLedgerLines.isEmpty)
+            _emptyAccounting('No ledger lines in this period.')
+          else
+            _ledgerLinesTable(partyLedgerLines),
+        ],
+      ),
+    );
+  }
+
+  Widget _trialBalanceView() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+            child: Row(
+              children: [
+                const Expanded(child: Text('TRIAL BALANCE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _navy))),
+                OutlinedButton.icon(
+                  onPressed: () => printTrialBalanceReport(rows: trialBalanceRows),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+                  label: const Text('PRINT', style: TextStyle(fontSize: 9)),
+                ),
+              ],
+            ),
+          ),
+          _accountingDateBar(onApply: _loadTrialBalance),
+          if (loading)
+            const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
+          else if (trialBalanceRows.isEmpty)
+            _emptyAccounting('No trial balance rows.')
+          else
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: responsiveHorizontalTable(
+                context,
+                Container(
+                  color: Colors.white,
+                  child: Column(
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Row(children: [
+                          Expanded(flex: 2, child: Text('LEDGER', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                          Expanded(child: Text('OPEN DR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                          Expanded(child: Text('OPEN CR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                          Expanded(child: Text('PER DR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                          Expanded(child: Text('PER CR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                          Expanded(child: Text('CLOSE DR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                          Expanded(child: Text('CLOSE CR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                        ]),
+                      ),
+                      ...trialBalanceRows.map(
+                        (r) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          child: Row(children: [
+                            Expanded(flex: 2, child: Text('${r['ledger_name']}', style: const TextStyle(fontSize: 9))),
+                            Expanded(child: Text(parseApiAmount(r['opening_debit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+                            Expanded(child: Text(parseApiAmount(r['opening_credit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+                            Expanded(child: Text(parseApiAmount(r['period_debit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+                            Expanded(child: Text(parseApiAmount(r['period_credit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+                            Expanded(child: Text(parseApiAmount(r['closing_debit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+                            Expanded(child: Text(parseApiAmount(r['closing_credit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+                          ]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cashBankBookView() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                const Text('CASH / BANK BOOK', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _navy)),
+                DropdownButton<String>(
+                  value: cashBankFilter,
+                  items: const [
+                    DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                    DropdownMenuItem(value: 'BANK', child: Text('Bank')),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => cashBankFilter = v);
+                    _loadCashBankBook();
+                  },
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => printLedgerLinesReport(
+                    title: 'CASH / BANK BOOK ($cashBankFilter)',
+                    lines: cashBankLines,
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+                  label: const Text('PRINT', style: TextStyle(fontSize: 9)),
+                ),
+              ],
+            ),
+          ),
+          _accountingDateBar(onApply: _loadCashBankBook),
+          if (loading)
+            const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
+          else if (cashBankLines.isEmpty)
+            _emptyAccounting('No cash/bank movements in this period.')
+          else
+            _ledgerLinesTable(cashBankLines),
+        ],
+      ),
+    );
+  }
+
+  Widget _ledgerLinesTable(List<Map<String, dynamic>> lines) {
+    return Padding(
+      padding: const EdgeInsets.all(14),
+      child: responsiveHorizontalTable(
+        context,
+        Container(
+          color: Colors.white,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(8),
+                child: Row(children: [
+                  Expanded(child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(child: Text('VOUCHER', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(flex: 2, child: Text('NARRATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(child: Text('DEBIT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(child: Text('CREDIT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(child: Text('BALANCE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                ]),
+              ),
+              ...lines.map(
+                (r) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Row(children: [
+                    Expanded(child: Text('${r['date'] ?? ''}', style: const TextStyle(fontSize: 9))),
+                    Expanded(child: Text(voucherDisplayNo(r), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
+                    Expanded(flex: 2, child: Text('${r['narration'] ?? ''}', style: const TextStyle(fontSize: 9))),
+                    Expanded(child: Text(parseApiAmount(r['debit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+                    Expanded(child: Text(parseApiAmount(r['credit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+                    Expanded(child: Text(parseApiAmount(r['running_balance']).toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  ]),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyAccounting(String msg) =>
+      Padding(padding: const EdgeInsets.all(40), child: Center(child: Text(msg, style: const TextStyle(fontSize: 11, color: Color(0xFF748094)))));
 
   Widget _ledgerWiseView() {
     final name = selectedCustomer;

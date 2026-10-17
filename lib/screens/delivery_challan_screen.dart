@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/delivery_challan_document.dart';
 import '../widgets/enterprise_form_fields.dart';
@@ -116,12 +117,16 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
   }
 
   Future<void> load() async {
-    customers = await repo.customers();
-    suppliers = await repo.suppliers();
-    products = await repo.products();
-    units = await repo.units();
-    _reconcilePartySelection();
-    await refreshSerial();
+    try {
+      customers = await repo.customers();
+      suppliers = await repo.suppliers();
+      products = await repo.products();
+      units = await repo.units();
+      _reconcilePartySelection();
+      await refreshSerial();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 

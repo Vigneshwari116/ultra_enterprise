@@ -105,6 +105,10 @@ class _AppShellState extends State<AppShell> {
     ]),
     _NavGroup('Transactions', Icons.swap_horiz_outlined, [
       _NavLeaf('Adjustment & Return', 12),
+      _NavLeaf('Receipt', 12),
+      _NavLeaf('Payment', 12),
+      _NavLeaf('Expense', 12),
+      _NavLeaf('Salary', 12),
       _NavLeaf('Cash Book', 12),
       _NavLeaf('Journal Entry', 12),
     ]),
@@ -115,6 +119,9 @@ class _AppShellState extends State<AppShell> {
     _NavGroup('Reports Center', Icons.assessment_outlined, [
       _NavLeaf('Journal Summary', 8),
       _NavLeaf('Debit / Credit Note History', 8),
+      _NavLeaf('Party Ledger', 8),
+      _NavLeaf('Trial Balance', 8),
+      _NavLeaf('Cash / Bank Book', 8),
     ]),
   ];
 
@@ -155,6 +162,18 @@ class _AppShellState extends State<AppShell> {
     }
     if (pageIndex == 12) {
       switch (leafLabel) {
+        case 'Receipt':
+          transactionsHostKey.currentState?.showReceipt();
+          break;
+        case 'Payment':
+          transactionsHostKey.currentState?.showPayment();
+          break;
+        case 'Expense':
+          transactionsHostKey.currentState?.showExpense();
+          break;
+        case 'Salary':
+          transactionsHostKey.currentState?.showSalary();
+          break;
         case 'Cash Book':
           transactionsHostKey.currentState?.showCashBook();
           break;
@@ -179,6 +198,15 @@ class _AppShellState extends State<AppShell> {
           break;
         case 'Debit / Credit Note History':
           reportsCenterKey.currentState?.showDebitCreditHistory();
+          break;
+        case 'Party Ledger':
+          reportsCenterKey.currentState?.showPartyLedger();
+          break;
+        case 'Trial Balance':
+          reportsCenterKey.currentState?.showTrialBalance();
+          break;
+        case 'Cash / Bank Book':
+          reportsCenterKey.currentState?.showCashBankBook();
           break;
         default:
           reportsCenterKey.currentState?.showSalesReports();
