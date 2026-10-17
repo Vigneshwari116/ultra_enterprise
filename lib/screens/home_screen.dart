@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
     late double me;
 
     try {
-    if (UltraConfig.persistLocally) {
+      if (UltraConfig.persistLocally) {
       final db = AppDatabase.instance;
       final results = await Future.wait([
         db.runningProjectsCount(),
@@ -59,17 +59,17 @@ class _HomeScreenState extends State<HomeScreen> {
       me = results[4] as double;
       customers = results[5] as List<Map<String, dynamic>>;
       invoices = results[6] as List<Map<String, dynamic>>;
-    } else {
-      final repo = UltraRepository.instance;
-      customers = await repo.customers();
-      invoices = await repo.salesInvoicesWithParty();
-      final orders = await repo.purchaseOrdersWithParty();
-      rp = invoices.isNotEmpty ? 1 : 0;
-      ppo = orders.where((o) => '${o['status']}' != 'RECEIVED').length;
-      co = 0;
-      so = 0;
-      me = 0;
-    }
+      } else {
+        final repo = UltraRepository.instance;
+        customers = await repo.customers();
+        invoices = await repo.salesInvoicesWithParty();
+        final orders = await repo.purchaseOrdersWithParty();
+        rp = invoices.isNotEmpty ? 1 : 0;
+        ppo = orders.where((o) => '${o['status']}' != 'RECEIVED').length;
+        co = 0;
+        so = 0;
+        me = 0;
+      }
     } catch (e) {
       if (mounted) showReadableErrorSnackBar(context, e);
       customers = [];
