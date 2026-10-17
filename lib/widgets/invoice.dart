@@ -171,7 +171,6 @@ List<String> ultraOriginalDuplicateLabels(
 }
 
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
-final PdfColor _grey = PdfColor.fromInt(0xFF748094);
 
 const double _pageMarginH = 8;
 const double _pageMarginV = 6;

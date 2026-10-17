@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../config/ultra_config.dart';
 import '../database/app_database.dart';
 import '../widgets/transaction_line_math.dart';
+import '../utils/api_errors.dart';
 import 'api_service.dart';
 
 /// Single entry point for app data: server-first when [UltraConfig.persistLocally] is false.
@@ -20,15 +21,22 @@ class UltraRepository {
   // ---- HTTP helpers ----
 
   bool _isApiNotFound(Object e) {
+    if (e is ApiException && e.statusCode == 404) return true;
     final msg = e.toString();
     return msg.contains('404') || msg.contains('Route not found');
   }
 
+  /// GET that returns null for missing routes (404). Other failures throw
+  /// [ApiException]; screen [load] methods should catch and call
+  /// [showReadableErrorSnackBar].
   Future<dynamic> _safeGet(String path) async {
     try {
       return await _api.get(path);
     } catch (e) {
       if (_isApiNotFound(e)) return null;
+      if (e is! ApiException) {
+        throw ApiException(0, readableApiError(e));
+      }
       rethrow;
     }
   }
@@ -435,7 +443,8 @@ class UltraRepository {
     final raw = await _safeGet(
       '/api/party-ledgers?party_kind=${partyKind.toUpperCase()}&party_id=$partyId',
     );
-    return Map<String, dynamic>.from(_asRow(raw) ?? {});
+    if (raw == null) return {};
+    return Map<String, dynamic>.from(_asRow(raw));
   }
 
   Future<void> setPartyLedgerOpening({

@@ -61,19 +61,23 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   }
 
   Future<void> load() async {
-    customers = await repo.customers();
-    products = await repo.products();
-    units = await repo.units();
-    if (UltraConfig.persistLocally) {
-      final count = await repo.nextSalesVoucherNo();
-      voucherNo = '$count';
-    } else {
-      voucherNo = 'Assigned on save';
-    }
-    _reconcileCustomerSelection();
-    if (customers.isNotEmpty && customerId == null) {
-      customerId = coerceCatalogId(customers.first['id']);
-      fillCustomer(customers.first);
+    try {
+      customers = await repo.customers();
+      products = await repo.products();
+      units = await repo.units();
+      if (UltraConfig.persistLocally) {
+        final count = await repo.nextSalesVoucherNo();
+        voucherNo = '$count';
+      } else {
+        voucherNo = 'Assigned on save';
+      }
+      _reconcileCustomerSelection();
+      if (customers.isNotEmpty && customerId == null) {
+        customerId = coerceCatalogId(customers.first['id']);
+        fillCustomer(customers.first);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() {});
   }
@@ -88,10 +92,14 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   /// Refreshes remote master lists when this screen becomes active again.
   @override
   Future<void> refreshCatalog() async {
-    customers = await repo.customers();
-    products = await repo.products();
-    units = await repo.units();
-    _reconcileCustomerSelection();
+    try {
+      customers = await repo.customers();
+      products = await repo.products();
+      units = await repo.units();
+      _reconcileCustomerSelection();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -175,11 +183,6 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     if (picked != null) {
       onPicked(formatIsoDate(picked));
     }
-  }
-
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
   double get fwd => double.tryParse(fwdCharge.text.trim()) ?? 0;
@@ -577,8 +580,6 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       }),
     );
   }
-
-  String _amountInWords(double v) => payableAmountInWords(v);
 
   Table _productMatrixTable() {
     return Table(

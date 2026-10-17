@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../config/ultra_config.dart';
 import '../database/app_database.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../utils/sales_invoice_display.dart';
 import '../widgets/enterprise_widgets.dart';
 
@@ -39,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
     late double so;
     late double me;
 
+    try {
     if (UltraConfig.persistLocally) {
       final db = AppDatabase.instance;
       final results = await Future.wait([
@@ -64,6 +66,16 @@ class _HomeScreenState extends State<HomeScreen> {
       final orders = await repo.purchaseOrdersWithParty();
       rp = invoices.isNotEmpty ? 1 : 0;
       ppo = orders.where((o) => '${o['status']}' != 'RECEIVED').length;
+      co = 0;
+      so = 0;
+      me = 0;
+    }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+      customers = [];
+      invoices = [];
+      rp = 0;
+      ppo = 0;
       co = 0;
       so = 0;
       me = 0;

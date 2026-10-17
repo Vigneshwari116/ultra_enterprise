@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
@@ -55,10 +56,14 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   }
 
   Future<void> refreshProductCatalog() async {
-    suppliers = await repo.suppliers();
-    products = await repo.products();
-    units = await repo.units();
-    _reconcileSupplierSelection();
+    try {
+      suppliers = await repo.suppliers();
+      products = await repo.products();
+      units = await repo.units();
+      _reconcileSupplierSelection();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -70,15 +75,19 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   }
 
   Future<void> load() async {
-    suppliers = await repo.suppliers();
-    products = await repo.products();
-    units = await repo.units();
-    poNo = '${await repo.nextPurchaseOrderNo()}';
-    directoryRows = await repo.purchaseOrdersWithParty();
-    _reconcileSupplierSelection();
-    if (suppliers.isNotEmpty && supplierId == null) {
-      supplierId = coerceCatalogId(suppliers.first['id']);
-      fillSupplier(suppliers.first);
+    try {
+      suppliers = await repo.suppliers();
+      products = await repo.products();
+      units = await repo.units();
+      poNo = '${await repo.nextPurchaseOrderNo()}';
+      directoryRows = await repo.purchaseOrdersWithParty();
+      _reconcileSupplierSelection();
+      if (suppliers.isNotEmpty && supplierId == null) {
+        supplierId = coerceCatalogId(suppliers.first['id']);
+        fillSupplier(suppliers.first);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() {});
   }
@@ -121,6 +130,13 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
           r.igstPct = i;
         },
       );
+      r.syncGstControllers();
+    }
+  }
+
+  void _disposeAllRows() {
+    for (final r in rows) {
+      r.dispose();
     }
   }
 
@@ -136,6 +152,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   @override
   void dispose() {
     unregisterProductCatalogRefresh(_productCatalogRefreshHandler);
+    _disposeAllRows();
     for (final c in [
       supplierRef,
       packages,
@@ -169,11 +186,6 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       onPicked(formatIsoDate(picked));
       _syncDueDateFromDays();
     }
-  }
-
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
   String _billNoForRow(Map<String, dynamic> po) {
@@ -278,6 +290,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 
   void _resetForm() {
     setState(() {
+      _disposeAllRows();
       rows
         ..clear()
         ..add(_PoRow());
@@ -845,8 +858,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('q$i'),
-                  keyboardType: TextInputType.number,
+                  controller: rows[i].qtyController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
                 ),
               ),
@@ -854,8 +867,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  key: ValueKey('r$i'),
-                  keyboardType: TextInputType.number,
+                  controller: rows[i].rateController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
                 ),
               ),
@@ -863,7 +876,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  controller: TextEditingController(text: '${rows[i].cgstPct}'),
+                  controller: rows[i].cgstController,
                   keyboardType: TextInputType.number,
                   onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
                 ),
@@ -872,7 +885,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  controller: TextEditingController(text: '${rows[i].sgstPct}'),
+                  controller: rows[i].sgstController,
                   keyboardType: TextInputType.number,
                   onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
                 ),
@@ -881,7 +894,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                 child: enterpriseMatrixTextField(
                   context: context,
-                  controller: TextEditingController(text: '${rows[i].igstPct}'),
+                  controller: rows[i].igstController,
                   keyboardType: TextInputType.number,
                   onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
                 ),
@@ -893,7 +906,12 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
                 child: IconButton(
-                  onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
+                  onPressed: rows.length == 1
+                      ? null
+                      : () => setState(() {
+                            rows[i].dispose();
+                            rows.removeAt(i);
+                          }),
                   icon: const Icon(Icons.delete_outline, color: red, size: 17),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
@@ -918,6 +936,43 @@ class _PoRow {
   double cgstPct = 9;
   double sgstPct = 9;
   double igstPct = 0;
+
+  late final TextEditingController qtyController;
+  late final TextEditingController rateController;
+  late final TextEditingController cgstController;
+  late final TextEditingController sgstController;
+  late final TextEditingController igstController;
+
+  _PoRow() {
+    qtyController = TextEditingController();
+    rateController = TextEditingController();
+    cgstController =
+        TextEditingController(text: formatTransactionMatrixNum(cgstPct));
+    sgstController =
+        TextEditingController(text: formatTransactionMatrixNum(sgstPct));
+    igstController =
+        TextEditingController(text: formatTransactionMatrixNum(igstPct));
+  }
+
+  void syncGstControllers() {
+    cgstController.text = formatTransactionMatrixNum(cgstPct);
+    sgstController.text = formatTransactionMatrixNum(sgstPct);
+    igstController.text = formatTransactionMatrixNum(igstPct);
+  }
+
+  void _syncControllersFromModel() {
+    qtyController.text = formatTransactionMatrixNum(qty);
+    rateController.text = formatTransactionMatrixRate(rate);
+    syncGstControllers();
+  }
+
+  void dispose() {
+    qtyController.dispose();
+    rateController.dispose();
+    cgstController.dispose();
+    sgstController.dispose();
+    igstController.dispose();
+  }
 
   void setProduct(Map<String, dynamic> p, {required String stateZone}) {
     productId = coerceCatalogId(p['id']);
@@ -950,5 +1005,6 @@ class _PoRow {
         },
       );
     }
+    _syncControllersFromModel();
   }
 }

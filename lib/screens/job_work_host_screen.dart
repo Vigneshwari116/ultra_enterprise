@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/master_form_helpers.dart';
 import 'product_catalog_refresh.dart';
@@ -122,7 +123,11 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
   }
 
   Future<void> load() async {
-    types = await repo.materialTypes();
+    try {
+      types = await repo.materialTypes();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -337,11 +342,16 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
   }
 
   Future<void> load() async {
-    products = await repo.products();
-    units = _uniqueMasterRowsById(await repo.units());
-    materialTypes = _uniqueMasterRowsById(await repo.materialTypes());
-    unitId = _idPresentInRows(unitId, units) ?? _firstRowId(units);
-    materialTypeId = _idPresentInRows(materialTypeId, materialTypes) ?? _firstRowId(materialTypes);
+    try {
+      products = await repo.products();
+      units = _uniqueMasterRowsById(await repo.units());
+      materialTypes = _uniqueMasterRowsById(await repo.materialTypes());
+      unitId = _idPresentInRows(unitId, units) ?? _firstRowId(units);
+      materialTypeId =
+          _idPresentInRows(materialTypeId, materialTypes) ?? _firstRowId(materialTypes);
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 

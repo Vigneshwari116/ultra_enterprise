@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -20,40 +22,56 @@ class ApiService {
   ApiService._();
   static final ApiService instance = ApiService._();
 
+  static const _cannotReachServer = 'Cannot reach server';
+
   String get baseUrl => UltraConfig.apiBaseUrl;
 
   Future<dynamic> get(String path) async {
-    final response = await http.get(Uri.parse('$baseUrl$path'));
-    return _decode(response);
+    return _request(() => http.get(Uri.parse('$baseUrl$path')));
   }
 
   Future<dynamic> post(String path, Map<String, dynamic> body) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl$path'),
-      headers: _jsonHeaders,
-      body: jsonEncode(body),
+    return _request(
+      () => http.post(
+        Uri.parse('$baseUrl$path'),
+        headers: _jsonHeaders,
+        body: jsonEncode(body),
+      ),
     );
-    return _decode(response);
   }
 
   Future<dynamic> put(String path, Map<String, dynamic> body) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl$path'),
-      headers: _jsonHeaders,
-      body: jsonEncode(body),
+    return _request(
+      () => http.put(
+        Uri.parse('$baseUrl$path'),
+        headers: _jsonHeaders,
+        body: jsonEncode(body),
+      ),
     );
-    return _decode(response);
   }
 
   Future<dynamic> delete(String path) async {
-    final response = await http.delete(
-      Uri.parse('$baseUrl$path'),
-      headers: _jsonHeaders,
+    return _request(
+      () => http.delete(
+        Uri.parse('$baseUrl$path'),
+        headers: _jsonHeaders,
+      ),
     );
-    return _decode(response);
   }
 
   static const _jsonHeaders = {'Content-Type': 'application/json'};
+
+  Future<dynamic> _request(Future<http.Response> Function() send) async {
+    try {
+      return _decode(await send());
+    } on SocketException {
+      throw ApiException(0, _cannotReachServer);
+    } on http.ClientException {
+      throw ApiException(0, _cannotReachServer);
+    } on TimeoutException {
+      throw ApiException(0, _cannotReachServer);
+    }
+  }
 
   dynamic _decode(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
