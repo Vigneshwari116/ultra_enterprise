@@ -36,6 +36,24 @@ class LedgerIds {
   });
 }
 
+/// [expenseLedgerId] must reference `ledgers.group_type = expense`. When null, uses EXPENSES.
+Future<int> resolveExpenseLedgerId(Session session, dynamic expenseLedgerId) async {
+  if (expenseLedgerId != null) {
+    final id = (expenseLedgerId as num).toInt();
+    final rows = await session.execute(
+      Sql.named(
+        'SELECT id FROM ledgers WHERE id = @id AND group_type = \'expense\'',
+      ),
+      parameters: {'id': id},
+    );
+    if (rows.isEmpty) {
+      throw StateError('Invalid expense ledger: $id');
+    }
+    return id;
+  }
+  return ledgerIdBySystemKey(session, 'EXPENSES');
+}
+
 Future<int> ledgerIdBySystemKey(Session session, String key) async {
   final rows = await session.execute(
     Sql.named('SELECT id FROM ledgers WHERE system_key = @key'),

@@ -64,6 +64,37 @@ Columns listed per statement after PR #21 VPS fixes.
 | create | `INSERT INTO ledger_accounts (uuid, status, data, created_at) VALUES (...)` | ledger_accounts | uuid, status, data, created_at |
 | update | `SELECT data` / `UPDATE ledger_accounts SET data = @data WHERE id = @id` | ledger_accounts | data |
 
+## `expense_vouchers.dart`
+
+| Location | SQL | Table | Columns |
+|----------|-----|-------|---------|
+| list expense ledgers | `SELECT id, name, group_type, system_key FROM ledgers WHERE group_type = 'expense'` | ledgers | id, name, group_type, system_key |
+| list | `SELECT ev.*, l.name AS expense_ledger_name FROM expense_vouchers ev JOIN ledgers l ...` | expense_vouchers, ledgers | id, uuid, voucher_no, voucher_no_display, voucher_date, expense_ledger_id, amount, cash_bank, narration, created_at, expense_ledger_name |
+| get | `SELECT ev.*, l.name ... WHERE ev.id = @id` | expense_vouchers, ledgers | same |
+| create | `INSERT INTO expense_vouchers (voucher_no, voucher_no_display, voucher_date, expense_ledger_id, amount, cash_bank, narration, created_at)` | expense_vouchers | voucher_no, voucher_no_display, voucher_date, expense_ledger_id, amount, cash_bank, narration, created_at |
+| update select | `SELECT voucher_no, voucher_no_display FROM expense_vouchers WHERE id = @id` | expense_vouchers | voucher_no, voucher_no_display |
+| update | `UPDATE expense_vouchers SET voucher_date, expense_ledger_id, amount, cash_bank, narration WHERE id = @id` | expense_vouchers | voucher_date, expense_ledger_id, amount, cash_bank, narration |
+| delete select | `SELECT voucher_no FROM expense_vouchers WHERE id = @id` | expense_vouchers | voucher_no |
+| delete | `DELETE FROM expense_vouchers WHERE id = @id RETURNING id` | expense_vouchers | id |
+
+## `salary_vouchers.dart`
+
+| Location | SQL | Table | Columns |
+|----------|-----|-------|---------|
+| list | `SELECT id, uuid, voucher_no, voucher_no_display, voucher_date, amount, cash_bank, narration, created_at FROM salary_vouchers` | salary_vouchers | id, uuid, voucher_no, voucher_no_display, voucher_date, amount, cash_bank, narration, created_at |
+| get | `SELECT ... FROM salary_vouchers WHERE id = @id` | salary_vouchers | same |
+| create | `INSERT INTO salary_vouchers (voucher_no, voucher_no_display, voucher_date, amount, cash_bank, narration, created_at)` | salary_vouchers | voucher_no, voucher_no_display, voucher_date, amount, cash_bank, narration, created_at |
+| update select | `SELECT voucher_no, voucher_no_display FROM salary_vouchers WHERE id = @id` | salary_vouchers | voucher_no, voucher_no_display |
+| update | `UPDATE salary_vouchers SET voucher_date, amount, cash_bank, narration WHERE id = @id` | salary_vouchers | voucher_date, amount, cash_bank, narration |
+| delete select | `SELECT voucher_no FROM salary_vouchers WHERE id = @id` | salary_vouchers | voucher_no |
+| delete | `DELETE FROM salary_vouchers WHERE id = @id RETURNING id` | salary_vouchers | id |
+
+## `ledger_service.dart` (expense ledger resolve)
+
+| Location | SQL | Table | Columns |
+|----------|-----|-------|---------|
+| resolve expense | `SELECT id FROM ledgers WHERE id = @id AND group_type = 'expense'` | ledgers | id |
+
 ## `accounting_ledgers.dart` + `ledger_service.dart`
 
 | Location | SQL | Table | Columns |

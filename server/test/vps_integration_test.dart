@@ -491,6 +491,147 @@ void main() {
     expect(left, isEmpty);
   });
 
+  test('POST expense voucher Dr expense Cr Cash (default Expenses ledger)', () async {
+    final created = await _expectJson(
+      await post('/api/expense-vouchers', {
+        'voucher_date': '2026-10-23',
+        'amount': 250,
+        'narration': 'office supplies',
+        'cash_bank': 'CASH',
+      }),
+      201,
+    );
+    final voucherNo = ((created['voucher'] as Map)['voucher_no'] as num).toInt();
+    final totals = await _journalTotals(conn!, voucherType: 'EXP', voucherNo: voucherNo);
+    expect(totals['dr'], 250);
+    expect(totals['cr'], 250);
+
+    final lines = await conn!.execute(
+      Sql.named('''
+        SELECT l.name, j.debit, j.credit
+        FROM journal_entries j
+        JOIN ledgers l ON l.id = j.ledger_id
+        WHERE j.voucher_type = 'EXP' AND j.voucher_no = @no
+        ORDER BY j.debit DESC
+      '''),
+      parameters: {'no': voucherNo},
+    );
+    expect(lines.length, 2);
+    final names = lines.map((r) => '${r.toColumnMap()['name']}').toList();
+    expect(names.any((n) => n == 'Expenses'), isTrue);
+    expect(names.any((n) => n == 'Cash'), isTrue);
+  });
+
+  test('POST salary voucher Dr Salary Cr Bank', () async {
+    final created = await _expectJson(
+      await post('/api/salary-vouchers', {
+        'voucher_date': '2026-10-24',
+        'amount': 15000,
+        'narration': 'October salary',
+        'cash_bank': 'BANK',
+      }),
+      201,
+    );
+    final voucherNo = ((created['voucher'] as Map)['voucher_no'] as num).toInt();
+    final totals = await _journalTotals(conn!, voucherType: 'SLR', voucherNo: voucherNo);
+    expect(totals['dr'], 15000);
+    expect(totals['cr'], 15000);
+
+    final lines = await conn!.execute('''
+      SELECT l.name, j.debit, j.credit
+      FROM journal_entries j
+      JOIN ledgers l ON l.id = j.ledger_id
+      WHERE j.voucher_type = 'SLR' AND j.voucher_no = $voucherNo
+      ORDER BY l.name
+    ''');
+    final map = <String, Map<String, double>>{};
+    for (final r in lines) {
+      final m = r.toColumnMap();
+      map['${m['name']}'] = {
+        'dr': _pgNumeric(m['debit']),
+        'cr': _pgNumeric(m['credit']),
+      };
+    }
+    expect(map['Salary']!['dr'], 15000);
+    expect(map['Bank']!['cr'], 15000);
+  });
+
+  test('failed expense save then success gets consecutive voucher_no', () async {
+    await _expectStatus(
+      await post('/api/expense-vouchers', {
+        'voucher_date': '2026-10-25',
+        'amount': 0,
+      }),
+      400,
+    );
+
+    final first = await _expectJson(
+      await post('/api/expense-vouchers', {
+        'voucher_date': '2026-10-25',
+        'amount': 100,
+        'cash_bank': 'CASH',
+      }),
+      201,
+    );
+    final firstNo = (first['voucher'] as Map)['voucher_no'] as num;
+
+    final second = await _expectJson(
+      await post('/api/expense-vouchers', {
+        'voucher_date': '2026-10-25',
+        'amount': 200,
+        'cash_bank': 'CASH',
+      }),
+      201,
+    );
+    final secondNo = (second['voucher'] as Map)['voucher_no'] as num;
+    expect(secondNo, firstNo + 1);
+  });
+
+  test('PUT expense updates journals; DELETE salary removes rows', () async {
+    final exp = await _expectJson(
+      await post('/api/expense-vouchers', {
+        'voucher_date': '2026-10-26',
+        'amount': 400,
+        'cash_bank': 'CASH',
+      }),
+      201,
+    );
+    final expId = (exp['id'] as num).toInt();
+    final expNo = ((exp['voucher'] as Map)['voucher_no'] as num).toInt();
+
+    await _expectJson(
+      await put('/api/expense-vouchers/$expId', {
+        'voucher_date': '2026-10-26',
+        'amount': 450,
+        'cash_bank': 'CASH',
+        'narration': 'revised',
+      }),
+      200,
+    );
+    final afterPut = await _journalTotals(conn!, voucherType: 'EXP', voucherNo: expNo);
+    expect(afterPut['dr'], 450);
+
+    final sal = await _expectJson(
+      await post('/api/salary-vouchers', {
+        'voucher_date': '2026-10-27',
+        'amount': 5000,
+        'cash_bank': 'CASH',
+      }),
+      201,
+    );
+    final salId = (sal['id'] as num).toInt();
+    final salNo = ((sal['voucher'] as Map)['voucher_no'] as num).toInt();
+
+    await _expectStatus(await delete('/api/salary-vouchers/$salId'), 200);
+    final left = await conn!.execute(
+      Sql.named('SELECT 1 FROM salary_vouchers WHERE id = @id'),
+      parameters: {'id': salId},
+    );
+    expect(left, isEmpty);
+    final je = await _journalTotals(conn!, voucherType: 'SLR', voucherNo: salNo);
+    expect(je['dr'], 0);
+  });
+
   test('PUT and DELETE return 404 for unknown id', () async {
     expect((await delete('/api/purchase-vouchers/999999')).statusCode, 404);
     expect((await delete('/api/receipts/999999')).statusCode, 404);
