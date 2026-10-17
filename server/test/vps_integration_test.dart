@@ -12,6 +12,17 @@ import 'test_fixture_paths.dart';
 
 double _pgNumeric(dynamic v) => double.tryParse('$v') ?? 0;
 
+Future<void> _expectStatus(Response response, int status) async {
+  final body = await response.readAsString();
+  expect(response.statusCode, status, reason: body);
+}
+
+Future<Map<String, dynamic>> _expectJson(Response response, int status) async {
+  final body = await response.readAsString();
+  expect(response.statusCode, status, reason: body);
+  return jsonDecode(body) as Map<String, dynamic>;
+}
+
 String _databaseNameFromUrl(String url) {
   final path = Uri.parse(url).path;
   if (path.isEmpty || path == '/') return '';
@@ -226,7 +237,7 @@ void main() {
         }
       ],
     });
-    expect(res.statusCode, 201, reason: await res.readAsString());
+    await _expectStatus(res, 201);
 
     final c = conn;
     final items = await c!.execute('SELECT parent_id, data FROM purchase_voucher_items');
@@ -270,17 +281,19 @@ void main() {
     final fail = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 9999));
     expect(fail.statusCode, 400);
 
-    final ok = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298));
-    expect(ok.statusCode, 201);
-    final body = jsonDecode(await ok.readAsString()) as Map<String, dynamic>;
+    final body = await _expectJson(
+      await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298)),
+      201,
+    );
     final firstNo = (body['voucher'] as Map)['voucher_no'];
 
-    final ok2 = await post('/api/purchase-vouchers', {
-      ..._purchaseBody(grandTotal: 1298),
-      'supplier_invoice_no': 'T/2',
-    });
-    expect(ok2.statusCode, 201);
-    final body2 = jsonDecode(await ok2.readAsString()) as Map<String, dynamic>;
+    final body2 = await _expectJson(
+      await post('/api/purchase-vouchers', {
+        ..._purchaseBody(grandTotal: 1298),
+        'supplier_invoice_no': 'T/2',
+      }),
+      201,
+    );
     final secondNo = (body2['voucher'] as Map)['voucher_no'];
 
     expect(secondNo, firstNo + 1);
@@ -294,7 +307,7 @@ void main() {
       'narration': 'test receipt',
       'cash_bank': 'CASH',
     });
-    expect(res.statusCode, 201, reason: await res.readAsString());
+    await _expectStatus(res, 201);
 
     final c = conn;
     final lines = await c!.execute('''
@@ -325,7 +338,7 @@ void main() {
       'reference_no': '',
       'narration': 'test payment',
     });
-    expect(res.statusCode, 201, reason: await res.readAsString());
+    await _expectStatus(res, 201);
 
     final c = conn;
     final stored = await c!.execute(
@@ -353,27 +366,29 @@ void main() {
   });
 
   test('PUT purchase-voucher re-posts journals and keeps voucher_no', () async {
-    final create = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298));
-    expect(create.statusCode, 201);
-    final created = jsonDecode(await create.readAsString()) as Map<String, dynamic>;
+    final created = await _expectJson(
+      await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298)),
+      201,
+    );
     final voucherId = (created['id'] as num).toInt();
     final voucherNo = (created['voucher'] as Map)['voucher_no'] as num;
 
     final before = await _journalTotals(conn!, voucherType: 'PUR', voucherNo: voucherNo.toInt());
     expect(before['dr'], before['cr']);
 
-    final update = await put(
-      '/api/purchase-vouchers/$voucherId',
-      {
-        ..._purchaseBody(grandTotal: 1198),
-        'taxable_total': 1000,
-        'cgst_total': 99,
-        'sgst_total': 99,
-        'supplier_invoice_no': 'T/updated',
-      },
+    final updated = await _expectJson(
+      await put(
+        '/api/purchase-vouchers/$voucherId',
+        {
+          ..._purchaseBody(grandTotal: 1198),
+          'taxable_total': 1000,
+          'cgst_total': 99,
+          'sgst_total': 99,
+          'supplier_invoice_no': 'T/updated',
+        },
+      ),
+      200,
     );
-    expect(update.statusCode, 200, reason: await update.readAsString());
-    final updated = jsonDecode(await update.readAsString()) as Map<String, dynamic>;
     expect((updated['voucher'] as Map)['voucher_no'], voucherNo);
     expect((updated['voucher'] as Map)['voucher_no_display'], isNotNull);
 
@@ -384,9 +399,10 @@ void main() {
   });
 
   test('failed PUT purchase leaves original voucher and journals intact', () async {
-    final create = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298));
-    expect(create.statusCode, 201);
-    final created = jsonDecode(await create.readAsString()) as Map<String, dynamic>;
+    final created = await _expectJson(
+      await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298)),
+      201,
+    );
     final voucherId = (created['id'] as num).toInt();
     final voucherNo = ((created['voucher'] as Map)['voucher_no'] as num).toInt();
 
@@ -415,14 +431,14 @@ void main() {
   });
 
   test('DELETE purchase-voucher removes header, items, and journals', () async {
-    final create = await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298));
-    expect(create.statusCode, 201);
-    final created = jsonDecode(await create.readAsString()) as Map<String, dynamic>;
+    final created = await _expectJson(
+      await post('/api/purchase-vouchers', _purchaseBody(grandTotal: 1298)),
+      201,
+    );
     final voucherId = (created['id'] as num).toInt();
     final voucherNo = ((created['voucher'] as Map)['voucher_no'] as num).toInt();
 
-    final del = await delete('/api/purchase-vouchers/$voucherId');
-    expect(del.statusCode, 200);
+    await _expectStatus(await delete('/api/purchase-vouchers/$voucherId'), 200);
 
     final pv = await conn!.execute(
       Sql.named('SELECT 1 FROM purchase_vouchers WHERE id = @id'),
@@ -440,32 +456,34 @@ void main() {
   });
 
   test('PUT receipt changes journal amounts; DELETE removes rows', () async {
-    final create = await post('/api/receipts', {
-      'customer_id': 1,
-      'receipt_date': '2026-10-21',
-      'amount': 500,
-      'narration': 'before',
-      'cash_bank': 'CASH',
-    });
-    expect(create.statusCode, 201);
-    final created = jsonDecode(await create.readAsString()) as Map<String, dynamic>;
+    final created = await _expectJson(
+      await post('/api/receipts', {
+        'customer_id': 1,
+        'receipt_date': '2026-10-21',
+        'amount': 500,
+        'narration': 'before',
+        'cash_bank': 'CASH',
+      }),
+      201,
+    );
     final receiptId = (created['id'] as num).toInt();
     final voucherNo = ((created['receipt'] as Map)['voucher_no'] as num).toInt();
 
-    final upd = await put('/api/receipts/$receiptId', {
-      'customer_id': 1,
-      'receipt_date': '2026-10-21',
-      'amount': 750,
-      'narration': 'after',
-      'cash_bank': 'CASH',
-    });
-    expect(upd.statusCode, 200);
+    await _expectJson(
+      await put('/api/receipts/$receiptId', {
+        'customer_id': 1,
+        'receipt_date': '2026-10-21',
+        'amount': 750,
+        'narration': 'after',
+        'cash_bank': 'CASH',
+      }),
+      200,
+    );
     final totals = await _journalTotals(conn!, voucherType: 'REC', voucherNo: voucherNo);
     expect(totals['dr'], 750);
     expect(totals['cr'], 750);
 
-    final del = await delete('/api/receipts/$receiptId');
-    expect(del.statusCode, 200);
+    await _expectStatus(await delete('/api/receipts/$receiptId'), 200);
     final left = await conn!.execute(
       Sql.named('SELECT 1 FROM receipts WHERE id = @id'),
       parameters: {'id': receiptId},
