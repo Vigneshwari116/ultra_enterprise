@@ -7,6 +7,7 @@ import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
 import '../widgets/sales_report.dart';
+import '../utils/api_errors.dart';
 import '../widgets/transaction_line_math.dart';
 
 /// Used by [AppShell] to refresh UOM/product lists after Unit Master saves.
@@ -63,8 +64,12 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     customers = await repo.customers();
     products = await repo.products();
     units = await repo.units();
-    final count = await repo.nextSalesVoucherNo();
-    voucherNo = '$count';
+    if (UltraConfig.persistLocally) {
+      final count = await repo.nextSalesVoucherNo();
+      voucherNo = '$count';
+    } else {
+      voucherNo = 'Assigned on save';
+    }
     _reconcileCustomerSelection();
     if (customers.isNotEmpty && customerId == null) {
       customerId = coerceCatalogId(customers.first['id']);
@@ -222,7 +227,6 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     try {
       final invoiceId = await repo.createSalesInvoice({
         'uuid': uuid,
-        'invoice_no': int.tryParse(voucherNo),
         'transaction_date': date,
         'po_no': po.text,
         'po_date': poDate,
@@ -246,8 +250,10 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       return invoiceId;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Server save failed: $e')),
+        await showReadableErrorDialog(
+          context,
+          title: 'Could not save sales invoice',
+          error: e,
         );
       }
       return null;

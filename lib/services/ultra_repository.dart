@@ -270,6 +270,8 @@ class UltraRepository {
 
   Map<String, dynamic> _mapSalesInvoiceToApi(Map<String, dynamic> body) {
     final out = Map<String, dynamic>.from(body);
+    out.remove('invoice_no');
+    out.remove('voucher_no_display');
     final zone = out.remove('state_zone');
     if (zone != null && out['state_zone_id'] == null) {
       final id = _stateZoneIdByLabel['$zone'] ??
@@ -735,7 +737,10 @@ class UltraRepository {
       if (poId != null) await markPurchaseOrderReceived(poId);
       return id;
     }
-    return _idFromResponse(await _api.post('/api/purchase-vouchers', body));
+    final apiBody = Map<String, dynamic>.from(body);
+    apiBody.remove('voucher_no');
+    apiBody.remove('voucher_no_display');
+    return _idFromResponse(await _api.post('/api/purchase-vouchers', apiBody));
   }
 
   Future<int> nextPurchaseVoucherNo() async {

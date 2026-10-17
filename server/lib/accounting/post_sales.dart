@@ -30,9 +30,10 @@ Future<void> postSalesInvoice({
 
   final taxSum = cgstTotal + sgstTotal + igstTotal;
   final expectedGrand = taxableTotal + taxSum + fwdCharge;
-  if ((grandTotal - expectedGrand).abs() > 0.02) {
+  final diff = grandTotal - expectedGrand;
+  if (diff.abs() > 1.01) {
     throw StateError(
-      'grand_total ($grandTotal) must equal taxable + tax + freight ($expectedGrand)',
+      'grand_total ($grandTotal) must be within ₹1 of taxable + tax + freight ($expectedGrand)',
     );
   }
 
@@ -54,6 +55,10 @@ Future<void> postSalesInvoice({
       JournalLineDraft(ledgerId: ledgers.outputIgst, credit: igstTotal),
     if (fwdCharge > 0)
       JournalLineDraft(ledgerId: ledgers.freight, credit: fwdCharge),
+    if (diff > 0.001)
+      JournalLineDraft(ledgerId: ledgers.roundOff, credit: diff),
+    if (diff < -0.001)
+      JournalLineDraft(ledgerId: ledgers.roundOff, debit: -diff),
   ];
 
   await insertJournalLines(
