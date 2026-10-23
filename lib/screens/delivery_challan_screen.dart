@@ -650,7 +650,12 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                           value: partyKey,
                           hint: const Text('Choose supplier or customer', style: enterpriseInsetValueStyle),
                           items: _partyItems,
-                          onChanged: (v) => setState(() => _fillParty(v!)),
+                          onChanged: partiesLoading ? null : (v) => setState(() => _fillParty(v!)),
+                        ),
+                        partyDirectoryStatus(
+                          loading: partiesLoading,
+                          isCustomer: kind != DcKind.inward,
+                          itemCount: customers.length + suppliers.length,
                         ),
                         _field('OFFICIAL BILLING ADDRESS', billingAddress, maxLines: 2),
                         enterpriseFormPair(_field('CITY', city), _field('POSTAL PINCODE', pin)),

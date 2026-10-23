@@ -27,13 +27,15 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
     v['postal_pincode'] ?? '',
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
-  final taxable = (v['taxable_total'] as num?)?.toDouble() ??
-      items.fold<double>(0, (s, i) => s + i.amount);
+  final taxable = parseApiAmount(v['taxable_total']) > 0
+      ? parseApiAmount(v['taxable_total'])
+      : items.fold<double>(0, (s, i) => s + i.amount);
   final cgstAmt = parseApiAmount(v['cgst_total']);
   final sgstAmt = parseApiAmount(v['sgst_total']);
   final igstAmt = parseApiAmount(v['igst_total']);
-  final grand = (v['grand_total'] as num?)?.toDouble() ??
-      taxable + cgstAmt + sgstAmt + igstAmt;
+  final grand = parseApiAmount(v['grand_total']) > 0
+      ? parseApiAmount(v['grand_total'])
+      : taxable + cgstAmt + sgstAmt + igstAmt;
   final hasIgst = igstAmt > 0;
 
   return InvoiceData(
