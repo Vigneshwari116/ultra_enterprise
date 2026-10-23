@@ -5,6 +5,7 @@ import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:test/test.dart';
+import 'package:ultra_api_server/accounting/fy.dart';
 import 'package:ultra_api_server/database_connection.dart';
 import 'package:ultra_api_server/register_merged_routes.dart';
 
@@ -745,5 +746,61 @@ void main() {
     final first = list.first as Map;
     expect(first['type_code'], isNotNull);
     expect(first['data'], isNull);
+  });
+
+  test('GET /api/purchase-orders lists flattened header data', () async {
+    final res = await _call('GET', '/api/purchase-orders');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    final list = jsonDecode(body) as List;
+    expect(list, isA<List>());
+  });
+
+  test('GET /api/quotations returns 200', () async {
+    final res = await _call('GET', '/api/quotations');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    expect(jsonDecode(body), isA<List>());
+  });
+
+  test('GET /api/adjustment-notes returns 200', () async {
+    final res = await _call('GET', '/api/adjustment-notes');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    expect(jsonDecode(body), isA<List>());
+  });
+
+  test('GET /api/ledger-accounts returns 200', () async {
+    final res = await _call('GET', '/api/ledger-accounts');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    expect(jsonDecode(body), isA<List>());
+  });
+
+  test('GET /api/voucher-numbers/next does not increment FY counter', () async {
+    final c = conn!;
+    final before = await c.execute(
+      Sql.named(
+        "SELECT last_no FROM voucher_counters WHERE voucher_type = 'SAL' AND fy = @fy",
+      ),
+      parameters: {'fy': FinancialYear.fyLabelForDate(DateTime(2026, 10, 20))},
+    );
+    final beforeNo = before.isEmpty ? 0 : (before.first.first as num).toInt();
+
+    final res = await _call('GET', '/api/voucher-numbers/next?type=SAL&date=2026-10-20');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    final decoded = jsonDecode(body) as Map<String, dynamic>;
+    expect(decoded['display'], startsWith('SAL-'));
+    expect(decoded['next_no'], beforeNo + 1);
+
+    final after = await c.execute(
+      Sql.named(
+        "SELECT last_no FROM voucher_counters WHERE voucher_type = 'SAL' AND fy = @fy",
+      ),
+      parameters: {'fy': FinancialYear.fyLabelForDate(DateTime(2026, 10, 20))},
+    );
+    final afterNo = after.isEmpty ? 0 : (after.first.first as num).toInt();
+    expect(afterNo, beforeNo);
   });
 }

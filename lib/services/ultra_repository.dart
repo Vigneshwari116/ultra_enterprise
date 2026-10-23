@@ -916,7 +916,24 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> expenseLedgers() async {
     if (UltraConfig.persistLocally) return [];
-    return await _getList('/api/expense-ledgers');
+    return _asRowList(await _api.get('/api/expense-ledgers'));
+  }
+
+  /// Preview next FY voucher display label without allocating a number on the server.
+  Future<String?> peekNextVoucherDisplay(String voucherType, {String? voucherDate}) async {
+    if (UltraConfig.persistLocally) return null;
+    try {
+      final q = <String>['type=${Uri.encodeQueryComponent(voucherType)}'];
+      if (voucherDate != null && voucherDate.isNotEmpty) {
+        q.add('date=${Uri.encodeQueryComponent(voucherDate)}');
+      }
+      final row = _asRow(await _api.get('/api/voucher-numbers/next?${q.join('&')}'));
+      final display = row['display'];
+      if (display == null || '$display'.trim().isEmpty) return null;
+      return '$display';
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<Map<String, dynamic>>> expenseVouchers() async {

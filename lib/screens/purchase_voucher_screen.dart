@@ -31,6 +31,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   String voucherDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   String supplierInvoiceDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   String voucherNo = '';
+  String? nextVoucherDisplay;
 
   List<Map<String, dynamic>> suppliers = [];
   bool suppliersLoading = false;
@@ -52,14 +53,18 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   }
 
   Future<void> refreshProductCatalog() async {
-    suppliersLoading = true;
-    if (mounted) setState(() {});
-    suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
-    suppliersLoading = false;
-    products = await repo.products();
-    units = await repo.units();
-    openOrders = await repo.openPurchaseOrders();
-    _reconcileSupplierSelection();
+    try {
+      suppliersLoading = true;
+      if (mounted) setState(() {});
+      suppliers = await repo.suppliers();
+      suppliersLoading = false;
+      products = await repo.products();
+      units = await repo.units();
+      openOrders = await repo.openPurchaseOrders();
+      _reconcileSupplierSelection();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -74,22 +79,30 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
     try {
       suppliersLoading = true;
       if (mounted) setState(() {});
-      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      suppliers = await repo.suppliers();
       suppliersLoading = false;
       products = await repo.products();
       units = await repo.units();
       openOrders = await repo.openPurchaseOrders();
       if (UltraConfig.persistLocally) {
         voucherNo = '${await repo.nextPurchaseVoucherNo()}';
+        nextVoucherDisplay = null;
       } else {
         voucherNo = 'Assigned on save';
+        nextVoucherDisplay = await repo.peekNextVoucherDisplay('PUR');
       }
-      voucherNoController.text = voucherNo;
+      voucherNoController.text = _voucherNoFieldText();
       _reconcileSupplierSelection();
     } catch (e) {
       if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() {});
+  }
+
+  String _voucherNoFieldText() {
+    final next = nextVoucherDisplay;
+    if (next == null || next.trim().isEmpty) return voucherNo;
+    return '$voucherNo · Next: $next';
   }
 
   double _toDouble(dynamic value) {

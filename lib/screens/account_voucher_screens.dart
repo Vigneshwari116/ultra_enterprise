@@ -37,6 +37,7 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
   String voucherDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   bool loading = true;
   bool partiesLoading = false;
+  bool expenseLedgersLoading = false;
   bool saving = false;
 
   String get _title => switch (widget.kind) {
@@ -60,6 +61,15 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
   }
 
   @override
+  void didUpdateWidget(covariant AccountVoucherPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.kind != widget.kind) {
+      _resetForm();
+      load();
+    }
+  }
+
+  @override
   void dispose() {
     amountCtrl.dispose();
     narrationCtrl.dispose();
@@ -69,29 +79,70 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
   Future<void> load() async {
     setState(() => loading = true);
     try {
-      switch (widget.kind) {
-        case AccountVoucherKind.receipt:
-          partiesLoading = true;
-          if (mounted) setState(() {});
-          customers = await loadCustomersDirectory(repo, snackbarContext: context);
-          partiesLoading = false;
-          rows = await repo.allReceipts();
-        case AccountVoucherKind.payment:
-          partiesLoading = true;
-          if (mounted) setState(() {});
-          suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
-          partiesLoading = false;
-          rows = await repo.allPayments();
-        case AccountVoucherKind.expense:
-          expenseLedgers = await repo.expenseLedgers();
-          rows = await repo.expenseVouchers();
-        case AccountVoucherKind.salary:
-          rows = await repo.salaryVouchers();
+      if (widget.kind == AccountVoucherKind.receipt) {
+        rows = [];
+        partiesLoading = true;
+        if (mounted) setState(() {});
+        customers = await loadCustomersDirectory(repo, snackbarContext: context);
+        partiesLoading = false;
+        rows = await repo.allReceipts();
+      } else if (widget.kind == AccountVoucherKind.payment) {
+        rows = [];
+        partiesLoading = true;
+        if (mounted) setState(() {});
+        suppliers = await repo.suppliers();
+        partiesLoading = false;
+        rows = await repo.allPayments();
+      } else if (widget.kind == AccountVoucherKind.expense) {
+        rows = [];
+        expenseLedgersLoading = true;
+        if (mounted) setState(() {});
+        expenseLedgers = await repo.expenseLedgers();
+        expenseLedgersLoading = false;
+        _applyDefaultExpenseLedger();
+        rows = await repo.expenseVouchers();
+      } else if (widget.kind == AccountVoucherKind.salary) {
+        rows = [];
+        rows = await repo.salaryVouchers();
       }
     } catch (e) {
       if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() => loading = false);
+  }
+
+  void _applyDefaultExpenseLedger() {
+    if (expenseLedgerId != null) return;
+    for (final l in expenseLedgers) {
+      final key = '${l['system_key'] ?? ''}'.toUpperCase();
+      final name = '${l['name'] ?? ''}'.toLowerCase();
+      if (key == 'EXPENSES' || name == 'expenses') {
+        expenseLedgerId = parseApiInt(l['id']);
+        break;
+      }
+    }
+    expenseLedgerId ??= expenseLedgers.isEmpty ? null : parseApiInt(expenseLedgers.first['id']);
+  }
+
+  String _partyLabel(Map<String, dynamic> r) {
+    switch (widget.kind) {
+      case AccountVoucherKind.receipt:
+        final cid = parseApiInt(r['customer_id']);
+        for (final c in customers) {
+          if (parseApiInt(c['id']) == cid) return '${c['customer_name']}';
+        }
+        return 'Customer';
+      case AccountVoucherKind.payment:
+        final sid = parseApiInt(r['supplier_id']);
+        for (final s in suppliers) {
+          if (parseApiInt(s['id']) == sid) return '${s['supplier_name']}';
+        }
+        return 'Supplier';
+      case AccountVoucherKind.expense:
+        return '${r['expense_ledger_name'] ?? r['ledger_name'] ?? 'Expense'}';
+      case AccountVoucherKind.salary:
+        return 'Salary';
+    }
   }
 
   void _resetForm() {
@@ -375,8 +426,18 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
                         ))
                     .whereType<DropdownMenuItem<int>>()
                     .toList(),
-                onChanged: (v) => setState(() => expenseLedgerId = v),
+                onChanged: expenseLedgersLoading ? null : (v) => setState(() => expenseLedgerId = v),
               ),
+              if (expenseLedgersLoading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: LinearProgressIndicator(minHeight: 2),
+                )
+              else if (expenseLedgers.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text('No expense ledgers found', style: TextStyle(fontSize: 10, color: Color(0xFF748094))),
+                ),
             ],
             const SizedBox(height: 10),
             enterpriseInsetTextField(
@@ -438,7 +499,7 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
           return ListTile(
             title: Text(_displayNo(r), style: const TextStyle(fontWeight: FontWeight.w800)),
             subtitle: Text(
-              '${date ?? ''} · ₹${parseApiAmount(r['amount']).toStringAsFixed(2)} · ${r['cash_bank'] ?? cashBank}',
+              '${date ?? ''} · ${_partyLabel(r)} · ₹${parseApiAmount(r['amount']).toStringAsFixed(2)} · ${r['cash_bank'] ?? 'CASH'}',
               style: const TextStyle(fontSize: 11),
             ),
             trailing: Row(

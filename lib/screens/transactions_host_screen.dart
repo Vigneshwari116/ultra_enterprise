@@ -63,10 +63,10 @@ class _TransactionsHostScreenState extends TransactionsHostScreenState {
     return SizedBox.expand(
       child: switch (view) {
         TxView.adjustment => const _AdjustmentReturnPanel(),
-        TxView.receipt => const AccountVoucherPanel(kind: AccountVoucherKind.receipt),
-        TxView.payment => const AccountVoucherPanel(kind: AccountVoucherKind.payment),
-        TxView.expense => const AccountVoucherPanel(kind: AccountVoucherKind.expense),
-        TxView.salary => const AccountVoucherPanel(kind: AccountVoucherKind.salary),
+        TxView.receipt => AccountVoucherPanel(key: const ValueKey('receipt'), kind: AccountVoucherKind.receipt),
+        TxView.payment => AccountVoucherPanel(key: const ValueKey('payment'), kind: AccountVoucherKind.payment),
+        TxView.expense => AccountVoucherPanel(key: const ValueKey('expense'), kind: AccountVoucherKind.expense),
+        TxView.salary => AccountVoucherPanel(key: const ValueKey('salary'), kind: AccountVoucherKind.salary),
         TxView.cashBook => const _CashBookPanel(),
         TxView.journal => const _JournalEntryPanel(),
       },

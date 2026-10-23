@@ -48,6 +48,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   // Empty until the user picks one — mirrors the reference's mandatory red "Choose Option" state.
   String zone = '';
   String voucherNo = '';
+  String? nextVoucherDisplay;
 
   List<Map<String, dynamic>> customers = [];
   bool customersLoading = false;
@@ -75,6 +76,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
         voucherNo = '$count';
       } else {
         voucherNo = 'Assigned on save';
+        nextVoucherDisplay = await repo.peekNextVoucherDisplay('SAL');
       }
       _reconcileCustomerSelection();
       if (customers.isNotEmpty && customerId == null) {
@@ -85,6 +87,12 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() {});
+  }
+
+  String _salesVoucherNoLabel() {
+    final next = nextVoucherDisplay;
+    if (next == null || next.trim().isEmpty) return voucherNo;
+    return '$voucherNo · Next: $next';
   }
 
   void _reconcileCustomerSelection() {
@@ -369,7 +377,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                   children: [
                     enterpriseFormPair(
                       _outline('SALES VOUCHER NO (AUTO)',
-                          controller: TextEditingController(text: voucherNo),
+                          controller: TextEditingController(text: _salesVoucherNoLabel()),
                           readOnly: true,
                           filled: true),
                       enterpriseInsetDateField(
