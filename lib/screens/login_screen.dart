@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/login_credentials.dart';
 import '../widgets/enterprise_widgets.dart';
 import 'app_shell.dart';
 
@@ -19,9 +20,6 @@ class _LoginScreenState extends State<LoginScreen> {
   static const _labelGray = Color(0xFF8B95A5);
   static const _signInTeal = Color(0xFF11B9B5);
 
-  static const _validEmail = 'ultra.engineering@gmail.com';
-  static const _validPassword = '12345678';
-
   @override
   void dispose() {
     email.dispose();
@@ -32,7 +30,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void _enterPlatform() {
     final id = email.text.trim();
     final key = pass.text;
-    if (id != _validEmail || key != _validPassword) {
+    final validUser = LoginCredentials.username.trim().toLowerCase();
+    if (id.toLowerCase() != validUser || key != LoginCredentials.password) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Invalid account identification or security key.')),
       );
@@ -127,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     autofillHints: const [AutofillHints.username],
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: navy),
                     decoration: _fieldDecoration(
-                      hint: 'Enter account email',
+                      hint: 'Enter account identification',
                       prefixIcon: Icons.person_outline,
                     ),
                   ),
