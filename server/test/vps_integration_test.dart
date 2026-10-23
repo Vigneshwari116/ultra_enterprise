@@ -680,4 +680,65 @@ void main() {
     );
     expect(bogusPut.statusCode, 404);
   });
+
+  test('GET /api/customers lists ordered by customer_name', () async {
+    final res = await _call('GET', '/api/customers');
+    await _expectStatus(res, 200);
+    final list = jsonDecode(await res.readAsString()) as List;
+    expect(list.length, greaterThanOrEqualTo(2));
+    final names = list.map((e) => (e as Map)['customer_name']).toList();
+    expect(names, contains('Customer Seventeen'));
+    final sorted = List<String>.from(names.map((n) => '$n'));
+    sorted.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    expect(names.map((n) => '$n').toList(), sorted);
+    final c17 = list.cast<Map>().firstWhere((c) => c['id'] == 17);
+    expect(c17['customer_name'], 'Customer Seventeen');
+  });
+
+  test('GET /api/customers/<id> returns one customer', () async {
+    final res = await _call('GET', '/api/customers/17');
+    final body = await _expectJson(res, 200);
+    expect(body['id'], 17);
+    expect(body['customer_name'], 'Customer Seventeen');
+  });
+
+  test('GET /api/suppliers lists flattened supplier_name', () async {
+    final res = await _call('GET', '/api/suppliers');
+    await _expectStatus(res, 200);
+    final list = jsonDecode(await res.readAsString()) as List;
+    final s92 = list.cast<Map>().firstWhere((s) => s['id'] == 92);
+    expect(s92['supplier_name'], 'Supplier Ninety Two');
+    expect(s92['data'], isNull);
+  });
+
+  test('GET /api/delivery-challans filters INWARD and PROFORMA', () async {
+    final inwardRes = await _call('GET', '/api/delivery-challans?dc_type=INWARD');
+    await _expectStatus(inwardRes, 200);
+    final inwardList = jsonDecode(await inwardRes.readAsString()) as List;
+    expect(inwardList, isNotEmpty);
+    expect(inwardList.every((r) => (r as Map)['dc_type'] == 'INWARD'), isTrue);
+    expect((inwardList.first as Map)['party_name'], isNotNull);
+
+    final proformaRes = await _call('GET', '/api/delivery-challans?dc_type=PROFORMA');
+    await _expectStatus(proformaRes, 200);
+    final proformaList = jsonDecode(await proformaRes.readAsString()) as List;
+    expect(proformaList, isNotEmpty);
+    expect(
+      proformaList.any((r) {
+        final m = r as Map;
+        return m['party_id'] == 17 || '${m['party_kind']}' == 'CUSTOMER';
+      }),
+      isTrue,
+    );
+  });
+
+  test('GET /api/material-types lists envelope rows', () async {
+    final res = await _call('GET', '/api/material-types');
+    await _expectStatus(res, 200);
+    final list = jsonDecode(await res.readAsString()) as List;
+    expect(list, isNotEmpty);
+    final first = list.first as Map;
+    expect(first['type_code'], isNotNull);
+    expect(first['data'], isNull);
+  });
 }

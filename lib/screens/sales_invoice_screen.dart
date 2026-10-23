@@ -8,6 +8,7 @@ import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
 import '../widgets/sales_report.dart';
 import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
 import '../widgets/transaction_line_math.dart';
 
 /// Used by [AppShell] to refresh UOM/product lists after Unit Master saves.
@@ -49,6 +50,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   String voucherNo = '';
 
   List<Map<String, dynamic>> customers = [];
+  bool customersLoading = false;
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> units = [];
   int? customerId;
@@ -62,7 +64,10 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
 
   Future<void> load() async {
     try {
-      customers = await repo.customers();
+      customersLoading = true;
+      if (mounted) setState(() {});
+      customers = await loadCustomersDirectory(repo, snackbarContext: context);
+      customersLoading = false;
       products = await repo.products();
       units = await repo.units();
       if (UltraConfig.persistLocally) {
@@ -93,7 +98,10 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   @override
   Future<void> refreshCatalog() async {
     try {
-      customers = await repo.customers();
+      customersLoading = true;
+      if (mounted) setState(() {});
+      customers = await loadCustomersDirectory(repo, snackbarContext: context);
+      customersLoading = false;
       products = await repo.products();
       units = await repo.units();
       _reconcileCustomerSelection();
@@ -420,7 +428,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                           })
                           .whereType<DropdownMenuItem<int>>()
                           .toList(),
-                      onChanged: (v) {
+                      onChanged: customersLoading
+                          ? null
+                          : (v) {
                         final c = customers
                             .firstWhere((x) => coerceCatalogId(x['id']) == v);
                         setState(() {
@@ -428,6 +438,11 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                           fillCustomer(c);
                         });
                       },
+                    ),
+                    partyDirectoryStatus(
+                      loading: customersLoading,
+                      isCustomer: true,
+                      itemCount: customers.length,
                     ),
                     const SizedBox(height: 14),
                     _outline('ADDRESS',

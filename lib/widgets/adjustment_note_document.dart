@@ -1,4 +1,5 @@
 import '../services/ultra_repository.dart';
+import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import 'ultra_print_helpers.dart';
 
@@ -30,8 +31,8 @@ Future<InvoiceData?> adjustmentNoteInvoiceData(int noteId) async {
 
   final items = rawItems.map(
     (it) {
-      final qty = (it['quantity'] as num?)?.toDouble() ?? 0;
-      final rate = (it['rate'] as num?)?.toDouble() ?? 0;
+      final qty = parseApiAmount(it['quantity']);
+      final rate = parseApiAmount(it['rate']);
       final ext = (it['extended_value'] as num?)?.toDouble();
       return InvoiceItem(
         description: '${it['description'] ?? ''}',
@@ -44,7 +45,7 @@ Future<InvoiceData?> adjustmentNoteInvoiceData(int noteId) async {
 
   final taxable = (note['taxable_total'] as num?)?.toDouble() ??
       items.fold<double>(0, (s, i) => s + i.amount);
-  final taxTotal = (note['tax_total'] as num?)?.toDouble() ?? 0;
+  final taxTotal = parseApiAmount(note['tax_total']);
   final grand = (note['grand_total'] as num?)?.toDouble() ?? taxable + taxTotal;
   final halfTax = taxTotal / 2;
 

@@ -13,6 +13,12 @@ import '../supplier_data.dart';
 const _uuid = Uuid();
 
 void registerCustomerSupplierRoutes(Router router, Connection conn) {
+  router.get('/api/customers', (_) => listCustomers(conn));
+  router.get('/api/customers/<id>', (Request _, String id) async {
+    final cid = int.tryParse(id);
+    if (cid == null) return jsonError('Invalid customer id', status: 400);
+    return getCustomer(conn, cid);
+  });
   router.post('/api/customers', (r) => createCustomer(r, conn));
   router.put('/api/customers/<id>', (Request r, String id) async {
     final cid = int.tryParse(id);
@@ -20,6 +26,7 @@ void registerCustomerSupplierRoutes(Router router, Connection conn) {
     return updateCustomer(r, conn, cid);
   });
 
+  router.get('/api/suppliers', (_) => listSuppliers(conn));
   router.get('/api/suppliers/<id>', (Request _, String id) async {
     final sid = int.tryParse(id);
     if (sid == null) return jsonError('Invalid supplier id', status: 400);
@@ -31,6 +38,33 @@ void registerCustomerSupplierRoutes(Router router, Connection conn) {
     if (sid == null) return jsonError('Invalid supplier id', status: 400);
     return updateSupplier(r, conn, sid);
   });
+}
+
+Future<Response> listCustomers(Connection conn) async {
+  final rows = await conn.execute(
+    'SELECT * FROM customers ORDER BY customer_name ASC NULLS LAST, id ASC',
+  );
+  return jsonOk(serializeRows(rows.map((r) => r.toColumnMap()).toList()));
+}
+
+Future<Response> getCustomer(Connection conn, int id) async {
+  final rows = await conn.execute(
+    Sql.named('SELECT * FROM customers WHERE id = @id'),
+    parameters: {'id': id},
+  );
+  if (rows.isEmpty) return jsonError('Customer not found: $id', status: 404);
+  return jsonOk(serializeRow(rows.first.toColumnMap()));
+}
+
+Future<Response> listSuppliers(Connection conn) async {
+  final rows = await conn.execute(
+    'SELECT id, uuid, status, data, created_at FROM suppliers '
+    "ORDER BY data::jsonb->>'supplier_name' ASC NULLS LAST, id ASC",
+  );
+  final list = rows
+      .map((r) => flattenEnvelopeRow(serializeRow(r.toColumnMap())))
+      .toList();
+  return jsonOk(serializeRows(list));
 }
 
 Future<Response> createCustomer(Request request, Connection conn) async {

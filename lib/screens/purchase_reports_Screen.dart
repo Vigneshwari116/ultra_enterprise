@@ -1047,8 +1047,8 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
     double totalDebit = 0, totalCredit = 0;
     final rows = <Map<String, dynamic>>[];
     for (final e in entries) {
-      final debit = e['debit'] as double;
-      final credit = e['credit'] as double;
+      final debit = parseApiAmount(e['debit']);
+      final credit = parseApiAmount(e['credit']);
       running = running + debit - credit;
       totalDebit += debit;
       totalCredit += credit;
@@ -1166,14 +1166,14 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
                             _AuditCell('${r['type']}'),
                             _AuditCell('${r['ref']}'),
                             _AuditCell('${r['narration']}'),
-                            _AuditCell((r['debit'] as double) == 0
+                            _AuditCell(parseApiAmount(r['debit']) == 0
                                 ? '-'
-                                : (r['debit'] as double).toStringAsFixed(2)),
-                            _AuditCell((r['credit'] as double) == 0
+                                : parseApiAmount(r['debit']).toStringAsFixed(2)),
+                            _AuditCell(parseApiAmount(r['credit']) == 0
                                 ? '-'
-                                : (r['credit'] as double).toStringAsFixed(2)),
+                                : parseApiAmount(r['credit']).toStringAsFixed(2)),
                             _AuditCell(
-                                (r['balance'] as double).toStringAsFixed(2),
+                                parseApiAmount(r['balance']).toStringAsFixed(2),
                                 bold: true),
                           ]),
                       ],

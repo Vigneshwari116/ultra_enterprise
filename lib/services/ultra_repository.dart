@@ -6,6 +6,7 @@ import '../config/ultra_config.dart';
 import '../database/app_database.dart';
 import '../widgets/transaction_line_math.dart';
 import '../utils/api_errors.dart';
+import '../utils/voucher_display.dart';
 import 'api_service.dart';
 
 /// Single entry point for app data: server-first when [UltraConfig.persistLocally] is false.
@@ -380,7 +381,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> customers() async {
     if (UltraConfig.persistLocally) return _db.customers();
-    return await _getList('/api/customers');
+    return await _getPartyList('/api/customers', isCustomer: true);
   }
 
   Future<int> insertCustomer(Map<String, dynamic> row) async {
@@ -396,7 +397,26 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> suppliers() async {
     if (UltraConfig.persistLocally) return _db.suppliers();
-    return await _getList('/api/suppliers');
+    return await _getPartyList('/api/suppliers', isCustomer: false);
+  }
+
+  Future<List<Map<String, dynamic>>> _getPartyList(String path, {required bool isCustomer}) async {
+    try {
+      return _asRowList(await _api.get(path)).map(_flattenEnvelopeRow).toList();
+    } catch (e) {
+      if (e is ApiException && e.statusCode == 404) {
+        throw ApiException(
+          404,
+          isCustomer
+              ? 'Customer list route not found on server'
+              : 'Supplier list route not found on server',
+        );
+      }
+      if (e is! ApiException) {
+        throw ApiException(0, readableApiError(e));
+      }
+      rethrow;
+    }
   }
 
   Future<int> insertSupplier(Map<String, dynamic> row) async {
@@ -414,8 +434,8 @@ class UltraRepository {
     if (UltraConfig.persistLocally) {
       if (partyKind.toUpperCase() == 'SUPPLIER') {
         final s = await supplierById(partyId);
-        final cr = (s?['opening_balance_cr'] as num?)?.toDouble() ?? 0;
-        final dr = (s?['opening_balance_dr'] as num?)?.toDouble() ?? 0;
+        final cr = parseApiAmount(s?['opening_balance_cr']);
+        final dr = parseApiAmount(s?['opening_balance_dr']);
         if (cr >= dr && cr > 0) {
           return {
             'party_kind': 'SUPPLIER',
@@ -533,7 +553,7 @@ class UltraRepository {
     final list = await salesInvoicesWithParty();
     var max = 0;
     for (final row in list) {
-      final n = (row['invoice_no'] as num?)?.toInt() ?? 0;
+      final n = parseApiInt(row['invoice_no']) ?? 0;
       if (n > max) max = n;
     }
     return max + 1;
@@ -580,7 +600,7 @@ class UltraRepository {
     final list = await _getList('/api/purchase-orders');
     var max = 0;
     for (final row in list) {
-      final n = (row['po_no'] as num?)?.toInt() ?? 0;
+      final n = parseApiInt(row['po_no']) ?? 0;
       if (n > max) max = n;
     }
     return max + 1;
@@ -740,7 +760,7 @@ class UltraRepository {
       final id = await _createWithItems('purchase_vouchers', 'purchase_voucher_items', body, 'voucher_id');
       for (final it in items) {
         final productId = it['product_id'] as int?;
-        final qty = (it['quantity'] as num?)?.toDouble() ?? 0;
+        final qty = parseApiAmount(it['quantity']);
         if (productId != null) await incrementStock(productId, qty);
       }
       if (poId != null) await markPurchaseOrderReceived(poId);
@@ -757,7 +777,7 @@ class UltraRepository {
     final list = await _getList('/api/purchase-vouchers');
     var max = 0;
     for (final row in list) {
-      final n = (row['voucher_no'] as num?)?.toInt() ?? 0;
+      final n = parseApiInt(row['voucher_no']) ?? 0;
       if (n > max) max = n;
     }
     return max + 1;

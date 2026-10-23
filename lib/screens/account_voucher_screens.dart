@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../services/ultra_repository.dart';
 import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
 import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
@@ -35,6 +36,7 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
   String cashBank = 'CASH';
   String voucherDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   bool loading = true;
+  bool partiesLoading = false;
   bool saving = false;
 
   String get _title => switch (widget.kind) {
@@ -69,10 +71,16 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
     try {
       switch (widget.kind) {
         case AccountVoucherKind.receipt:
-          customers = await repo.customers();
+          partiesLoading = true;
+          if (mounted) setState(() {});
+          customers = await loadCustomersDirectory(repo, snackbarContext: context);
+          partiesLoading = false;
           rows = await repo.allReceipts();
         case AccountVoucherKind.payment:
-          suppliers = await repo.suppliers();
+          partiesLoading = true;
+          if (mounted) setState(() {});
+          suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+          partiesLoading = false;
           rows = await repo.allPayments();
         case AccountVoucherKind.expense:
           expenseLedgers = await repo.expenseLedgers();
@@ -326,7 +334,7 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
               ),
             ),
             const SizedBox(height: 10),
-            if (widget.kind == AccountVoucherKind.receipt)
+            if (widget.kind == AccountVoucherKind.receipt) ...[
               enterpriseInsetDropdown<int>(
                 label: 'CUSTOMER *',
                 value: partyId,
@@ -337,9 +345,11 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
                         ))
                     .whereType<DropdownMenuItem<int>>()
                     .toList(),
-                onChanged: (v) => setState(() => partyId = v),
+                onChanged: partiesLoading ? null : (v) => setState(() => partyId = v),
               ),
-            if (widget.kind == AccountVoucherKind.payment)
+              partyDirectoryStatus(loading: partiesLoading, isCustomer: true, itemCount: customers.length),
+            ],
+            if (widget.kind == AccountVoucherKind.payment) ...[
               enterpriseInsetDropdown<int>(
                 label: 'SUPPLIER *',
                 value: partyId,
@@ -350,8 +360,10 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
                         ))
                     .whereType<DropdownMenuItem<int>>()
                     .toList(),
-                onChanged: (v) => setState(() => partyId = v),
+                onChanged: partiesLoading ? null : (v) => setState(() => partyId = v),
               ),
+              partyDirectoryStatus(loading: partiesLoading, isCustomer: false, itemCount: suppliers.length),
+            ],
             if (widget.kind == AccountVoucherKind.expense) ...[
               enterpriseInsetDropdown<int>(
                 label: 'EXPENSE LEDGER *',

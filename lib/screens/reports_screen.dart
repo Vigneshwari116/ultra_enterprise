@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/ultra_repository.dart';
 import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
 import '../widgets/adjustment_note_document.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
@@ -62,6 +63,8 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   String cashBankFilter = 'CASH';
   String? partyLedgerTitle;
   bool loading = true;
+  bool showAllTrialLedgers = false;
+  bool partyMastersLoading = false;
   final searchCtrl = TextEditingController();
   final journalSearchCtrl = TextEditingController();
   final noteSearchCtrl = TextEditingController();
@@ -102,10 +105,23 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   Future<void> _loadPartyLedgerMasters() async {
     setState(() => loading = true);
     try {
-      reportCustomers = await UltraRepository.instance.customers();
-      reportSuppliers = await UltraRepository.instance.suppliers();
-      if (partyLedgerPartyId == null && reportCustomers.isNotEmpty) {
-        partyLedgerPartyId = parseApiInt(reportCustomers.first['id']);
+      partyMastersLoading = true;
+      if (mounted) setState(() {});
+      reportCustomers = await loadCustomersDirectory(
+        UltraRepository.instance,
+        snackbarContext: context,
+      );
+      reportSuppliers = await loadSuppliersDirectory(
+        UltraRepository.instance,
+        snackbarContext: context,
+      );
+      partyMastersLoading = false;
+      if (partyLedgerPartyId == null) {
+        if (partyLedgerKind == 'CUSTOMER' && reportCustomers.isNotEmpty) {
+          partyLedgerPartyId = parseApiInt(reportCustomers.first['id']);
+        } else if (partyLedgerKind == 'SUPPLIER' && reportSuppliers.isNotEmpty) {
+          partyLedgerPartyId = parseApiInt(reportSuppliers.first['id']);
+        }
       }
       await _loadPartyLedger();
     } catch (e) {
@@ -372,6 +388,109 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
             SizedBox(height: 3),
             Text('ACCOUNT REVERSAL NOTE REGISTER & COMMERCIAL CREDIT/DEBIT AUDIT TRAIL',
                 style: TextStyle(fontSize: 8.5, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+    }
+    if (centerMode == ReportsCenterMode.partyLedger) {
+      return Container(
+        color: Colors.white,
+        padding: _headerPadding(),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('PARTY LEDGER', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _navy)),
+                  const SizedBox(height: 3),
+                  Text(
+                    partyLedgerTitle?.trim().isNotEmpty == true ? partyLedgerTitle! : 'CUSTOMER & SUPPLIER ACCOUNT STATEMENT',
+                    style: const TextStyle(fontSize: 8.5, color: Color(0xFF748094), fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: partyLedgerLines.isEmpty
+                  ? null
+                  : () => printLedgerLinesReport(
+                        title: 'PARTY LEDGER',
+                        subtitle: partyLedgerTitle,
+                        lines: partyLedgerLines,
+                      ),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+              label: const Text('PRINT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      );
+    }
+    if (centerMode == ReportsCenterMode.trialBalance) {
+      return Container(
+        color: Colors.white,
+        padding: _headerPadding(),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('TRIAL BALANCE', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _navy)),
+                  SizedBox(height: 3),
+                  Text('LEDGER OPENING, PERIOD MOVEMENTS & CLOSING BALANCES',
+                      style: TextStyle(fontSize: 8.5, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: trialBalanceRows.isEmpty
+                  ? null
+                  : () => printTrialBalanceReport(rows: _visibleTrialBalanceRows),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+              label: const Text('PRINT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      );
+    }
+    if (centerMode == ReportsCenterMode.cashBankBook) {
+      return Container(
+        color: Colors.white,
+        padding: _headerPadding(),
+        child: Row(
+          children: [
+            Expanded(
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: [
+                  const Text('CASH / BANK BOOK', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _navy)),
+                  DropdownButton<String>(
+                    value: cashBankFilter,
+                    items: const [
+                      DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                      DropdownMenuItem(value: 'BANK', child: Text('Bank')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() => cashBankFilter = v);
+                      _loadCashBankBook();
+                    },
+                  ),
+                ],
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: cashBankLines.isEmpty
+                  ? null
+                  : () => printLedgerLinesReport(
+                        title: 'CASH / BANK BOOK ($cashBankFilter)',
+                        lines: cashBankLines,
+                      ),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+              label: const Text('PRINT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+            ),
           ],
         ),
       );
@@ -1042,7 +1161,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                       partyLedgerKind = v;
                       partyLedgerPartyId = null;
                     });
-                    _loadPartyLedger();
+                    _loadPartyLedgerMasters();
                   },
                 ),
                 DropdownButton<int>(
@@ -1055,19 +1174,17 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                           ))
                       .whereType<DropdownMenuItem<int>>()
                       .toList(),
-                  onChanged: (v) {
+                  onChanged: partyMastersLoading
+                      ? null
+                      : (v) {
                     setState(() => partyLedgerPartyId = v);
                     _loadPartyLedger();
                   },
                 ),
-                OutlinedButton.icon(
-                  onPressed: () => printLedgerLinesReport(
-                    title: 'PARTY LEDGER',
-                    subtitle: partyLedgerTitle,
-                    lines: partyLedgerLines,
-                  ),
-                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
-                  label: const Text('PRINT', style: TextStyle(fontSize: 9)),
+                partyDirectoryStatus(
+                  loading: partyMastersLoading,
+                  isCustomer: partyLedgerKind == 'CUSTOMER',
+                  itemCount: parties.length,
                 ),
               ],
             ),
@@ -1084,7 +1201,31 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
     );
   }
 
+  bool _trialRowAllZero(Map<String, dynamic> r) {
+    final keys = [
+      'opening_debit',
+      'opening_credit',
+      'period_debit',
+      'period_credit',
+      'closing_debit',
+      'closing_credit',
+    ];
+    return keys.every((k) => parseApiAmount(r[k]) == 0);
+  }
+
+  List<Map<String, dynamic>> get _visibleTrialBalanceRows {
+    if (showAllTrialLedgers) return trialBalanceRows;
+    return trialBalanceRows.where((r) => !_trialRowAllZero(r)).toList();
+  }
+
   Widget _trialBalanceView() {
+    final rows = _visibleTrialBalanceRows;
+    final totalOpenDr = rows.fold<double>(0, (s, r) => s + parseApiAmount(r['opening_debit']));
+    final totalOpenCr = rows.fold<double>(0, (s, r) => s + parseApiAmount(r['opening_credit']));
+    final totalPerDr = rows.fold<double>(0, (s, r) => s + parseApiAmount(r['period_debit']));
+    final totalPerCr = rows.fold<double>(0, (s, r) => s + parseApiAmount(r['period_credit']));
+    final totalCloseDr = rows.fold<double>(0, (s, r) => s + parseApiAmount(r['closing_debit']));
+    final totalCloseCr = rows.fold<double>(0, (s, r) => s + parseApiAmount(r['closing_credit']));
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -1092,11 +1233,12 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
             child: Row(
               children: [
-                const Expanded(child: Text('TRIAL BALANCE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _navy))),
-                OutlinedButton.icon(
-                  onPressed: () => printTrialBalanceReport(rows: trialBalanceRows),
-                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
-                  label: const Text('PRINT', style: TextStyle(fontSize: 9)),
+                Checkbox(
+                  value: showAllTrialLedgers,
+                  onChanged: (v) => setState(() => showAllTrialLedgers = v ?? false),
+                ),
+                const Expanded(
+                  child: Text('Show all ledgers', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -1104,7 +1246,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
           _accountingDateBar(onApply: _loadTrialBalance),
           if (loading)
             const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
-          else if (trialBalanceRows.isEmpty)
+          else if (rows.isEmpty)
             _emptyAccounting('No trial balance rows.')
           else
             Padding(
@@ -1127,7 +1269,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                           Expanded(child: Text('CLOSE CR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
                         ]),
                       ),
-                      ...trialBalanceRows.map(
+                      ...rows.map(
                         (r) => Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                           child: Row(children: [
@@ -1140,6 +1282,19 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                             Expanded(child: Text(parseApiAmount(r['closing_credit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
                           ]),
                         ),
+                      ),
+                      Container(
+                        color: const Color(0xFFE1E7F0),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        child: Row(children: [
+                          const Expanded(flex: 2, child: Text('TOTALS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
+                          Expanded(child: Text(totalOpenDr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
+                          Expanded(child: Text(totalOpenCr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
+                          Expanded(child: Text(totalPerDr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
+                          Expanded(child: Text(totalPerCr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
+                          Expanded(child: Text(totalCloseDr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
+                          Expanded(child: Text(totalCloseCr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
+                        ]),
                       ),
                     ],
                   ),
@@ -1155,35 +1310,6 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
     return SingleChildScrollView(
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-            child: Wrap(
-              spacing: 8,
-              children: [
-                const Text('CASH / BANK BOOK', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _navy)),
-                DropdownButton<String>(
-                  value: cashBankFilter,
-                  items: const [
-                    DropdownMenuItem(value: 'CASH', child: Text('Cash')),
-                    DropdownMenuItem(value: 'BANK', child: Text('Bank')),
-                  ],
-                  onChanged: (v) {
-                    if (v == null) return;
-                    setState(() => cashBankFilter = v);
-                    _loadCashBankBook();
-                  },
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => printLedgerLinesReport(
-                    title: 'CASH / BANK BOOK ($cashBankFilter)',
-                    lines: cashBankLines,
-                  ),
-                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
-                  label: const Text('PRINT', style: TextStyle(fontSize: 9)),
-                ),
-              ],
-            ),
-          ),
           _accountingDateBar(onApply: _loadCashBankBook),
           if (loading)
             const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
@@ -1220,7 +1346,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                 (r) => Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   child: Row(children: [
-                    Expanded(child: Text('${r['date'] ?? ''}', style: const TextStyle(fontSize: 9))),
+                    Expanded(child: Text(_date(r['date']), style: const TextStyle(fontSize: 9))),
                     Expanded(child: Text(voucherDisplayNo(r), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
                     Expanded(flex: 2, child: Text('${r['narration'] ?? ''}', style: const TextStyle(fontSize: 9))),
                     Expanded(child: Text(parseApiAmount(r['debit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),

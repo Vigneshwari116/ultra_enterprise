@@ -1,11 +1,28 @@
+import 'dart:convert';
+
 import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../http.dart';
+import '../json_util.dart';
 
 const _uuid = Uuid();
+
+const _partyNameSql = '''
+  CASE
+    WHEN dc.data::jsonb->>'party_kind' = 'SUPPLIER' THEN (
+      SELECT data::jsonb->>'supplier_name' FROM suppliers
+      WHERE id = (dc.data::jsonb->>'party_id')::int
+    )
+    WHEN dc.data::jsonb->>'party_kind' = 'CUSTOMER' THEN (
+      SELECT customer_name FROM customers
+      WHERE id = (dc.data::jsonb->>'party_id')::int
+    )
+    ELSE COALESCE(dc.data::jsonb->>'party_name', '-')
+  END AS party_name
+''';
 
 void registerDeliveryChallanRoutes(Router router, Connection conn) {
   router.get('/api/delivery-challans', (Request request) => listDeliveryChallans(request, conn));
@@ -22,42 +39,50 @@ Future<Response> listDeliveryChallans(Request request, Connection conn) async {
   final where = dcType == null ? '' : 'WHERE dc.dc_type = @dc_type';
   final rows = await conn.execute(
     Sql.named('''
-      SELECT dc.*,
-        CASE
-          WHEN dc.party_kind = 'SUPPLIER' THEN (SELECT data::jsonb->>'supplier_name' FROM suppliers WHERE id = dc.party_id)
-          WHEN dc.party_kind = 'CUSTOMER' THEN (SELECT customer_name FROM customers WHERE id = dc.party_id)
-          ELSE '-'
-        END AS party_name
+      SELECT dc.id, dc.uuid, dc.dc_type, dc.status, dc.data, dc.created_at,
+        $_partyNameSql
       FROM delivery_challans dc
       $where
-      ORDER BY dc.document_date DESC NULLS LAST, dc.id DESC
+      ORDER BY (dc.data::jsonb->>'document_date') DESC NULLS LAST, dc.id DESC
     '''),
     parameters: dcType == null ? {} : {'dc_type': dcType},
   );
-  return jsonOk(serializeRows(rows.map((r) => r.toColumnMap()).toList()));
+  final list = rows.map((r) {
+    final flat = flattenEnvelopeRow(serializeRow(r.toColumnMap()));
+    final partyName = r.toColumnMap()['party_name'];
+    if (partyName != null && '$partyName'.trim().isNotEmpty) {
+      flat['party_name'] = partyName;
+    }
+    return flat;
+  }).toList();
+  return jsonOk(serializeRows(list));
 }
 
 Future<Response> getDeliveryChallanById(Connection conn, int id) async {
   final rows = await conn.execute(
     Sql.named('''
-      SELECT dc.*,
-        CASE
-          WHEN dc.party_kind = 'SUPPLIER' THEN (SELECT data::jsonb->>'supplier_name' FROM suppliers WHERE id = dc.party_id)
-          WHEN dc.party_kind = 'CUSTOMER' THEN (SELECT customer_name FROM customers WHERE id = dc.party_id)
-          ELSE '-'
-        END AS party_name
+      SELECT dc.id, dc.uuid, dc.dc_type, dc.status, dc.data, dc.created_at,
+        $_partyNameSql
       FROM delivery_challans dc WHERE dc.id = @id
     '''),
     parameters: {'id': id},
   );
   if (rows.isEmpty) return jsonError('Delivery challan not found: $id', status: 404);
+  final header = flattenEnvelopeRow(serializeRow(rows.first.toColumnMap()));
+  final partyName = rows.first.toColumnMap()['party_name'];
+  if (partyName != null && '$partyName'.trim().isNotEmpty) {
+    header['party_name'] = partyName;
+  }
   final items = await conn.execute(
-    Sql.named('SELECT * FROM delivery_challan_items WHERE challan_id = @id ORDER BY id'),
+    Sql.named('SELECT id, parent_id, data, created_at FROM delivery_challan_items WHERE parent_id = @id ORDER BY id'),
     parameters: {'id': id},
   );
+  final itemRows = items
+      .map((r) => flattenEnvelopeRow(serializeRow(r.toColumnMap())))
+      .toList();
   return jsonOk({
-    'challan': serializeRow(rows.first.toColumnMap()),
-    'items': serializeRows(items.map((r) => r.toColumnMap()).toList()),
+    'challan': header,
+    'items': serializeRows(itemRows),
   });
 }
 
@@ -67,89 +92,59 @@ Future<Response> createDeliveryChallan(Request request, Connection conn) async {
   if (items.isEmpty) return jsonError('Delivery challan must contain at least one item');
 
   try {
-  return await conn.runTx((tx) async {
-    final result = await tx.execute(
-      Sql.named('''
-        INSERT INTO delivery_challans (
-          uuid, dc_type, serial_no, doc_id, document_date, po_ref_no, po_ref_date, total_packages,
-          vehicle_dispatch, credit_due_days, eway_bill_no, validity_days, party_kind, party_id,
-          billing_address, city, pincode, gstin, account_ref, delivery_site_address,
-          fwd_charge, base_value, tax_total, grand_total, total_pcs, status, created_at
-        ) VALUES (
-          @uuid, @dc_type, @serial_no, @doc_id, @document_date, @po_ref_no, @po_ref_date, @total_packages,
-          @vehicle_dispatch, @credit_due_days, @eway_bill_no, @validity_days, @party_kind, @party_id,
-          @billing_address, @city, @pincode, @gstin, @account_ref, @delivery_site_address,
-          @fwd_charge, @base_value, @tax_total, @grand_total, @total_pcs, @status, NOW()
-        ) RETURNING id
-      '''),
-      parameters: {
-        'uuid': body['uuid'] ?? _uuid.v4(),
-        'dc_type': body['dc_type'],
-        'serial_no': body['serial_no'],
-        'doc_id': body['doc_id'],
-        'document_date': body['document_date'],
-        'po_ref_no': body['po_ref_no'],
-        'po_ref_date': body['po_ref_date'],
-        'total_packages': body['total_packages'] ?? 0,
-        'vehicle_dispatch': body['vehicle_dispatch'],
-        'credit_due_days': body['credit_due_days'] ?? 0,
-        'eway_bill_no': body['eway_bill_no'],
-        'validity_days': body['validity_days'] ?? 0,
-        'party_kind': body['party_kind'],
-        'party_id': body['party_id'],
-        'billing_address': body['billing_address'],
-        'city': body['city'],
-        'pincode': body['pincode'],
-        'gstin': body['gstin'],
-        'account_ref': body['account_ref'],
-        'delivery_site_address': body['delivery_site_address'],
-        'fwd_charge': body['fwd_charge'] ?? 0,
-        'base_value': body['base_value'] ?? 0,
-        'tax_total': body['tax_total'] ?? 0,
-        'grand_total': body['grand_total'] ?? 0,
-        'total_pcs': body['total_pcs'] ?? 0,
-        'status': body['status'] ?? 'POSTED',
-      },
-    );
-    final challanId = result.first.first as int;
-    final dcType = '${body['dc_type']}';
-    if (dcType == 'OUTWARD') {
+    return await conn.runTx((tx) async {
+      final dcType = '${body['dc_type']}';
+      final headerData = Map<String, dynamic>.from(body);
+      final payload = jsonEncode(headerData);
+      final result = await tx.execute(
+        Sql.named('''
+          INSERT INTO delivery_challans (uuid, dc_type, status, data, created_at)
+          VALUES (@uuid, @dc_type, @status, @data, NOW())
+          RETURNING id
+        '''),
+        parameters: {
+          'uuid': body['uuid'] ?? _uuid.v4(),
+          'dc_type': dcType,
+          'status': body['status'] ?? 'POSTED',
+          'data': payload,
+        },
+      );
+      final challanId = (result.first.first as num).toInt();
+      if (dcType == 'OUTWARD') {
+        for (final it in items) {
+          final productId = _asInt(it['product_id']);
+          final qty = _num(it['quantity']) ?? 0;
+          if (productId == null || qty <= 0) continue;
+          final available = await _stockOnHand(tx, productId);
+          if (qty > available) {
+            throw StateError(
+              'Insufficient stock for product $productId: available $available, requested $qty',
+            );
+          }
+        }
+      }
       for (final it in items) {
+        await tx.execute(
+          Sql.named('''
+            INSERT INTO delivery_challan_items (parent_id, data, created_at)
+            VALUES (@parent_id, @data, NOW())
+          '''),
+          parameters: {
+            'parent_id': challanId,
+            'data': jsonEncode(it),
+          },
+        );
         final productId = _asInt(it['product_id']);
         final qty = _num(it['quantity']) ?? 0;
         if (productId == null || qty <= 0) continue;
-        final available = await _stockOnHand(tx, productId);
-        if (qty > available) {
-          throw StateError(
-            'Insufficient stock for product $productId: available $available, requested $qty',
-          );
+        if (dcType == 'INWARD') {
+          await _adjustStock(tx, productId, qty);
+        } else if (dcType == 'OUTWARD') {
+          await _adjustStock(tx, productId, -qty);
         }
       }
-    }
-    for (final it in items) {
-      await tx.execute(
-        Sql.named('''
-          INSERT INTO delivery_challan_items (
-            challan_id, product_id, description, uom, hsn, quantity, rate,
-            cgst_percent, sgst_percent, igst_percent, extended_value, remarks
-          ) VALUES (
-            @challan_id, @product_id, @description, @uom, @hsn, @quantity, @rate,
-            @cgst_percent, @sgst_percent, @igst_percent, @extended_value, @remarks
-          )
-        '''),
-        parameters: {...it, 'challan_id': challanId},
-      );
-      final productId = _asInt(it['product_id']);
-      final qty = _num(it['quantity']) ?? 0;
-      if (productId == null || qty <= 0) continue;
-      if (dcType == 'INWARD') {
-        await _adjustStock(tx, productId, qty);
-      } else if (dcType == 'OUTWARD') {
-        await _adjustStock(tx, productId, -qty);
-      }
-    }
-    return jsonOk({'id': challanId, 'challan': {'id': challanId}}, status: 201);
-  });
+      return jsonOk({'id': challanId, 'challan': {'id': challanId}}, status: 201);
+    });
   } on StateError catch (e) {
     return jsonError(e.message, status: 400);
   }

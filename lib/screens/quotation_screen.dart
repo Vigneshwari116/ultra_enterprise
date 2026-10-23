@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../utils/voucher_display.dart';
 import '../widgets/quotation_document.dart';
+import '../widgets/transaction_line_math.dart';
 
 class QuotationScreen extends StatefulWidget {
   const QuotationScreen({super.key});
@@ -37,6 +40,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
   List<Map<String, dynamic>> customers = [];
   List<Map<String, dynamic>> suppliers = [];
+  bool partiesLoading = false;
   List<Map<String, dynamic>> units = [];
   List<Map<String, dynamic>> historyRows = [];
   int? partyId;
@@ -64,16 +68,19 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
   Future<void> load() async {
     try {
-      customers = await repo.customers();
-      suppliers = await repo.suppliers();
+      partiesLoading = true;
+      if (mounted) setState(() {});
+      customers = await loadCustomersDirectory(repo, snackbarContext: context);
+      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      partiesLoading = false;
       units = await repo.units();
       serial = '${await repo.nextQuotationSerial()}';
       historyRows = await repo.quotationsWithParty();
       if (!partyIsSupplier && customers.isNotEmpty) {
-        partyId = customers.first['id'] as int;
+        partyId = coerceCatalogId(customers.first['id']);
         _fillParty(customers.first);
       } else if (partyIsSupplier && suppliers.isNotEmpty) {
-        partyId = suppliers.first['id'] as int;
+        partyId = coerceCatalogId(suppliers.first['id']);
         _fillParty(suppliers.first);
       }
     } catch (e) {
@@ -294,8 +301,8 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
   Widget _historyCard(Map<String, dynamic> r) {
     final id = r['id'] as int;
-    final amt = (r['net_total'] as num?)?.toDouble() ?? 0;
-    final qty = (r['total_qty'] as num?)?.toDouble() ?? 0;
+    final amt = parseApiAmount(r['net_total']);
+    final qty = parseApiAmount(r['total_qty']);
     final status = '${r['status'] ?? 'PENDING'}';
     final kind = '${r['party_kind']}';
     final narrow = AppBreakpoints.isNarrow(context);
@@ -475,20 +482,32 @@ class _QuotationScreenState extends State<QuotationScreen> {
                         label: partyIsSupplier ? 'TARGET REGISTERED SUPPLIER PROFILES *' : 'TARGET REGISTERED CUSTOMER PROFILES *',
                         value: partyId,
                         items: (partyIsSupplier ? suppliers : customers)
-                            .map((p) => DropdownMenuItem<int>(
-                                  value: p['id'] as int,
-                                  child: Text('${partyIsSupplier ? p['supplier_name'] : p['customer_name']}',
-                                      style: const TextStyle(fontSize: 12)),
-                                ))
+                            .map((p) {
+                              final id = coerceCatalogId(p['id']);
+                              if (id == null) return null;
+                              return DropdownMenuItem<int>(
+                                value: id,
+                                child: Text('${partyIsSupplier ? p['supplier_name'] : p['customer_name']}',
+                                    style: const TextStyle(fontSize: 12)),
+                              );
+                            })
+                            .whereType<DropdownMenuItem<int>>()
                             .toList(),
-                        onChanged: (v) {
+                        onChanged: partiesLoading
+                            ? null
+                            : (v) {
                           final list = partyIsSupplier ? suppliers : customers;
-                          final p = list.firstWhere((x) => x['id'] == v);
+                          final p = list.firstWhere((x) => coerceCatalogId(x['id']) == v);
                           setState(() {
                             partyId = v;
                             _fillParty(p);
                           });
                         },
+                      ),
+                      partyDirectoryStatus(
+                        loading: partiesLoading,
+                        isCustomer: !partyIsSupplier,
+                        itemCount: partyIsSupplier ? suppliers.length : customers.length,
                       ),
                       const SizedBox(height: 10),
                       _field('OFFICIAL BILLING ADDRESS', address),
@@ -658,7 +677,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
           partyId = null;
           final list = supplier ? suppliers : customers;
           if (list.isNotEmpty) {
-            partyId = list.first['id'] as int;
+            partyId = coerceCatalogId(list.first['id']);
             _fillParty(list.first);
           }
         });

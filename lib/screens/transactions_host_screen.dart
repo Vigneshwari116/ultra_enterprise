@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
 import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
@@ -638,6 +639,7 @@ class _CashBookPanelState extends State<_CashBookPanel> {
   List<Map<String, dynamic>> customers = [];
   List<Map<String, dynamic>> suppliers = [];
   List<Map<String, dynamic>> passbook = [];
+  bool partiesLoading = false;
   String voucherDate = DateFormat('dd MMM yyyy').format(DateTime.now()).toUpperCase();
 
   @override
@@ -648,8 +650,11 @@ class _CashBookPanelState extends State<_CashBookPanel> {
 
   Future<void> load() async {
     try {
-      customers = await repo.customers();
-      suppliers = await repo.suppliers();
+      partiesLoading = true;
+      if (mounted) setState(() {});
+      customers = await loadCustomersDirectory(repo, snackbarContext: context);
+      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      partiesLoading = false;
       passbook = await repo.cashPassbookEntries();
     } catch (e) {
       if (mounted) showReadableErrorSnackBar(context, e);
@@ -731,8 +736,12 @@ class _CashBookPanelState extends State<_CashBookPanel> {
     amount.clear();
     remarks.clear();
     partyKey = null;
-    await load();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CASHBOOK ENTRY SAVED')));
+    try {
+      await load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CASHBOOK ENTRY SAVED')));
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
   }
 
   Widget _entryForm(Color accent) {
@@ -764,7 +773,12 @@ class _CashBookPanelState extends State<_CashBookPanel> {
             value: partyKey,
             hint: const Text('Search Customer/Supplier...', style: TextStyle(fontSize: 11, color: Color(0xFF9AA5B4))),
             items: _partyItems,
-            onChanged: (v) => setState(() => partyKey = v),
+            onChanged: partiesLoading ? null : (v) => setState(() => partyKey = v),
+          ),
+          partyDirectoryStatus(
+            loading: partiesLoading,
+            isCustomer: isReceipt,
+            itemCount: isReceipt ? customers.length : suppliers.length,
           ),
           const SizedBox(height: 4),
           enterpriseInsetTextField(
@@ -933,7 +947,7 @@ class _CashBookPanelState extends State<_CashBookPanel> {
   Widget _passbookCard(Map<String, dynamic> e) {
     final side = '${e['side']}';
     final isCr = side == 'CR';
-    final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+    final amt = parseApiAmount(e['amount']);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -989,7 +1003,11 @@ class _JournalEntryPanelState extends State<_JournalEntryPanel> {
   }
 
   Future<void> loadAccounts() async {
-    accounts = await repo.masterAccountDirectory();
+    try {
+      accounts = await repo.masterAccountDirectory();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 

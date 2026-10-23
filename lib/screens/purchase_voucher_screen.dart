@@ -6,6 +6,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
 import '../widgets/transaction_line_math.dart';
 import 'product_catalog_refresh.dart';
 
@@ -32,6 +33,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   String voucherNo = '';
 
   List<Map<String, dynamic>> suppliers = [];
+  bool suppliersLoading = false;
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> units = [];
   List<Map<String, dynamic>> openOrders = [];
@@ -50,7 +52,10 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   }
 
   Future<void> refreshProductCatalog() async {
-    suppliers = await repo.suppliers();
+    suppliersLoading = true;
+    if (mounted) setState(() {});
+    suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+    suppliersLoading = false;
     products = await repo.products();
     units = await repo.units();
     openOrders = await repo.openPurchaseOrders();
@@ -67,7 +72,10 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
 
   Future<void> load() async {
     try {
-      suppliers = await repo.suppliers();
+      suppliersLoading = true;
+      if (mounted) setState(() {});
+      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      suppliersLoading = false;
       products = await repo.products();
       units = await repo.units();
       openOrders = await repo.openPurchaseOrders();
@@ -356,7 +364,9 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                               })
                               .whereType<DropdownMenuItem<int>>()
                               .toList(),
-                          onChanged: (v) {
+                          onChanged: suppliersLoading
+                              ? null
+                              : (v) {
                             final s = suppliers.firstWhere((x) => coerceCatalogId(x['id']) == v);
                             setState(() {
                               supplierId = v;
@@ -364,6 +374,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                             });
                           },
                         ),
+                      ),
+                      partyDirectoryStatus(
+                        loading: suppliersLoading,
+                        isCustomer: false,
+                        itemCount: suppliers.length,
                       ),
                       enterpriseFormPair(
                           _outline('ADDRESS',

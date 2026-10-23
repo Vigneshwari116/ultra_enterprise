@@ -15,8 +15,8 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
         (it) => InvoiceItem(
           description: '${it['description'] ?? ''}',
           hsnCode: '${it['hsn'] ?? ''}',
-          qty: (it['quantity'] as num?)?.toDouble() ?? 0,
-          price: (it['rate'] as num?)?.toDouble() ?? 0,
+          qty: parseApiAmount(it['quantity']),
+          price: parseApiAmount(it['rate']),
         ),
       )
       .toList();
@@ -29,9 +29,9 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
 
   final taxable = (v['taxable_total'] as num?)?.toDouble() ??
       items.fold<double>(0, (s, i) => s + i.amount);
-  final cgstAmt = (v['cgst_total'] as num?)?.toDouble() ?? 0;
-  final sgstAmt = (v['sgst_total'] as num?)?.toDouble() ?? 0;
-  final igstAmt = (v['igst_total'] as num?)?.toDouble() ?? 0;
+  final cgstAmt = parseApiAmount(v['cgst_total']);
+  final sgstAmt = parseApiAmount(v['sgst_total']);
+  final igstAmt = parseApiAmount(v['igst_total']);
   final grand = (v['grand_total'] as num?)?.toDouble() ??
       taxable + cgstAmt + sgstAmt + igstAmt;
   final hasIgst = igstAmt > 0;
@@ -70,7 +70,7 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
     ifscCode: ultraBankIfsc(v, 'ifsc_code'),
     bankAddress: ultraBankAddress(v, 'branch_address'),
     totalGrandLabel: 'Total Value',
-    roundOff: (v['round_off'] as num?)?.toDouble() ?? 0,
+    roundOff: parseApiAmount(v['round_off']),
   );
 }
 

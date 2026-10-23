@@ -1,4 +1,5 @@
 import '../services/ultra_repository.dart';
+import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import 'ultra_print_helpers.dart';
 
@@ -21,8 +22,8 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
         (it) => InvoiceItem(
           description: '${it['description'] ?? ''}',
           hsnCode: '',
-          qty: (it['quantity'] as num?)?.toDouble() ?? 0,
-          price: (it['rate'] as num?)?.toDouble() ?? 0,
+          qty: parseApiAmount(it['quantity']),
+          price: parseApiAmount(it['rate']),
         ),
       )
       .toList();
@@ -33,7 +34,7 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
     q['pincode'] ?? '',
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
-  final freight = (q['freight'] as num?)?.toDouble() ?? 0;
+  final freight = parseApiAmount(q['freight']);
   final subtotal = items.fold<double>(0, (s, i) => s + i.amount);
   final grand = (q['net_total'] as num?)?.toDouble() ?? subtotal + freight;
 

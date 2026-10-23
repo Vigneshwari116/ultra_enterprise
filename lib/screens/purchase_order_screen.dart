@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
+import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
@@ -40,6 +42,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   List<Map<String, dynamic>> directoryRows = [];
 
   List<Map<String, dynamic>> suppliers = [];
+  bool suppliersLoading = false;
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> units = [];
   int? supplierId;
@@ -57,7 +60,10 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 
   Future<void> refreshProductCatalog() async {
     try {
-      suppliers = await repo.suppliers();
+      suppliersLoading = true;
+      if (mounted) setState(() {});
+      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      suppliersLoading = false;
       products = await repo.products();
       units = await repo.units();
       _reconcileSupplierSelection();
@@ -76,7 +82,10 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 
   Future<void> load() async {
     try {
-      suppliers = await repo.suppliers();
+      suppliersLoading = true;
+      if (mounted) setState(() {});
+      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      suppliersLoading = false;
       products = await repo.products();
       units = await repo.units();
       poNo = '${await repo.nextPurchaseOrderNo()}';
@@ -414,8 +423,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Widget _directoryCard(Map<String, dynamic> row) {
     final id = row['id'] as int;
     final status = '${row['status'] ?? 'PENDING'}';
-    final qty = (row['total_qty'] as num?)?.toDouble() ?? 0;
-    final amount = (row['grand_total'] as num?)?.toDouble() ?? 0;
+    final qty = parseApiAmount(row['total_qty']);
+    final amount = parseApiAmount(row['grand_total']);
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -583,13 +592,20 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                               })
                               .whereType<DropdownMenuItem<int>>()
                               .toList(),
-                          onChanged: (v) {
+                          onChanged: suppliersLoading
+                              ? null
+                              : (v) {
                             final s = suppliers.firstWhere((x) => coerceCatalogId(x['id']) == v);
                             setState(() {
                               supplierId = v;
                               fillSupplier(s);
                             });
                           },
+                        ),
+                        partyDirectoryStatus(
+                          loading: suppliersLoading,
+                          isCustomer: false,
+                          itemCount: suppliers.length,
                         ),
                         const SizedBox(height: 12),
                         _outline('OFFICIAL BILLING HEADQUARTERS ADDRESS', controller: supplierAddress, readOnly: true, filled: true),

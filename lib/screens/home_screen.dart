@@ -32,13 +32,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
-    late final List<Map<String, dynamic>> customers;
-    late final List<Map<String, dynamic>> invoices;
-    late int rp;
-    late int ppo;
-    late double co;
-    late double so;
-    late double me;
+    var customers = <Map<String, dynamic>>[];
+    var invoices = <Map<String, dynamic>>[];
+    var rp = 0;
+    var ppo = 0;
+    var co = 0.0;
+    var so = 0.0;
+    var me = 0.0;
 
     try {
       if (UltraConfig.persistLocally) {
