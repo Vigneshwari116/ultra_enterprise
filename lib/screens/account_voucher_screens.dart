@@ -233,7 +233,7 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
           saved = await repo.saveReceipt(body);
         } else {
           await repo.updateReceipt(editingId!, body);
-          saved = {'voucher_no_display': priorDisplay};
+          saved = {'voucher_no': priorDisplay};
         }
       } else if (widget.kind == AccountVoucherKind.payment) {
         final body = {
@@ -248,7 +248,7 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
           saved = await repo.savePayment(body);
         } else {
           await repo.updatePayment(editingId!, body);
-          saved = {'voucher_no_display': priorDisplay};
+          saved = {'voucher_no': priorDisplay};
         }
       } else if (widget.kind == AccountVoucherKind.expense) {
         final body = {
@@ -262,7 +262,7 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
           saved = await repo.saveExpenseVoucher(body);
         } else {
           await repo.updateExpenseVoucher(editingId!, body);
-          saved = {'voucher_no_display': priorDisplay};
+          saved = {'voucher_no': priorDisplay};
         }
       } else {
         final body = {
@@ -275,7 +275,7 @@ class _AccountVoucherPanelState extends State<AccountVoucherPanel> {
           saved = await repo.saveSalaryVoucher(body);
         } else {
           await repo.updateSalaryVoucher(editingId!, body);
-          saved = {'voucher_no_display': priorDisplay};
+          saved = {'voucher_no': priorDisplay};
         }
       }
       final display = priorDisplay ?? voucherDisplayNo(saved);

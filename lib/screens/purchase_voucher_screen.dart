@@ -31,7 +31,7 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   String voucherDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   String supplierInvoiceDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   String voucherNo = '';
-  String? nextVoucherDisplay;
+  int? nextVoucherNo;
 
   List<Map<String, dynamic>> suppliers = [];
   bool suppliersLoading = false;
@@ -86,10 +86,10 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
       openOrders = await repo.openPurchaseOrders();
       if (UltraConfig.persistLocally) {
         voucherNo = '${await repo.nextPurchaseVoucherNo()}';
-        nextVoucherDisplay = null;
+        nextVoucherNo = null;
       } else {
-        voucherNo = 'Assigned on save';
-        nextVoucherDisplay = await repo.peekNextVoucherDisplay('PUR');
+        nextVoucherNo =
+            await repo.peekNextVoucherNumber('PUR', voucherDate: voucherDate);
       }
       voucherNoController.text = _voucherNoFieldText();
       _reconcileSupplierSelection();
@@ -100,9 +100,9 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   }
 
   String _voucherNoFieldText() {
-    final next = nextVoucherDisplay;
-    if (next == null || next.trim().isEmpty) return voucherNo;
-    return '$voucherNo · Next: $next';
+    if (UltraConfig.persistLocally) return voucherNo;
+    if (nextVoucherNo != null) return 'Next: $nextVoucherNo';
+    return 'Auto on save';
   }
 
   double _toDouble(dynamic value) {
@@ -304,10 +304,24 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                     title: 'SECTION 1: TRANSACTION METADATA',
                     children: [
                       enterpriseFormPair(
-                        _outline('VOUCHER NO',
-                            controller: voucherNoController,
-                            readOnly: true,
-                            filled: true),
+                        enterpriseInsetFieldShell(
+                          label: 'VOUCHER NO',
+                          filled: true,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                _voucherNoFieldText(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: enterpriseInsetValueStyle
+                                    .copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ),
                         enterpriseInsetDateField(
                           label: 'VOUCHER DATE',
                           isoDate: voucherDate,

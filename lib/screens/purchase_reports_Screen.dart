@@ -8,14 +8,23 @@ import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_Report.dart';
+import '../utils/report_text_styles.dart';
+
+final purchaseReportsScreenKey = GlobalKey<PurchaseReportsScreenState>();
+
+abstract class PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
+  Future<void> reload();
+}
 
 class PurchaseReportsScreen extends StatefulWidget {
   const PurchaseReportsScreen({super.key});
   @override
-  State<PurchaseReportsScreen> createState() => _PurchaseReportsScreenState();
+  PurchaseReportsScreenState createState() => _PurchaseReportsScreenState();
 }
 
-class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
+class _PurchaseReportsScreenState extends PurchaseReportsScreenState {
+  @override
+  Future<void> reload() => load();
   final repo = UltraRepository.instance;
   bool loading = true;
   List<Map<String, dynamic>> vouchers = [];
@@ -704,7 +713,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       const TableRow(
         children: [
           _AuditHeaderCell('TYPE'),
-          _AuditHeaderCell('INV / BILL NO'),
+          _AuditHeaderCell('BILL NO'),
           _AuditHeaderCell('PARTY NAME'),
           _AuditHeaderCell('TAXABLE'),
           _AuditHeaderCell('CGST'),
@@ -1248,11 +1257,7 @@ class _AuditHeaderCell extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: border, width: 1.2))),
-        child: Text(text,
-            style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF748094))),
+        child: Text(text, style: kReportHeaderStyle),
       );
 }
 
@@ -1264,13 +1269,11 @@ class _AuditCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        child: Text(text,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: bold
-                  ? FontWeight.w800
-                  : (muted ? FontWeight.w600 : FontWeight.w500),
-              color: muted ? const Color(0xFF9AA5B4) : Colors.black87,
-            )),
+        child: Text(
+          text,
+          style: bold
+              ? kReportCellBoldStyle
+              : (muted ? kReportCellStyle.copyWith(color: kReportInk.withValues(alpha: 0.72)) : kReportCellStyle),
+        ),
       );
 }

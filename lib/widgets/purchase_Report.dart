@@ -37,12 +37,9 @@ double _numValue(dynamic value) {
   return 0.0;
 }
 
-String _money(num v) => '₹${v.toStringAsFixed(2)}';
+String _money(num v) => '₹${formatReportAmount(v)}';
 
-String _fmtDate(String? iso) {
-  final d = DateTime.tryParse(iso ?? '');
-  return d == null ? (iso ?? '-') : DateFormat('dd-MM-yyyy').format(d);
-}
+String _fmtDate(String? iso) => formatReportDate(iso);
 
 // ============================================================
 // COMMON PDF HELPERS
@@ -55,8 +52,9 @@ pw.Widget _h(String text, {bool right = false}) {
     child: pw.Text(
       text,
       style: pw.TextStyle(
-        fontSize: 7,
+        fontSize: 11,
         fontWeight: pw.FontWeight.bold,
+        color: PdfColors.grey900,
       ),
     ),
   );
@@ -71,8 +69,9 @@ pw.Widget _c(
     child: pw.Text(
       text,
       style: pw.TextStyle(
-        fontSize: 7,
+        fontSize: 11,
         fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+        color: PdfColors.grey900,
       ),
     ),
   );
@@ -88,8 +87,9 @@ pw.Widget _cr(
     child: pw.Text(
       text,
       style: pw.TextStyle(
-        fontSize: 7,
+        fontSize: 11,
         fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+        color: PdfColors.grey900,
       ),
     ),
   );
@@ -388,7 +388,7 @@ Future<void> printPurchaseAuditReport(
                 pw.TableRow(
                   children: [
                     _h('TYPE'),
-                    _h('INV / BILL NO'),
+                    _h('BILL NO'),
                     _h('PARTY NAME'),
                     _h('TAXABLE', right: true),
                     _h('CGST', right: true),

@@ -5,10 +5,11 @@ import 'package:printing/printing.dart';
 
 import '../services/ultra_repository.dart';
 import '../utils/sales_invoice_display.dart';
+import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import 'ultra_print_helpers.dart';
 
-String _money(num v) => v.toStringAsFixed(2);
+String _money(num v) => formatReportAmount(v);
 
 num? toNum(dynamic value) {
   if (value == null) return null;
@@ -19,10 +20,7 @@ num? toNum(dynamic value) {
 
 double toDouble(dynamic value, {double fallback = 0}) => toNum(value)?.toDouble() ?? fallback;
 
-String _fmtDate(String? iso) {
-  final d = DateTime.tryParse(iso ?? '');
-  return d == null ? (iso ?? '-') : DateFormat('dd-MM-yyyy').format(d);
-}
+String _fmtDate(String? iso) => formatReportDate(iso);
 
 String _fmtInvoicePrintDate(String? iso) {
   final d = DateTime.tryParse(iso ?? '');
@@ -41,13 +39,20 @@ String _partyAddress(Map<String, dynamic> inv) {
 pw.Widget _h(String t, {bool right = false}) => pw.Container(
       padding: const pw.EdgeInsets.all(4),
       alignment: right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
-      child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+      child: pw.Text(t, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.grey900)),
     );
 
 pw.Widget _c(String t, {bool bold = false, bool right = false}) => pw.Container(
       padding: const pw.EdgeInsets.all(4),
       alignment: right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
-      child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+      child: pw.Text(
+        t,
+        style: pw.TextStyle(
+          fontSize: 11,
+          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          color: PdfColors.grey900,
+        ),
+      ),
     );
 
 pw.Widget _summaryValue(num value, {bool bold = false}) => pw.Container(

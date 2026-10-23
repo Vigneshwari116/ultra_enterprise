@@ -75,7 +75,7 @@ class _AppShellState extends State<AppShell> {
     SalesReportsScreen(key: reportsCenterKey),
     const PurchaseOrderScreen(),
     const PurchaseVoucherScreen(),
-    const PurchaseReportsScreen(),
+    PurchaseReportsScreen(key: purchaseReportsScreenKey),
     TransactionsHostScreen(key: transactionsHostKey),
     JobWorkHostScreen(key: jobWorkHostKey),
   ];
@@ -217,6 +217,9 @@ class _AppShellState extends State<AppShell> {
     }
     if (pageIndex == 9 || pageIndex == 10) {
       refreshMountedProductCatalogs();
+    }
+    if (pageIndex == 11) {
+      purchaseReportsScreenKey.currentState?.reload();
     }
   }
 

@@ -919,8 +919,8 @@ class UltraRepository {
     return _asRowList(await _api.get('/api/expense-ledgers'));
   }
 
-  /// Preview next FY voucher display label without allocating a number on the server.
-  Future<String?> peekNextVoucherDisplay(String voucherType, {String? voucherDate}) async {
+  /// Preview next global voucher number without allocating on the server.
+  Future<int?> peekNextVoucherNumber(String voucherType, {String? voucherDate}) async {
     if (UltraConfig.persistLocally) return null;
     try {
       final q = <String>['type=${Uri.encodeQueryComponent(voucherType)}'];
@@ -928,9 +928,7 @@ class UltraRepository {
         q.add('date=${Uri.encodeQueryComponent(voucherDate)}');
       }
       final row = _asRow(await _api.get('/api/voucher-numbers/next?${q.join('&')}'));
-      final display = row['display'];
-      if (display == null || '$display'.trim().isEmpty) return null;
-      return '$display';
+      return parseApiInt(row['next_no']);
     } catch (_) {
       return null;
     }

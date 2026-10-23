@@ -10,6 +10,7 @@ import '../utils/sales_invoice_display.dart';
 import '../widgets/financial_reports.dart';
 import '../widgets/sales_report.dart';
 import '../utils/voucher_display.dart';
+import '../utils/report_text_styles.dart';
 
 final reportsCenterKey = GlobalKey<SalesReportsScreenState>();
 
@@ -63,6 +64,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   String cashBankFilter = 'CASH';
   String? partyLedgerTitle;
   bool loading = true;
+  int _reportVisitKey = 0;
   bool showAllTrialLedgers = false;
   bool partyMastersLoading = false;
   final searchCtrl = TextEditingController();
@@ -71,34 +73,47 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
   DateTime? fromDate;
   DateTime? toDate;
 
+  void _enterReportMode(ReportsCenterMode mode) {
+    setState(() {
+      centerMode = mode;
+      loading = true;
+      _reportVisitKey++;
+    });
+  }
+
   @override
-  void showSalesReports() => setState(() => centerMode = ReportsCenterMode.sales);
+  void showSalesReports() {
+    _enterReportMode(ReportsCenterMode.sales);
+    _load();
+  }
+
   @override
   void showJournalSummary() {
-    setState(() => centerMode = ReportsCenterMode.journalSummary);
+    _enterReportMode(ReportsCenterMode.journalSummary);
     _loadJournal();
   }
+
   @override
   void showDebitCreditHistory() {
-    setState(() => centerMode = ReportsCenterMode.noteHistory);
+    _enterReportMode(ReportsCenterMode.noteHistory);
     _loadNotes();
   }
 
   @override
   void showPartyLedger() {
-    setState(() => centerMode = ReportsCenterMode.partyLedger);
+    _enterReportMode(ReportsCenterMode.partyLedger);
     _loadPartyLedgerMasters();
   }
 
   @override
   void showTrialBalance() {
-    setState(() => centerMode = ReportsCenterMode.trialBalance);
+    _enterReportMode(ReportsCenterMode.trialBalance);
     _loadTrialBalance();
   }
 
   @override
   void showCashBankBook() {
-    setState(() => centerMode = ReportsCenterMode.cashBankBook);
+    _enterReportMode(ReportsCenterMode.cashBankBook);
     _loadCashBankBook();
   }
 
@@ -248,13 +263,7 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
     if (mounted) setState(() => loading = false);
   }
 
-  String _date(dynamic value) {
-    if (value == null || value.toString().isEmpty) return '-';
-    final s = value.toString();
-    final d = DateTime.tryParse(s);
-    if (d == null) return s;
-    return '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
-  }
+  String _date(dynamic value) => formatReportDate(value);
 
   bool _inDateRange(Map<String, dynamic> r) {
     final raw = r['transaction_date']?.toString();
@@ -273,7 +282,6 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
       if (selectedCustomer != null && selectedCustomer!.isNotEmpty && r['customer_name'] != selectedCustomer) return false;
       if (q.isEmpty) return true;
       return '${r['invoice_no']}'.toLowerCase().contains(q) ||
-          '${r['voucher_no_display']}'.toLowerCase().contains(q) ||
           salesInvoiceDisplayNo(r).toLowerCase().contains(q) ||
           '${r['customer_name']}'.toLowerCase().contains(q) ||
           '${r['uuid']}'.toLowerCase().contains(q);
@@ -328,11 +336,12 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
         children: [
           _topHeader(),
           Expanded(
-            child: loading &&
-                    centerMode != ReportsCenterMode.sales &&
-                    centerMode != ReportsCenterMode.partyLedger
+            child: loading
                 ? const Center(child: CircularProgressIndicator())
-                : _body(),
+                : KeyedSubtree(
+                    key: ValueKey('${centerMode.name}-$_reportVisitKey'),
+                    child: _body(),
+                  ),
           ),
         ],
       ),
@@ -572,7 +581,6 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
     if (centerMode == ReportsCenterMode.partyLedger) return _partyLedgerView();
     if (centerMode == ReportsCenterMode.trialBalance) return _trialBalanceView();
     if (centerMode == ReportsCenterMode.cashBankBook) return _cashBankBookView();
-    if (loading) return const Center(child: CircularProgressIndicator());
     if (tab == 0) return _ledgerView();
     if (tab == 1) return _auditView();
     return _ledgerWiseView();
@@ -630,11 +638,11 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
                       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))),
                       child: const Row(children: [
-                        Expanded(flex: 1, child: Text('VOUCHER DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                        Expanded(flex: 2, child: Text('VOUCHER NARRATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                        Expanded(flex: 2, child: Text('DEBIT (TO) ACCOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                        Expanded(flex: 2, child: Text('CREDIT (BY) ACCOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                        Expanded(child: Text('AMOUNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                        Expanded(flex: 1, child: Text('VOUCHER DATE', style: kReportHeaderStyle)),
+                        Expanded(flex: 2, child: Text('VOUCHER NARRATION', style: kReportHeaderStyle)),
+                        Expanded(flex: 2, child: Text('DEBIT (TO) ACCOUNT', style: kReportHeaderStyle)),
+                        Expanded(flex: 2, child: Text('CREDIT (BY) ACCOUNT', style: kReportHeaderStyle)),
+                        Expanded(child: Text('AMOUNT', style: kReportHeaderStyle)),
                       ]),
                     ),
                     if (rows.isEmpty)
@@ -665,11 +673,11 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFE7EBF0)))),
       child: Row(
         children: [
-          Expanded(flex: 1, child: Text(_date(r['voucher_date']), style: const TextStyle(fontSize: 9))),
-          Expanded(flex: 2, child: Text('${r['narration'] ?? ''}', style: const TextStyle(fontSize: 9))),
-          Expanded(flex: 2, child: Text('${r['dr_account_label'] ?? ''}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))),
-          Expanded(flex: 2, child: Text('${r['cr_account_label'] ?? ''}', style: const TextStyle(fontSize: 9, color: _green))),
-          Expanded(child: Text('₹${_asDouble(r['amount']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+          Expanded(flex: 1, child: Text(_date(r['voucher_date']), style: kReportCellStyle)),
+          Expanded(flex: 2, child: Text('${r['narration'] ?? ''}', style: kReportCellStyle)),
+          Expanded(flex: 2, child: Text('${r['dr_account_label'] ?? ''}', style: kReportCellStyle)),
+          Expanded(flex: 2, child: Text('${r['cr_account_label'] ?? ''}', style: kReportCellStyle)),
+          Expanded(child: Text(formatReportAmount(r['amount']), style: kReportCellBoldStyle)),
         ],
       ),
     );
@@ -1061,14 +1069,14 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
                   decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _border))),
                   child: const Row(children: [
-                    Expanded(flex: 1, child: Text('BILL NO', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                    Expanded(flex: 1, child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                    Expanded(flex: 4, child: Text('PARTY NAME', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                    Expanded(child: Text('TAXABLE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                    Expanded(child: Text('CGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                    Expanded(child: Text('SGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                    Expanded(child: Text('IGST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
-                    Expanded(child: Text('TOTAL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))),
+                    Expanded(flex: 1, child: Text('BILL NO', style: kReportHeaderStyle)),
+                    Expanded(flex: 1, child: Text('DATE', style: kReportHeaderStyle)),
+                    Expanded(flex: 4, child: Text('PARTY NAME', style: kReportHeaderStyle)),
+                    Expanded(child: Text('TAXABLE', style: kReportHeaderStyle)),
+                    Expanded(child: Text('CGST', style: kReportHeaderStyle)),
+                    Expanded(child: Text('SGST', style: kReportHeaderStyle)),
+                    Expanded(child: Text('IGST', style: kReportHeaderStyle)),
+                    Expanded(child: Text('TOTAL', style: kReportHeaderStyle)),
                   ]),
                 ),
                 ...sorted.map(_auditRow),
@@ -1097,14 +1105,14 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFE7EBF0)))),
       child: Row(children: [
-        Expanded(flex: 1, child: Text(salesInvoiceDisplayNo(r), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
-        Expanded(flex: 1, child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))),
-        Expanded(flex: 4, child: Text('${r['customer_name']}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['taxable_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['cgst_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['sgst_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['igst_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9))),
-        Expanded(child: Text('${_asDouble(r['grand_total']).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
+        Expanded(flex: 1, child: Text(salesInvoiceDisplayNo(r), style: kReportCellBoldStyle)),
+        Expanded(flex: 1, child: Text(_date(r['transaction_date']), style: kReportCellStyle)),
+        Expanded(flex: 4, child: Text('${r['customer_name']}', style: kReportCellStyle)),
+        Expanded(child: Text(formatReportAmount(r['taxable_total']), style: kReportCellStyle)),
+        Expanded(child: Text(formatReportAmount(r['cgst_total']), style: kReportCellStyle)),
+        Expanded(child: Text(formatReportAmount(r['sgst_total']), style: kReportCellStyle)),
+        Expanded(child: Text(formatReportAmount(r['igst_total']), style: kReportCellStyle)),
+        Expanded(child: Text(formatReportAmount(r['grand_total']), style: kReportCellBoldStyle)),
       ]),
     );
   }
@@ -1260,26 +1268,26 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                       const Padding(
                         padding: EdgeInsets.all(8),
                         child: Row(children: [
-                          Expanded(flex: 2, child: Text('LEDGER', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                          Expanded(child: Text('OPEN DR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                          Expanded(child: Text('OPEN CR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                          Expanded(child: Text('PER DR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                          Expanded(child: Text('PER CR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                          Expanded(child: Text('CLOSE DR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                          Expanded(child: Text('CLOSE CR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                          Expanded(flex: 2, child: Text('LEDGER', style: kReportHeaderStyle)),
+                          Expanded(child: Text('OPEN DR', style: kReportHeaderStyle)),
+                          Expanded(child: Text('OPEN CR', style: kReportHeaderStyle)),
+                          Expanded(child: Text('PER DR', style: kReportHeaderStyle)),
+                          Expanded(child: Text('PER CR', style: kReportHeaderStyle)),
+                          Expanded(child: Text('CLOSE DR', style: kReportHeaderStyle)),
+                          Expanded(child: Text('CLOSE CR', style: kReportHeaderStyle)),
                         ]),
                       ),
                       ...rows.map(
                         (r) => Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                           child: Row(children: [
-                            Expanded(flex: 2, child: Text('${r['ledger_name']}', style: const TextStyle(fontSize: 9))),
-                            Expanded(child: Text(parseApiAmount(r['opening_debit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
-                            Expanded(child: Text(parseApiAmount(r['opening_credit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
-                            Expanded(child: Text(parseApiAmount(r['period_debit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
-                            Expanded(child: Text(parseApiAmount(r['period_credit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
-                            Expanded(child: Text(parseApiAmount(r['closing_debit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
-                            Expanded(child: Text(parseApiAmount(r['closing_credit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
+                            Expanded(flex: 2, child: Text('${r['ledger_name']}', style: kReportCellStyle)),
+                            Expanded(child: Text(formatReportAmount(r['opening_debit']), style: kReportCellStyle)),
+                            Expanded(child: Text(formatReportAmount(r['opening_credit']), style: kReportCellStyle)),
+                            Expanded(child: Text(formatReportAmount(r['period_debit']), style: kReportCellStyle)),
+                            Expanded(child: Text(formatReportAmount(r['period_credit']), style: kReportCellStyle)),
+                            Expanded(child: Text(formatReportAmount(r['closing_debit']), style: kReportCellStyle)),
+                            Expanded(child: Text(formatReportAmount(r['closing_credit']), style: kReportCellStyle)),
                           ]),
                         ),
                       ),
@@ -1287,13 +1295,13 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
                         color: const Color(0xFFE1E7F0),
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                         child: Row(children: [
-                          const Expanded(flex: 2, child: Text('TOTALS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
-                          Expanded(child: Text(totalOpenDr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
-                          Expanded(child: Text(totalOpenCr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
-                          Expanded(child: Text(totalPerDr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
-                          Expanded(child: Text(totalPerCr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
-                          Expanded(child: Text(totalCloseDr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
-                          Expanded(child: Text(totalCloseCr.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
+                          const Expanded(flex: 2, child: Text('TOTALS', style: kReportCellBoldStyle)),
+                          Expanded(child: Text(formatReportAmount(totalOpenDr), style: kReportCellBoldStyle)),
+                          Expanded(child: Text(formatReportAmount(totalOpenCr), style: kReportCellBoldStyle)),
+                          Expanded(child: Text(formatReportAmount(totalPerDr), style: kReportCellBoldStyle)),
+                          Expanded(child: Text(formatReportAmount(totalPerCr), style: kReportCellBoldStyle)),
+                          Expanded(child: Text(formatReportAmount(totalCloseDr), style: kReportCellBoldStyle)),
+                          Expanded(child: Text(formatReportAmount(totalCloseCr), style: kReportCellBoldStyle)),
                         ]),
                       ),
                     ],
@@ -1334,24 +1342,24 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
               const Padding(
                 padding: EdgeInsets.all(8),
                 child: Row(children: [
-                  Expanded(child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                  Expanded(child: Text('VOUCHER', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                  Expanded(flex: 2, child: Text('NARRATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                  Expanded(child: Text('DEBIT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                  Expanded(child: Text('CREDIT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
-                  Expanded(child: Text('BALANCE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                  Expanded(child: Text('DATE', style: kReportHeaderStyle)),
+                  Expanded(child: Text('VOUCHER', style: kReportHeaderStyle)),
+                  Expanded(flex: 2, child: Text('NARRATION', style: kReportHeaderStyle)),
+                  Expanded(child: Text('DEBIT', style: kReportHeaderStyle)),
+                  Expanded(child: Text('CREDIT', style: kReportHeaderStyle)),
+                  Expanded(child: Text('BALANCE', style: kReportHeaderStyle)),
                 ]),
               ),
               ...lines.map(
                 (r) => Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   child: Row(children: [
-                    Expanded(child: Text(_date(r['date']), style: const TextStyle(fontSize: 9))),
-                    Expanded(child: Text(voucherDisplayNo(r), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700))),
-                    Expanded(flex: 2, child: Text('${r['narration'] ?? ''}', style: const TextStyle(fontSize: 9))),
-                    Expanded(child: Text(parseApiAmount(r['debit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
-                    Expanded(child: Text(parseApiAmount(r['credit']).toStringAsFixed(2), style: const TextStyle(fontSize: 9))),
-                    Expanded(child: Text(parseApiAmount(r['running_balance']).toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+                    Expanded(child: Text(_date(r['date']), style: kReportCellStyle)),
+                    Expanded(child: Text(voucherDisplayNo(r), style: kReportCellBoldStyle)),
+                    Expanded(flex: 2, child: Text('${r['narration'] ?? ''}', style: kReportCellStyle)),
+                    Expanded(child: Text(formatReportAmount(r['debit']), style: kReportCellStyle)),
+                    Expanded(child: Text(formatReportAmount(r['credit']), style: kReportCellStyle)),
+                    Expanded(child: Text(formatReportAmount(r['running_balance']), style: kReportCellBoldStyle)),
                   ]),
                 ),
               ),
@@ -1398,8 +1406,33 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
               Container(
                 color: Colors.white,
                 child: Column(children: [
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), child: const Row(children: [Expanded(child: Text('DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('TXN TYPE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('REF / INVOICE ID', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(flex: 3, child: Text('PARTICULARS / NARRATION ENTRY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy))), Expanded(child: Text('DEBIT (DR) [+]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF2B8ED2)))), Expanded(child: Text('CREDIT (CR) [-]', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _green))), Expanded(child: Text('BALANCE (₹)', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _navy)))])),
-                  ...rows.map((r) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE7EBF0)))), child: Row(children: [Expanded(child: Text(_date(r['transaction_date']), style: const TextStyle(fontSize: 9))), Expanded(child: Container(alignment: Alignment.centerLeft, child: const Text('SALES', style: TextStyle(fontSize: 8, color: _green, fontWeight: FontWeight.w700)))), Expanded(child: Text(salesInvoiceDisplayNo(r), style: const TextStyle(fontSize: 9))), Expanded(flex: 3, child: Text('SALES INVOICE FOR ${r['customer_name']}', style: const TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9, color: Color(0xFF2B8ED2)))), Expanded(child: const Text('-', style: TextStyle(fontSize: 9))), Expanded(child: Text('₹${(_asDouble(r['grand_total'])).toStringAsFixed(2)}', style: const TextStyle(fontSize: 9)))]))),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                    child: const Row(children: [
+                      Expanded(child: Text('DATE', style: kReportHeaderStyle)),
+                      Expanded(child: Text('TXN TYPE', style: kReportHeaderStyle)),
+                      Expanded(child: Text('BILL NO', style: kReportHeaderStyle)),
+                      Expanded(flex: 3, child: Text('PARTICULARS / NARRATION ENTRY', style: kReportHeaderStyle)),
+                      Expanded(child: Text('DEBIT (DR) [+]', style: kReportHeaderStyle)),
+                      Expanded(child: Text('CREDIT (CR) [-]', style: kReportHeaderStyle)),
+                      Expanded(child: Text('BALANCE (₹)', style: kReportHeaderStyle)),
+                    ]),
+                  ),
+                  ...rows.map(
+                    (r) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE7EBF0)))),
+                      child: Row(children: [
+                        Expanded(child: Text(_date(r['transaction_date']), style: kReportCellStyle)),
+                        Expanded(child: Text('SALES', style: kReportCellBoldStyle)),
+                        Expanded(child: Text(salesInvoiceDisplayNo(r), style: kReportCellStyle)),
+                        Expanded(flex: 3, child: Text('SALES INVOICE FOR ${r['customer_name']}', style: kReportCellStyle)),
+                        Expanded(child: Text(formatReportAmount(r['grand_total']), style: kReportCellStyle)),
+                        Expanded(child: const Text('-', style: kReportCellStyle)),
+                        Expanded(child: Text(formatReportAmount(r['grand_total']), style: kReportCellBoldStyle)),
+                      ]),
+                    ),
+                  ),
                 ]),
               ),
             ),

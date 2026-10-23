@@ -48,7 +48,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   // Empty until the user picks one — mirrors the reference's mandatory red "Choose Option" state.
   String zone = '';
   String voucherNo = '';
-  String? nextVoucherDisplay;
+  int? nextVoucherNo;
 
   List<Map<String, dynamic>> customers = [];
   bool customersLoading = false;
@@ -74,9 +74,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       if (UltraConfig.persistLocally) {
         final count = await repo.nextSalesVoucherNo();
         voucherNo = '$count';
+        nextVoucherNo = null;
       } else {
-        voucherNo = 'Assigned on save';
-        nextVoucherDisplay = await repo.peekNextVoucherDisplay('SAL');
+        nextVoucherNo = await repo.peekNextVoucherNumber('SAL', voucherDate: date);
       }
       _reconcileCustomerSelection();
       if (customers.isNotEmpty && customerId == null) {
@@ -90,9 +90,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   }
 
   String _salesVoucherNoLabel() {
-    final next = nextVoucherDisplay;
-    if (next == null || next.trim().isEmpty) return voucherNo;
-    return '$voucherNo · Next: $next';
+    if (UltraConfig.persistLocally) return voucherNo;
+    if (nextVoucherNo != null) return 'Next: $nextVoucherNo';
+    return 'Auto on save';
   }
 
   void _reconcileCustomerSelection() {
@@ -376,10 +376,23 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                   title: 'SECTION 1: TRANSACTION METADATA',
                   children: [
                     enterpriseFormPair(
-                      _outline('SALES VOUCHER NO (AUTO)',
-                          controller: TextEditingController(text: _salesVoucherNoLabel()),
-                          readOnly: true,
-                          filled: true),
+                      enterpriseInsetFieldShell(
+                        label: 'SALES VOUCHER NO (AUTO)',
+                        filled: true,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _salesVoucherNoLabel(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: enterpriseInsetValueStyle.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ),
                       enterpriseInsetDateField(
                         label: 'TRANSACTION DATE',
                         isoDate: date,

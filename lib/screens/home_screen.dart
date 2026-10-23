@@ -89,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final days = started == null ? 0 : DateTime.now().difference(started).inDays;
       rows.add(_ProjectRow(
         projectNo: salesInvoiceDisplayNo(inv) != '-'
-            ? 'PRJ-${salesInvoiceDisplayNo(inv)}'
+            ? salesInvoiceDisplayNo(inv)
             : 'N/A',
         client: client,
         quantity: '1',

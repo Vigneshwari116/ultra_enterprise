@@ -19,7 +19,7 @@ void registerVoucherNumberRoutes(Router router, Connection conn) {
   router.get('/api/voucher-numbers/next', (Request request) => peekNextVoucherNumber(request, conn));
 }
 
-/// Read-only preview of the next FY display number (does not increment counters).
+/// Read-only preview of next global sequence and FY display label (does not increment counters).
 Future<Response> peekNextVoucherNumber(Request request, Connection conn) async {
   final type = request.url.queryParameters['type']?.trim().toUpperCase();
   if (type == null || type.isEmpty) {
@@ -35,12 +35,13 @@ Future<Response> peekNextVoucherNumber(Request request, Connection conn) async {
       : FinancialYear.parseVoucherDate(dateParam);
   final fy = FinancialYear.fyLabelForDate(voucherDate);
 
+  final counterKey = VoucherSequences.forVoucherType(type);
   final rows = await conn.execute(
     Sql.named('''
-      SELECT last_no FROM voucher_counters
-      WHERE voucher_type = @type AND fy = @fy
+      SELECT last_no FROM global_number_counters
+      WHERE counter_key = @key
     '''),
-    parameters: {'type': type, 'fy': fy},
+    parameters: {'key': counterKey},
   );
   final lastNo = rows.isEmpty ? 0 : (rows.first.first as num).toInt();
   final nextNo = lastNo + 1;

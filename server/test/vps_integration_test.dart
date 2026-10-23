@@ -6,6 +6,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:test/test.dart';
 import 'package:ultra_api_server/accounting/fy.dart';
+import 'package:ultra_api_server/accounting/voucher_numbering.dart';
 import 'package:ultra_api_server/database_connection.dart';
 import 'package:ultra_api_server/register_merged_routes.dart';
 
@@ -777,13 +778,14 @@ void main() {
     expect(jsonDecode(body), isA<List>());
   });
 
-  test('GET /api/voucher-numbers/next does not increment FY counter', () async {
+  test('GET /api/voucher-numbers/next peeks global_number_counters without increment', () async {
     final c = conn!;
+    final counterKey = VoucherSequences.salesInvoice;
     final before = await c.execute(
       Sql.named(
-        "SELECT last_no FROM voucher_counters WHERE voucher_type = 'SAL' AND fy = @fy",
+        'SELECT last_no FROM global_number_counters WHERE counter_key = @key',
       ),
-      parameters: {'fy': FinancialYear.fyLabelForDate(DateTime(2026, 10, 20))},
+      parameters: {'key': counterKey},
     );
     final beforeNo = before.isEmpty ? 0 : (before.first.first as num).toInt();
 
@@ -794,11 +796,17 @@ void main() {
     expect(decoded['display'], startsWith('SAL-'));
     expect(decoded['next_no'], beforeNo + 1);
 
+    final res2 = await _call('GET', '/api/voucher-numbers/next?type=SAL&date=2026-10-20');
+    final body2 = await res2.readAsString();
+    expect(res2.statusCode, 200, reason: body2);
+    final decoded2 = jsonDecode(body2) as Map<String, dynamic>;
+    expect(decoded2['next_no'], decoded['next_no']);
+
     final after = await c.execute(
       Sql.named(
-        "SELECT last_no FROM voucher_counters WHERE voucher_type = 'SAL' AND fy = @fy",
+        'SELECT last_no FROM global_number_counters WHERE counter_key = @key',
       ),
-      parameters: {'fy': FinancialYear.fyLabelForDate(DateTime(2026, 10, 20))},
+      parameters: {'key': counterKey},
     );
     final afterNo = after.isEmpty ? 0 : (after.first.first as num).toInt();
     expect(afterNo, beforeNo);
