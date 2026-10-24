@@ -7,6 +7,7 @@ const String billSampleSuprajitAddress =
     '#189A & 189B, BOMMASANDRA INDL AREA, BOMMASANDRA';
 const String billSampleSuprajitCityLine = 'BANGALORE - 560 099';
 const String billSampleSuprajitGstin = '29AADCS1638L1Z0';
+const String billSampleSuprajitMobile = '9845012345';
 
 /// Line items from docs/bill_formats/regular_bill.pdf.
 List<InvoiceItem> regularBill224Items() => [
@@ -42,7 +43,7 @@ InvoiceData normalBillSample() => InvoiceData(
       consigneeAddress: billSampleSuprajitAddress,
       consigneeCityLine: billSampleSuprajitCityLine,
       gstin: billSampleSuprajitGstin,
-      mobile: '',
+      mobile: billSampleSuprajitMobile,
       items: regularBill224Items(),
       pAndF: 0,
       cgstAmountOverride: 2365.20,
@@ -79,7 +80,7 @@ InvoiceData labourBillSample() => InvoiceData(
       shippingAddress:
           '#101, BOMMASANDRA INDL. AREA, HOSUR ROAD, BANGALORE - 560 099',
       gstin: billSampleSuprajitGstin,
-      mobile: '',
+      mobile: billSampleSuprajitMobile,
       items: [
         InvoiceItem(
           description:
@@ -122,7 +123,7 @@ InvoiceData proformaSample() => InvoiceData(
       consigneeAddress: billSampleSuprajitAddress,
       consigneeCityLine: billSampleSuprajitCityLine,
       gstin: billSampleSuprajitGstin,
-      mobile: '',
+      mobile: billSampleSuprajitMobile,
       items: regularBill224Items(),
       pAndF: 0,
       cgstPercent: 0,

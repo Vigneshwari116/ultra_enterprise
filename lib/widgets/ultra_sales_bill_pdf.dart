@@ -121,7 +121,14 @@ pw.Widget _salesBillPage({
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               pw.Expanded(
-                child: _salesBillItemsPanel(data, items, itemStartIndex),
+                child: pw.DecoratedBox(
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: _black, width: 1),
+                    ),
+                  ),
+                  child: _salesBillItemsPanel(data, items, itemStartIndex),
+                ),
               ),
               if (showFooter) ...[
                 _totalsAndBank(data),
@@ -312,6 +319,66 @@ pw.Widget _labourInvoiceBox(InvoiceData d) {
   );
 }
 
+String _mobileLineText(String mobile) {
+  final m = pdfLatin1(mobile).trim();
+  return m.isEmpty ? 'MOBILE :' : 'MOBILE : $m';
+}
+
+pw.Widget _gstinMobileRow({required String gstin, required String mobile}) {
+  return pw.Container(
+    width: double.infinity,
+    decoration: const pw.BoxDecoration(
+      border: pw.Border(top: pw.BorderSide(color: _black, width: 1)),
+    ),
+    padding: const pw.EdgeInsets.fromLTRB(6, 3, 6, 4),
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Expanded(
+          child: pw.Text(
+            'GSTIN: ${pdfLatin1(gstin)}',
+            style: _body(size: 8, bold: true),
+            softWrap: true,
+          ),
+        ),
+        pw.SizedBox(
+          width: 110,
+          child: pw.Text(
+            _mobileLineText(mobile),
+            style: _body(size: 8, bold: true),
+            textAlign: pw.TextAlign.right,
+            softWrap: false,
+            maxLines: 1,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+pw.Widget _shippingMobileRow(String mobile) {
+  return pw.Container(
+    width: double.infinity,
+    decoration: const pw.BoxDecoration(
+      border: pw.Border(top: pw.BorderSide(color: _black, width: 1)),
+    ),
+    padding: const pw.EdgeInsets.fromLTRB(6, 3, 6, 4),
+    child: pw.Align(
+      alignment: pw.Alignment.centerRight,
+      child: pw.SizedBox(
+        width: 110,
+        child: pw.Text(
+          _mobileLineText(mobile),
+          style: _body(size: 8, bold: true),
+          textAlign: pw.TextAlign.right,
+          softWrap: false,
+          maxLines: 1,
+        ),
+      ),
+    ),
+  );
+}
+
 pw.Widget _consigneePartyBlock(InvoiceData d) {
   final cityPin = d.consigneeCityLine;
   return pw.Column(
@@ -334,30 +401,7 @@ pw.Widget _consigneePartyBlock(InvoiceData d) {
           ],
         ),
       ),
-      pw.Container(
-        width: double.infinity,
-        decoration: const pw.BoxDecoration(
-          border: pw.Border(top: pw.BorderSide(color: _black, width: 1)),
-        ),
-        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        child: pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Text('GSTIN: ${pdfLatin1(d.gstin)}',
-                style: _body(size: 8, bold: true)),
-            pw.Text('MOBILE', style: _body(size: 8, bold: true)),
-          ],
-        ),
-      ),
-      if (d.mobile.isNotEmpty)
-        pw.Padding(
-          padding: const pw.EdgeInsets.fromLTRB(6, 0, 6, 4),
-          child: pw.Align(
-            alignment: pw.Alignment.centerRight,
-            child: pw.Text(pdfLatin1(d.mobile),
-                style: _body(size: 8.5, bold: true)),
-          ),
-        ),
+      _gstinMobileRow(gstin: d.gstin, mobile: d.mobile),
     ],
   );
 }
@@ -447,21 +491,32 @@ pw.Widget _labourPartyBlocks(InvoiceData d) {
           ),
         ),
         pw.Expanded(
-          child: pw.Padding(
-            padding: const pw.EdgeInsets.all(6),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text('SHIPPING NAME & ADDRESS OF CONSIGNE',
-                    style: _body(size: 7.2, bold: true)),
-                pw.Text(
-                  d.shippingName.isNotEmpty ? d.shippingName : d.consigneeName,
-                  style: _body(size: 8.5, bold: true),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.fromLTRB(6, 6, 6, 2),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('SHIPPING NAME & ADDRESS OF CONSIGNE',
+                        style: _body(size: 7.2, bold: true)),
+                    pw.Text(
+                      pdfLatin1(
+                        d.shippingName.isNotEmpty
+                            ? d.shippingName
+                            : d.consigneeName,
+                      ),
+                      style: _body(size: 8.5, bold: true),
+                    ),
+                    if (d.shippingAddress.isNotEmpty)
+                      pw.Text(pdfLatin1(d.shippingAddress),
+                          style: _body(size: 7.5)),
+                  ],
                 ),
-                if (d.shippingAddress.isNotEmpty)
-                  pw.Text(pdfLatin1(d.shippingAddress), style: _body(size: 7.5)),
-              ],
-            ),
+              ),
+              _shippingMobileRow(d.mobile),
+            ],
           ),
         ),
       ],
@@ -470,8 +525,8 @@ pw.Widget _labourPartyBlocks(InvoiceData d) {
 }
 
 List<double> _billItemColumnWidths(double totalWidth) {
-  const fixed = [42.0, 54.0, 44.0, 76.0, 58.0];
-  final desc = totalWidth - fixed.fold<double>(0, (a, b) => a + b);
+  const fixedSum = 42.0 + 54.0 + 44.0 + 76.0 + 58.0;
+  final desc = totalWidth - fixedSum;
   return [42, desc, 54, 44, 76, 58];
 }
 
@@ -664,7 +719,12 @@ pw.Widget _bankBox(InvoiceData d) {
 }
 
 pw.Widget _totalsTable(InvoiceData d) {
-  pw.TableRow row(String label, String mid, String amount, {bool bold = false}) {
+  pw.TableRow row(
+    String label,
+    String amount, {
+    String? ratePercent,
+    bool bold = false,
+  }) {
     return pw.TableRow(
       children: [
         pw.Padding(
@@ -673,7 +733,14 @@ pw.Widget _totalsTable(InvoiceData d) {
         ),
         pw.Padding(
           padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-          child: pw.Text(mid, style: _body(size: 8)),
+          child: pw.Text(':', style: _body(size: 8)),
+        ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+          child: pw.Text(
+            ratePercent ?? '',
+            style: _body(size: 8),
+          ),
         ),
         pw.Padding(
           padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
@@ -689,21 +756,31 @@ pw.Widget _totalsTable(InvoiceData d) {
   return pw.Table(
     border: pw.TableBorder.all(color: _black, width: 1),
     columnWidths: const {
-      0: pw.FlexColumnWidth(1.4),
-      1: pw.FlexColumnWidth(0.5),
-      2: pw.FlexColumnWidth(1.2),
+      0: pw.FlexColumnWidth(1.2),
+      1: pw.FixedColumnWidth(12),
+      2: pw.FlexColumnWidth(0.9),
+      3: pw.FlexColumnWidth(1.3),
     },
     children: [
-      row('Total', ':', formatUltraMoney(d.subtotal)),
-      row('SGST', ': ${d.sgstPercent.toStringAsFixed(2)} %',
-          formatUltraMoney(d.sgstAmt)),
-      row('CGST', ': ${d.cgstPercent.toStringAsFixed(2)} %',
-          formatUltraMoney(d.cgstAmt)),
-      row('IGST', ': ${d.igstPercent.toStringAsFixed(2)} %',
-          formatUltraMoney(d.igstAmt)),
-      row('P & F', ':', formatUltraMoney(d.pAndF)),
-      row('Round Off', ':', formatUltraMoney(d.roundOff)),
-      row('G.Total', ':', formatUltraMoney(d.grandTotal), bold: true),
+      row('Total', formatUltraMoney(d.subtotal)),
+      row(
+        'SGST',
+        formatUltraMoney(d.sgstAmt),
+        ratePercent: '${d.sgstPercent.toStringAsFixed(2)} %',
+      ),
+      row(
+        'CGST',
+        formatUltraMoney(d.cgstAmt),
+        ratePercent: '${d.cgstPercent.toStringAsFixed(2)} %',
+      ),
+      row(
+        'IGST',
+        formatUltraMoney(d.igstAmt),
+        ratePercent: '${d.igstPercent.toStringAsFixed(2)} %',
+      ),
+      row('P & F', formatUltraMoney(d.pAndF)),
+      row('Round Off', formatUltraMoney(d.roundOff)),
+      row('G.Total', formatUltraMoney(d.grandTotal), bold: true),
     ],
   );
 }
@@ -757,7 +834,7 @@ pw.Widget _termsAndSignature(InvoiceData d) {
             top: pw.BorderSide(color: _black, width: 1),
           ),
         ),
-        padding: const pw.EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 6),
         child: pw.Row(
           children: [
             pw.Expanded(child: pw.SizedBox()),
