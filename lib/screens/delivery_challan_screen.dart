@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
+import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/delivery_challan_document.dart';
 import '../widgets/enterprise_form_fields.dart';
@@ -82,6 +85,7 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
   String? partyKey;
   List<Map<String, dynamic>> customers = [];
   List<Map<String, dynamic>> suppliers = [];
+  bool partiesLoading = false;
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> units = [];
   List<Map<String, dynamic>> historyRows = [];
@@ -116,12 +120,19 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
   }
 
   Future<void> load() async {
-    customers = await repo.customers();
-    suppliers = await repo.suppliers();
-    products = await repo.products();
-    units = await repo.units();
-    _reconcilePartySelection();
-    await refreshSerial();
+    try {
+      partiesLoading = true;
+      if (mounted) setState(() {});
+      customers = await loadCustomersDirectory(repo, snackbarContext: context);
+      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      partiesLoading = false;
+      products = await repo.products();
+      units = await repo.units();
+      _reconcilePartySelection();
+      await refreshSerial();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -132,11 +143,20 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
   }
 
   Future<void> refreshSerial() async {
-    serialNo = '${await repo.nextDeliveryChallanSerial(kind.dbType)}';
+    try {
+      serialNo = '${await repo.nextDeliveryChallanSerial(kind.dbType)}';
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
   }
 
   Future<void> refreshHistory() async {
-    historyRows = await repo.deliveryChallansList();
+    try {
+      historyRows = await repo.deliveryChallansList();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+      historyRows = [];
+    }
     if (mounted) setState(() {});
   }
 
@@ -489,8 +509,8 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
   Widget _historyCard(Map<String, dynamic> row) {
     final id = row['id'] as int;
     final type = '${row['dc_type']}';
-    final amt = (row['grand_total'] as num?)?.toDouble() ?? 0;
-    final pcs = (row['total_pcs'] as num?)?.toDouble() ?? 0;
+    final amt = parseApiAmount(row['grand_total']);
+    final pcs = parseApiAmount(row['total_pcs']);
     final narrow = AppBreakpoints.isNarrow(context);
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -630,7 +650,12 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
                           value: partyKey,
                           hint: const Text('Choose supplier or customer', style: enterpriseInsetValueStyle),
                           items: _partyItems,
-                          onChanged: (v) => setState(() => _fillParty(v!)),
+                          onChanged: partiesLoading ? null : (v) => setState(() => _fillParty(v!)),
+                        ),
+                        partyDirectoryStatus(
+                          loading: partiesLoading,
+                          isCustomer: kind != DcKind.inward,
+                          itemCount: customers.length + suppliers.length,
                         ),
                         _field('OFFICIAL BILLING ADDRESS', billingAddress, maxLines: 2),
                         enterpriseFormPair(_field('CITY', city), _field('POSTAL PINCODE', pin)),

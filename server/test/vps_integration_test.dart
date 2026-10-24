@@ -5,6 +5,8 @@ import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:test/test.dart';
+import 'package:ultra_api_server/accounting/fy.dart';
+import 'package:ultra_api_server/accounting/voucher_numbering.dart';
 import 'package:ultra_api_server/database_connection.dart';
 import 'package:ultra_api_server/register_merged_routes.dart';
 
@@ -679,5 +681,134 @@ void main() {
       _purchaseBody(grandTotal: 1298),
     );
     expect(bogusPut.statusCode, 404);
+  });
+
+  test('GET /api/customers lists ordered by customer_name', () async {
+    final res = await _call('GET', '/api/customers');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    final list = jsonDecode(body) as List;
+    expect(list.length, greaterThanOrEqualTo(2));
+    final names = list.map((e) => (e as Map)['customer_name']).toList();
+    expect(names, contains('Customer Seventeen'));
+    final sorted = List<String>.from(names.map((n) => '$n'));
+    sorted.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    expect(names.map((n) => '$n').toList(), sorted);
+    final c17 = list.cast<Map>().firstWhere((c) => c['id'] == 17);
+    expect(c17['customer_name'], 'Customer Seventeen');
+  });
+
+  test('GET /api/customers/<id> returns one customer', () async {
+    final res = await _call('GET', '/api/customers/17');
+    final body = await _expectJson(res, 200);
+    expect(body['id'], 17);
+    expect(body['customer_name'], 'Customer Seventeen');
+  });
+
+  test('GET /api/suppliers lists flattened supplier_name', () async {
+    final res = await _call('GET', '/api/suppliers');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    final list = jsonDecode(body) as List;
+    final s92 = list.cast<Map>().firstWhere((s) => s['id'] == 92);
+    expect(s92['supplier_name'], 'Supplier Ninety Two');
+    expect(s92['data'], isNull);
+  });
+
+  test('GET /api/delivery-challans filters INWARD and PROFORMA', () async {
+    final inwardRes = await _call('GET', '/api/delivery-challans?dc_type=INWARD');
+    final inwardBody = await inwardRes.readAsString();
+    expect(inwardRes.statusCode, 200, reason: inwardBody);
+    final inwardList = jsonDecode(inwardBody) as List;
+    expect(inwardList, isNotEmpty);
+    expect(inwardList.every((r) => (r as Map)['dc_type'] == 'INWARD'), isTrue);
+    expect((inwardList.first as Map)['party_name'], isNotNull);
+
+    final proformaRes = await _call('GET', '/api/delivery-challans?dc_type=PROFORMA');
+    final proformaBody = await proformaRes.readAsString();
+    expect(proformaRes.statusCode, 200, reason: proformaBody);
+    final proformaList = jsonDecode(proformaBody) as List;
+    expect(proformaList, isNotEmpty);
+    expect(
+      proformaList.any((r) {
+        final m = r as Map;
+        return m['party_id'] == 17 || '${m['party_kind']}' == 'CUSTOMER';
+      }),
+      isTrue,
+    );
+  });
+
+  test('GET /api/material-types lists envelope rows', () async {
+    final res = await _call('GET', '/api/material-types');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    final list = jsonDecode(body) as List;
+    expect(list, isNotEmpty);
+    final first = list.first as Map;
+    expect(first['type_code'], isNotNull);
+    expect(first['data'], isNull);
+  });
+
+  test('GET /api/purchase-orders lists flattened header data', () async {
+    final res = await _call('GET', '/api/purchase-orders');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    final list = jsonDecode(body) as List;
+    expect(list, isA<List>());
+  });
+
+  test('GET /api/quotations returns 200', () async {
+    final res = await _call('GET', '/api/quotations');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    expect(jsonDecode(body), isA<List>());
+  });
+
+  test('GET /api/adjustment-notes returns 200', () async {
+    final res = await _call('GET', '/api/adjustment-notes');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    expect(jsonDecode(body), isA<List>());
+  });
+
+  test('GET /api/ledger-accounts returns 200', () async {
+    final res = await _call('GET', '/api/ledger-accounts');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    expect(jsonDecode(body), isA<List>());
+  });
+
+  test('GET /api/voucher-numbers/next peeks global_number_counters without increment', () async {
+    final c = conn!;
+    final counterKey = VoucherSequences.salesInvoice;
+    final before = await c.execute(
+      Sql.named(
+        'SELECT last_no FROM global_number_counters WHERE counter_key = @key',
+      ),
+      parameters: {'key': counterKey},
+    );
+    final beforeNo = before.isEmpty ? 0 : (before.first.first as num).toInt();
+
+    final res = await _call('GET', '/api/voucher-numbers/next?type=SAL&date=2026-10-20');
+    final body = await res.readAsString();
+    expect(res.statusCode, 200, reason: body);
+    final decoded = jsonDecode(body) as Map<String, dynamic>;
+    expect(decoded['display'], startsWith('SAL-'));
+    expect(decoded['next_no'], beforeNo + 1);
+
+    final res2 = await _call('GET', '/api/voucher-numbers/next?type=SAL&date=2026-10-20');
+    final body2 = await res2.readAsString();
+    expect(res2.statusCode, 200, reason: body2);
+    final decoded2 = jsonDecode(body2) as Map<String, dynamic>;
+    expect(decoded2['next_no'], decoded['next_no']);
+
+    final after = await c.execute(
+      Sql.named(
+        'SELECT last_no FROM global_number_counters WHERE counter_key = @key',
+      ),
+      parameters: {'key': counterKey},
+    );
+    final afterNo = after.isEmpty ? 0 : (after.first.first as num).toInt();
+    expect(afterNo, beforeNo);
   });
 }

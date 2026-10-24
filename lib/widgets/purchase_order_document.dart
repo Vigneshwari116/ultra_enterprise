@@ -1,4 +1,5 @@
 import '../services/ultra_repository.dart';
+import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import 'transaction_line_math.dart';
 import 'ultra_print_helpers.dart';
@@ -80,7 +81,7 @@ Future<InvoiceData?> purchaseOrderDataFromId(int purchaseOrderId) async {
     copyLabels: ultraPurchaseOrderCopyLabels,
     forwardingLabel: 'Estimated Freight',
     totalGrandLabel: 'Total Value',
-    roundOff: (po['round_off'] as num?)?.toDouble() ?? 0,
+    roundOff: parseApiAmount(po['round_off']),
   );
 }
 

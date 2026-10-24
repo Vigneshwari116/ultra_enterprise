@@ -2,18 +2,29 @@ import '../widgets/purchase_order_document.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../utils/party_opening.dart';
+import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_Report.dart';
+import '../utils/report_text_styles.dart';
+
+final purchaseReportsScreenKey = GlobalKey<PurchaseReportsScreenState>();
+
+abstract class PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
+  Future<void> reload();
+}
 
 class PurchaseReportsScreen extends StatefulWidget {
   const PurchaseReportsScreen({super.key});
   @override
-  State<PurchaseReportsScreen> createState() => _PurchaseReportsScreenState();
+  PurchaseReportsScreenState createState() => _PurchaseReportsScreenState();
 }
 
-class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
+class _PurchaseReportsScreenState extends PurchaseReportsScreenState {
+  @override
+  Future<void> reload() => load();
   final repo = UltraRepository.instance;
   bool loading = true;
   List<Map<String, dynamic>> vouchers = [];
@@ -44,16 +55,20 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
 
   Future<void> load() async {
     setState(() => loading = true);
-    vouchers = await repo.purchaseVouchersWithParty();
-    purchaseOrders = await repo.purchaseOrdersWithParty();
-    payments = await repo.allPayments();
-    suppliers = await repo.suppliers();
+    try {
+      vouchers = await repo.purchaseVouchersWithParty();
+      purchaseOrders = await repo.purchaseOrdersWithParty();
+      payments = await repo.allPayments();
+      suppliers = await repo.suppliers();
 
-    if (selectedSupplierId == null && suppliers.isNotEmpty) {
-      selectedSupplierId = suppliers.first['id'] as int;
-    }
-    if (selectedSupplierId != null) {
-      _ledgerWiseFuture = _computeLedgerWise(selectedSupplierId!);
+      if (selectedSupplierId == null && suppliers.isNotEmpty) {
+        selectedSupplierId = suppliers.first['id'] as int;
+      }
+      if (selectedSupplierId != null) {
+        _ledgerWiseFuture = _computeLedgerWise(selectedSupplierId!);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() => loading = false);
   }
@@ -136,7 +151,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ...v,
         '_record_type': 'PURCHASE VOUCHER',
         '_display_no':
-            v['supplier_invoice_no'] ?? 'PV-${v['voucher_no'] ?? v['id']}',
+            purchaseVoucherDisplayNo(v),
         '_display_date': v['voucher_date'],
         '_display_party': v['party_name'] ?? '-',
       });
@@ -507,7 +522,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
             const SizedBox(height: 4),
             Text(
               '${isPo ? 'PO NO' : 'VOUCHER NO'}: '
-              '${isPo ? (v['po_no'] ?? '-') : (v['voucher_no'] ?? '-')}'
+              '${isPo ? (v['po_no'] ?? '-') : purchaseVoucherDisplayNo(v)}'
               '  •  REF: $displayNo'
               '  •  DATE: ${_fmtDate(displayDate)}',
               style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFB8860B)),
@@ -678,7 +693,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
         ...v,
         '_record_type': 'PURCHASE VOUCHER',
         '_display_no':
-            v['supplier_invoice_no'] ?? 'PV-${v['voucher_no'] ?? v['id']}',
+            purchaseVoucherDisplayNo(v),
         '_display_party': v['party_name'] ?? '-',
       });
     }
@@ -698,7 +713,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       const TableRow(
         children: [
           _AuditHeaderCell('TYPE'),
-          _AuditHeaderCell('INV / BILL NO'),
+          _AuditHeaderCell('BILL NO'),
           _AuditHeaderCell('PARTY NAME'),
           _AuditHeaderCell('TAXABLE'),
           _AuditHeaderCell('CGST'),
@@ -1019,7 +1034,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       entries.add({
         'date': v['voucher_date'],
         'type': 'PURCHASE',
-        'ref': 'PV-${v['voucher_no']}',
+        'ref': purchaseVoucherDisplayNo(v),
         'narration': v['supplier_invoice_no'] ?? '-',
         'debit': 0.0,
         'credit': _numValue(v['grand_total']),
@@ -1029,7 +1044,7 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
       entries.add({
         'date': p['payment_date'],
         'type': 'PAYMENT',
-        'ref': p['reference_no'] ?? '-',
+        'ref': paymentDisplayNo(p),
         'narration': p['narration'] ?? '-',
         'debit': _numValue(p['amount']),
         'credit': 0.0,
@@ -1041,8 +1056,8 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
     double totalDebit = 0, totalCredit = 0;
     final rows = <Map<String, dynamic>>[];
     for (final e in entries) {
-      final debit = e['debit'] as double;
-      final credit = e['credit'] as double;
+      final debit = parseApiAmount(e['debit']);
+      final credit = parseApiAmount(e['credit']);
       running = running + debit - credit;
       totalDebit += debit;
       totalCredit += credit;
@@ -1160,14 +1175,14 @@ class _PurchaseReportsScreenState extends State<PurchaseReportsScreen> {
                             _AuditCell('${r['type']}'),
                             _AuditCell('${r['ref']}'),
                             _AuditCell('${r['narration']}'),
-                            _AuditCell((r['debit'] as double) == 0
+                            _AuditCell(parseApiAmount(r['debit']) == 0
                                 ? '-'
-                                : (r['debit'] as double).toStringAsFixed(2)),
-                            _AuditCell((r['credit'] as double) == 0
+                                : parseApiAmount(r['debit']).toStringAsFixed(2)),
+                            _AuditCell(parseApiAmount(r['credit']) == 0
                                 ? '-'
-                                : (r['credit'] as double).toStringAsFixed(2)),
+                                : parseApiAmount(r['credit']).toStringAsFixed(2)),
                             _AuditCell(
-                                (r['balance'] as double).toStringAsFixed(2),
+                                parseApiAmount(r['balance']).toStringAsFixed(2),
                                 bold: true),
                           ]),
                       ],
@@ -1242,11 +1257,7 @@ class _AuditHeaderCell extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: border, width: 1.2))),
-        child: Text(text,
-            style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF748094))),
+        child: Text(text, style: kReportHeaderStyle),
       );
 }
 
@@ -1258,13 +1269,11 @@ class _AuditCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        child: Text(text,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: bold
-                  ? FontWeight.w800
-                  : (muted ? FontWeight.w600 : FontWeight.w500),
-              color: muted ? const Color(0xFF9AA5B4) : Colors.black87,
-            )),
+        child: Text(
+          text,
+          style: bold
+              ? kReportCellBoldStyle
+              : (muted ? kReportCellStyle.copyWith(color: kReportInk.withValues(alpha: 0.72)) : kReportCellStyle),
+        ),
       );
 }

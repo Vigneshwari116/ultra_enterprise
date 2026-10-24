@@ -1,4 +1,5 @@
 import 'package:pdf/pdf.dart';
+import '../utils/voucher_display.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
@@ -16,19 +17,19 @@ Future<void> printJournalSummaryReport(List<Map<String, dynamic>> lines) async {
           headers: ['VOUCHER DATE', 'NARRATION', 'DEBIT (TO) ACCOUNT', 'CREDIT (BY) ACCOUNT', 'AMOUNT'],
           data: lines
               .map((r) => [
-                    '${r['voucher_date'] ?? ''}',
+                    formatReportDate(r['voucher_date']),
                     '${r['narration'] ?? ''}',
                     '${r['dr_account_label'] ?? ''}',
                     '${r['cr_account_label'] ?? ''}',
-                    ((r['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2),
+                    formatReportAmount(r['amount']),
                   ])
               .toList(),
-          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
-          cellStyle: const pw.TextStyle(fontSize: 8.5),
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: PdfColors.grey900),
+          cellStyle: const pw.TextStyle(fontSize: 11, color: PdfColors.grey900),
         ),
         pw.SizedBox(height: 10),
         pw.Text(
-          'TOTAL: ₹ ${lines.fold<double>(0, (s, r) => s + ((r['amount'] as num?)?.toDouble() ?? 0)).toStringAsFixed(2)}',
+          'TOTAL: ₹ ${lines.fold<double>(0, (s, r) => s + parseApiAmount((r['amount']))).toStringAsFixed(2)}',
           style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
         ),
       ],

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
@@ -5,9 +7,18 @@ import 'package:uuid/uuid.dart';
 
 import '../http.dart';
 import '../json_util.dart';
-import '../sql_supplier.dart';
 
 const _uuid = Uuid();
+
+const _partyNameSql = '''
+  CASE
+    WHEN (po.data::jsonb->>'supplier_id') IS NOT NULL THEN (
+      SELECT data::jsonb->>'supplier_name' FROM suppliers
+      WHERE id = (po.data::jsonb->>'supplier_id')::int
+    )
+    ELSE NULL
+  END AS party_name
+''';
 
 void registerPurchaseOrderRoutes(Router router, Connection conn) {
   router.get('/api/purchase-orders', (Request request) => listPurchaseOrders(request, conn));
@@ -26,22 +37,36 @@ void registerPurchaseOrderRoutes(Router router, Connection conn) {
 
 Future<Response> listPurchaseOrders(Request request, Connection conn) async {
   final status = request.url.queryParameters['status'];
-  final where = status == 'open' ? "WHERE po.status != 'RECEIVED'" : '';
+  final where = status == 'open' ? "WHERE po.status IS DISTINCT FROM 'RECEIVED'" : '';
   final rows = await conn.execute('''
-    SELECT po.*, $supplierPartyNameExpr AS party_name,
-      (SELECT COALESCE(SUM(poi.quantity), 0) FROM purchase_order_items poi WHERE poi.purchase_order_id = po.id) AS total_qty
+    SELECT po.id, po.uuid, po.status, po.data, po.created_at,
+      $_partyNameSql,
+      (
+        SELECT COALESCE(SUM((poi.data::jsonb->>'quantity')::numeric), 0)
+        FROM purchase_order_items poi
+        WHERE poi.parent_id = po.id
+      ) AS total_qty
     FROM purchase_orders po
-    $supplierJoin
     $where
-    ORDER BY po.po_date DESC NULLS LAST, po.id DESC
+    ORDER BY (po.data::jsonb->>'po_date') DESC NULLS LAST, po.id DESC
   ''');
-  return jsonOk(serializeRows(rows.map((r) => r.toColumnMap()).toList()));
+  final list = rows.map((r) {
+    final flat = flattenEnvelopeRow(serializeRow(r.toColumnMap()));
+    final partyName = r.toColumnMap()['party_name'];
+    if (partyName != null && '$partyName'.trim().isNotEmpty) {
+      flat['party_name'] = partyName;
+      flat['supplier_name'] ??= partyName;
+    }
+    return flat;
+  }).toList();
+  return jsonOk(serializeRows(list));
 }
 
 Future<Response> getPurchaseOrderById(Connection conn, int id) async {
   final rows = await conn.execute(
     Sql.named('''
-      SELECT po.*,
+      SELECT po.id, po.uuid, po.status, po.data, po.created_at,
+        $_partyNameSql,
         s.data::jsonb->>'supplier_name' AS supplier_name,
         s.data::jsonb->>'address' AS address,
         s.data::jsonb->>'city' AS city,
@@ -53,19 +78,26 @@ Future<Response> getPurchaseOrderById(Connection conn, int id) async {
         s.data::jsonb->>'ifsc_code' AS ifsc_code,
         s.data::jsonb->>'branch_address' AS branch_address
       FROM purchase_orders po
-      LEFT JOIN suppliers s ON s.id = po.supplier_id
+      LEFT JOIN suppliers s ON s.id = (po.data::jsonb->>'supplier_id')::int
       WHERE po.id = @id
     '''),
     parameters: {'id': id},
   );
   if (rows.isEmpty) return jsonError('Purchase order not found: $id', status: 404);
+  final order = flattenEnvelopeRow(serializeRow(rows.first.toColumnMap()));
   final items = await conn.execute(
-    Sql.named('SELECT * FROM purchase_order_items WHERE purchase_order_id = @id ORDER BY id'),
+    Sql.named(
+      'SELECT id, parent_id, data FROM purchase_order_items '
+      'WHERE parent_id = @id ORDER BY id',
+    ),
     parameters: {'id': id},
   );
+  final itemRows = items
+      .map((r) => flattenEnvelopeRow(serializeRow(r.toColumnMap())))
+      .toList();
   return jsonOk({
-    'order': serializeRow(flattenEnvelopeRow(rows.first.toColumnMap())),
-    'items': serializeRows(items.map((r) => r.toColumnMap()).toList()),
+    'order': order,
+    'items': serializeRows(itemRows),
   });
 }
 
@@ -75,53 +107,31 @@ Future<Response> createPurchaseOrder(Request request, Connection conn) async {
   if (items.isEmpty) return jsonError('Purchase order must contain at least one item');
 
   return await conn.runTx((tx) async {
+    final headerStatus = '${body['status'] ?? 'PENDING'}';
+    final payload = jsonEncode(body);
     final result = await tx.execute(
       Sql.named('''
-        INSERT INTO purchase_orders (
-          uuid, po_bill_no, po_no, po_date, delivery_due_date, supplier_ref_no, total_packages,
-          delivery_mode, remarks, supplier_id, state_zone, due_days, estimated_freight,
-          taxable_total, cgst_total, sgst_total, igst_total, grand_total, status
-        ) VALUES (
-          @uuid, @po_bill_no, @po_no, @po_date, @delivery_due_date, @supplier_ref_no, @total_packages,
-          @delivery_mode, @remarks, @supplier_id, @state_zone, @due_days, @estimated_freight,
-          @taxable_total, @cgst_total, @sgst_total, @igst_total, @grand_total, @status
-        ) RETURNING id
+        INSERT INTO purchase_orders (uuid, status, data, created_at)
+        VALUES (@uuid, @status, @data, NOW())
+        RETURNING id
       '''),
       parameters: {
         'uuid': body['uuid'] ?? _uuid.v4(),
-        'po_bill_no': body['po_bill_no'],
-        'po_no': body['po_no'],
-        'po_date': body['po_date'],
-        'delivery_due_date': body['delivery_due_date'],
-        'supplier_ref_no': body['supplier_ref_no'],
-        'total_packages': body['total_packages'] ?? 0,
-        'delivery_mode': body['delivery_mode'],
-        'remarks': body['remarks'],
-        'supplier_id': body['supplier_id'],
-        'state_zone': body['state_zone'],
-        'due_days': body['due_days'] ?? 0,
-        'estimated_freight': body['estimated_freight'] ?? 0,
-        'taxable_total': body['taxable_total'] ?? 0,
-        'cgst_total': body['cgst_total'] ?? 0,
-        'sgst_total': body['sgst_total'] ?? 0,
-        'igst_total': body['igst_total'] ?? 0,
-        'grand_total': body['grand_total'] ?? 0,
-        'status': body['status'] ?? 'PENDING',
+        'status': headerStatus,
+        'data': payload,
       },
     );
-    final orderId = result.first.first as int;
+    final orderId = (result.first.first as num).toInt();
     for (final it in items) {
       await tx.execute(
         Sql.named('''
-          INSERT INTO purchase_order_items (
-            purchase_order_id, product_id, description, uom, hsn, quantity, rate,
-            cgst_percent, sgst_percent, igst_percent, taxable, cgst, sgst, igst, total
-          ) VALUES (
-            @purchase_order_id, @product_id, @description, @uom, @hsn, @quantity, @rate,
-            @cgst_percent, @sgst_percent, @igst_percent, @taxable, @cgst, @sgst, @igst, @total
-          )
+          INSERT INTO purchase_order_items (parent_id, data)
+          VALUES (@parent_id, @data)
         '''),
-        parameters: {...it, 'purchase_order_id': orderId},
+        parameters: {
+          'parent_id': orderId,
+          'data': jsonEncode(it),
+        },
       );
     }
     return jsonOk({'id': orderId, 'order': {'id': orderId}}, status: 201);

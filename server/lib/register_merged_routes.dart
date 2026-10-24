@@ -14,9 +14,11 @@ import 'routes/products.dart';
 import 'routes/purchase_orders.dart';
 import 'routes/purchase_vouchers.dart';
 import 'routes/quotations.dart';
+import 'routes/reports.dart';
 import 'routes/sales_invoices.dart';
 import 'routes/salary_vouchers.dart';
 import 'routes/units.dart';
+import 'routes/voucher_numbers.dart';
 
 /// Registers **missing** REST routes for merge into the existing VPS `ultra_server`.
 void registerMergedRoutes(Router router, Connection conn) {
@@ -30,10 +32,12 @@ void registerMergedRoutes(Router router, Connection conn) {
   registerExpenseVoucherRoutes(router, conn);
   registerSalaryVoucherRoutes(router, conn);
   registerJournalRoutes(router, conn);
+  registerReportRoutes(router, conn);
   registerLedgerRoutes(router, conn);
   registerAccountingLedgerRoutes(router, conn);
   registerAdjustmentNoteRoutes(router, conn);
   registerMaterialTypeRoutes(router, conn);
   registerUnitRoutes(router, conn);
   registerProductRoutes(router, conn);
+  registerVoucherNumberRoutes(router, conn);
 }

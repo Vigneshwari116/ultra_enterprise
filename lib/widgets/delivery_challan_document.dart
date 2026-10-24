@@ -1,4 +1,5 @@
 import '../services/ultra_repository.dart';
+import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import 'transaction_line_math.dart';
 import 'ultra_print_helpers.dart';
@@ -32,8 +33,8 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
         (it) => InvoiceItem(
           description: '${it['description'] ?? ''}',
           hsnCode: '${it['hsn'] ?? ''}',
-          qty: (it['quantity'] as num?)?.toDouble() ?? 0,
-          price: (it['rate'] as num?)?.toDouble() ?? 0,
+          qty: parseApiAmount(it['quantity']),
+          price: parseApiAmount(it['rate']),
           remarks: '${it['remarks'] ?? ''}',
         ),
       )
@@ -63,7 +64,7 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
 
   final subtotal = (dc['base_value'] as num?)?.toDouble() ??
       items.fold<double>(0, (s, i) => s + i.amount);
-  final fwd = (dc['fwd_charge'] as num?)?.toDouble() ?? 0;
+  final fwd = parseApiAmount(dc['fwd_charge']);
   final grand = (dc['grand_total'] as num?)?.toDouble() ??
       subtotal + cgstTotal + sgstTotal + igstTotal + fwd;
   final validityDays = '${dc['validity_days'] ?? '0'}';

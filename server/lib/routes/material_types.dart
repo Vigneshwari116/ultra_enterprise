@@ -1,8 +1,14 @@
+import 'dart:convert';
+
 import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
+import 'package:uuid/uuid.dart';
 
 import '../http.dart';
+import '../json_util.dart';
+
+const _uuid = Uuid();
 
 void registerMaterialTypeRoutes(Router router, Connection conn) {
   router.get('/api/material-types', (_) => listMaterialTypes(conn));
@@ -20,8 +26,14 @@ void registerMaterialTypeRoutes(Router router, Connection conn) {
 }
 
 Future<Response> listMaterialTypes(Connection conn) async {
-  final rows = await conn.execute('SELECT * FROM material_types ORDER BY type_code');
-  return jsonOk(serializeRows(rows.map((r) => r.toColumnMap()).toList()));
+  final rows = await conn.execute(
+    "SELECT id, uuid, status, data, created_at FROM material_types "
+    "ORDER BY data::jsonb->>'type_code' ASC NULLS LAST, id ASC",
+  );
+  final list = rows
+      .map((r) => flattenEnvelopeRow(serializeRow(r.toColumnMap())))
+      .toList();
+  return jsonOk(serializeRows(list));
 }
 
 Future<Response> createMaterialType(Request request, Connection conn) async {
@@ -29,16 +41,17 @@ Future<Response> createMaterialType(Request request, Connection conn) async {
   if ('${body['type_code'] ?? ''}'.trim().isEmpty) {
     return jsonError('type_code is required');
   }
+  final payload = jsonEncode({
+    'type_code': body['type_code'],
+    'description': body['description'],
+  });
   final result = await conn.execute(
     Sql.named('''
-      INSERT INTO material_types (type_code, description, created_at)
-      VALUES (@type_code, @description, NOW())
+      INSERT INTO material_types (uuid, status, data, created_at)
+      VALUES (@uuid, 'ACTIVE', @data, NOW())
       RETURNING id
     '''),
-    parameters: {
-      'type_code': body['type_code'],
-      'description': body['description'],
-    },
+    parameters: {'uuid': _uuid.v4(), 'data': payload},
   );
   final id = result.first.first;
   return jsonOk({'id': id, 'material_type': {'id': id}}, status: 201);
@@ -46,18 +59,17 @@ Future<Response> createMaterialType(Request request, Connection conn) async {
 
 Future<Response> updateMaterialType(Request request, Connection conn, int id) async {
   final body = await readJsonObject(request);
+  final existing = await conn.execute(
+    Sql.named('SELECT data FROM material_types WHERE id = @id'),
+    parameters: {'id': id},
+  );
+  if (existing.isEmpty) return jsonError('Material type not found: $id', status: 404);
+  final merged = flattenEnvelopeRow({'data': existing.first.toColumnMap()['data']});
+  if (body['type_code'] != null) merged['type_code'] = body['type_code'];
+  if (body.containsKey('description')) merged['description'] = body['description'];
   final updated = await conn.execute(
-    Sql.named('''
-      UPDATE material_types SET
-        type_code = COALESCE(@type_code, type_code),
-        description = COALESCE(@description, description)
-      WHERE id = @id RETURNING id
-    '''),
-    parameters: {
-      'id': id,
-      'type_code': body['type_code'],
-      'description': body['description'],
-    },
+    Sql.named('UPDATE material_types SET data = @data WHERE id = @id RETURNING id'),
+    parameters: {'id': id, 'data': jsonEncode(merged)},
   );
   if (updated.isEmpty) return jsonError('Material type not found: $id', status: 404);
   return jsonOk({'id': id});

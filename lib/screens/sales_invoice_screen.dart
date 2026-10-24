@@ -8,6 +8,7 @@ import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
 import '../widgets/sales_report.dart';
 import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
 import '../widgets/transaction_line_math.dart';
 
 /// Used by [AppShell] to refresh UOM/product lists after Unit Master saves.
@@ -47,8 +48,10 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   // Empty until the user picks one — mirrors the reference's mandatory red "Choose Option" state.
   String zone = '';
   String voucherNo = '';
+  int? nextVoucherNo;
 
   List<Map<String, dynamic>> customers = [];
+  bool customersLoading = false;
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> units = [];
   int? customerId;
@@ -61,21 +64,35 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   }
 
   Future<void> load() async {
-    customers = await repo.customers();
-    products = await repo.products();
-    units = await repo.units();
-    if (UltraConfig.persistLocally) {
-      final count = await repo.nextSalesVoucherNo();
-      voucherNo = '$count';
-    } else {
-      voucherNo = 'Assigned on save';
-    }
-    _reconcileCustomerSelection();
-    if (customers.isNotEmpty && customerId == null) {
-      customerId = coerceCatalogId(customers.first['id']);
-      fillCustomer(customers.first);
+    try {
+      customersLoading = true;
+      if (mounted) setState(() {});
+      customers = await loadCustomersDirectory(repo, snackbarContext: context);
+      customersLoading = false;
+      products = await repo.products();
+      units = await repo.units();
+      if (UltraConfig.persistLocally) {
+        final count = await repo.nextSalesVoucherNo();
+        voucherNo = '$count';
+        nextVoucherNo = null;
+      } else {
+        nextVoucherNo = await repo.peekNextVoucherNumber('SAL', voucherDate: date);
+      }
+      _reconcileCustomerSelection();
+      if (customers.isNotEmpty && customerId == null) {
+        customerId = coerceCatalogId(customers.first['id']);
+        fillCustomer(customers.first);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() {});
+  }
+
+  String _salesVoucherNoLabel() {
+    if (UltraConfig.persistLocally) return voucherNo;
+    if (nextVoucherNo != null) return 'Next: $nextVoucherNo';
+    return 'Auto on save';
   }
 
   void _reconcileCustomerSelection() {
@@ -88,10 +105,17 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   /// Refreshes remote master lists when this screen becomes active again.
   @override
   Future<void> refreshCatalog() async {
-    customers = await repo.customers();
-    products = await repo.products();
-    units = await repo.units();
-    _reconcileCustomerSelection();
+    try {
+      customersLoading = true;
+      if (mounted) setState(() {});
+      customers = await loadCustomersDirectory(repo, snackbarContext: context);
+      customersLoading = false;
+      products = await repo.products();
+      units = await repo.units();
+      _reconcileCustomerSelection();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -175,11 +199,6 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     if (picked != null) {
       onPicked(formatIsoDate(picked));
     }
-  }
-
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
   double get fwd => double.tryParse(fwdCharge.text.trim()) ?? 0;
@@ -357,10 +376,23 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                   title: 'SECTION 1: TRANSACTION METADATA',
                   children: [
                     enterpriseFormPair(
-                      _outline('SALES VOUCHER NO (AUTO)',
-                          controller: TextEditingController(text: voucherNo),
-                          readOnly: true,
-                          filled: true),
+                      enterpriseInsetFieldShell(
+                        label: 'SALES VOUCHER NO (AUTO)',
+                        filled: true,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _salesVoucherNoLabel(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: enterpriseInsetValueStyle.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ),
                       enterpriseInsetDateField(
                         label: 'TRANSACTION DATE',
                         isoDate: date,
@@ -417,7 +449,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                           })
                           .whereType<DropdownMenuItem<int>>()
                           .toList(),
-                      onChanged: (v) {
+                      onChanged: customersLoading
+                          ? null
+                          : (v) {
                         final c = customers
                             .firstWhere((x) => coerceCatalogId(x['id']) == v);
                         setState(() {
@@ -425,6 +459,11 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                           fillCustomer(c);
                         });
                       },
+                    ),
+                    partyDirectoryStatus(
+                      loading: customersLoading,
+                      isCustomer: true,
+                      itemCount: customers.length,
                     ),
                     const SizedBox(height: 14),
                     _outline('ADDRESS',
@@ -577,8 +616,6 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       }),
     );
   }
-
-  String _amountInWords(double v) => payableAmountInWords(v);
 
   Table _productMatrixTable() {
     return Table(

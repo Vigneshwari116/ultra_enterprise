@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../config/ultra_config.dart';
 import '../database/app_database.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../utils/sales_invoice_display.dart';
 import '../widgets/enterprise_widgets.dart';
 
@@ -31,15 +32,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
-    late final List<Map<String, dynamic>> customers;
-    late final List<Map<String, dynamic>> invoices;
-    late int rp;
-    late int ppo;
-    late double co;
-    late double so;
-    late double me;
+    var customers = <Map<String, dynamic>>[];
+    var invoices = <Map<String, dynamic>>[];
+    var rp = 0;
+    var ppo = 0;
+    var co = 0.0;
+    var so = 0.0;
+    var me = 0.0;
 
-    if (UltraConfig.persistLocally) {
+    try {
+      if (UltraConfig.persistLocally) {
       final db = AppDatabase.instance;
       final results = await Future.wait([
         db.runningProjectsCount(),
@@ -57,13 +59,23 @@ class _HomeScreenState extends State<HomeScreen> {
       me = results[4] as double;
       customers = results[5] as List<Map<String, dynamic>>;
       invoices = results[6] as List<Map<String, dynamic>>;
-    } else {
-      final repo = UltraRepository.instance;
-      customers = await repo.customers();
-      invoices = await repo.salesInvoicesWithParty();
-      final orders = await repo.purchaseOrdersWithParty();
-      rp = invoices.isNotEmpty ? 1 : 0;
-      ppo = orders.where((o) => '${o['status']}' != 'RECEIVED').length;
+      } else {
+        final repo = UltraRepository.instance;
+        customers = await repo.customers();
+        invoices = await repo.salesInvoicesWithParty();
+        final orders = await repo.purchaseOrdersWithParty();
+        rp = invoices.isNotEmpty ? 1 : 0;
+        ppo = orders.where((o) => '${o['status']}' != 'RECEIVED').length;
+        co = 0;
+        so = 0;
+        me = 0;
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+      customers = [];
+      invoices = [];
+      rp = 0;
+      ppo = 0;
       co = 0;
       so = 0;
       me = 0;
@@ -77,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final days = started == null ? 0 : DateTime.now().difference(started).inDays;
       rows.add(_ProjectRow(
         projectNo: salesInvoiceDisplayNo(inv) != '-'
-            ? 'PRJ-${salesInvoiceDisplayNo(inv)}'
+            ? salesInvoiceDisplayNo(inv)
             : 'N/A',
         client: client,
         quantity: '1',

@@ -6,6 +6,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
 import '../widgets/transaction_line_math.dart';
 import 'product_catalog_refresh.dart';
 
@@ -30,8 +31,10 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   String voucherDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   String supplierInvoiceDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   String voucherNo = '';
+  int? nextVoucherNo;
 
   List<Map<String, dynamic>> suppliers = [];
+  bool suppliersLoading = false;
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> units = [];
   List<Map<String, dynamic>> openOrders = [];
@@ -50,11 +53,18 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   }
 
   Future<void> refreshProductCatalog() async {
-    suppliers = await repo.suppliers();
-    products = await repo.products();
-    units = await repo.units();
-    openOrders = await repo.openPurchaseOrders();
-    _reconcileSupplierSelection();
+    try {
+      suppliersLoading = true;
+      if (mounted) setState(() {});
+      suppliers = await repo.suppliers();
+      suppliersLoading = false;
+      products = await repo.products();
+      units = await repo.units();
+      openOrders = await repo.openPurchaseOrders();
+      _reconcileSupplierSelection();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -66,23 +76,33 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
   }
 
   Future<void> load() async {
-    suppliers = await repo.suppliers();
-    products = await repo.products();
-    units = await repo.units();
-    openOrders = await repo.openPurchaseOrders();
-    if (UltraConfig.persistLocally) {
-      voucherNo = '${await repo.nextPurchaseVoucherNo()}';
-    } else {
-      voucherNo = 'Assigned on save';
+    try {
+      suppliersLoading = true;
+      if (mounted) setState(() {});
+      suppliers = await repo.suppliers();
+      suppliersLoading = false;
+      products = await repo.products();
+      units = await repo.units();
+      openOrders = await repo.openPurchaseOrders();
+      if (UltraConfig.persistLocally) {
+        voucherNo = '${await repo.nextPurchaseVoucherNo()}';
+        nextVoucherNo = null;
+      } else {
+        nextVoucherNo =
+            await repo.peekNextVoucherNumber('PUR', voucherDate: voucherDate);
+      }
+      voucherNoController.text = _voucherNoFieldText();
+      _reconcileSupplierSelection();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
-    voucherNoController.text = voucherNo;
-    _reconcileSupplierSelection();
     if (mounted) setState(() {});
   }
 
-  int? _toInt(dynamic value) {
-    if (value is int) return value;
-    return int.tryParse('$value');
+  String _voucherNoFieldText() {
+    if (UltraConfig.persistLocally) return voucherNo;
+    if (nextVoucherNo != null) return 'Next: $nextVoucherNo';
+    return 'Auto on save';
   }
 
   double _toDouble(dynamic value) {
@@ -284,10 +304,24 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                     title: 'SECTION 1: TRANSACTION METADATA',
                     children: [
                       enterpriseFormPair(
-                        _outline('VOUCHER NO',
-                            controller: voucherNoController,
-                            readOnly: true,
-                            filled: true),
+                        enterpriseInsetFieldShell(
+                          label: 'VOUCHER NO',
+                          filled: true,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                _voucherNoFieldText(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: enterpriseInsetValueStyle
+                                    .copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ),
                         enterpriseInsetDateField(
                           label: 'VOUCHER DATE',
                           isoDate: voucherDate,
@@ -357,7 +391,9 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                               })
                               .whereType<DropdownMenuItem<int>>()
                               .toList(),
-                          onChanged: (v) {
+                          onChanged: suppliersLoading
+                              ? null
+                              : (v) {
                             final s = suppliers.firstWhere((x) => coerceCatalogId(x['id']) == v);
                             setState(() {
                               supplierId = v;
@@ -365,6 +401,11 @@ class _PurchaseVoucherScreenState extends State<PurchaseVoucherScreen> {
                             });
                           },
                         ),
+                      ),
+                      partyDirectoryStatus(
+                        loading: suppliersLoading,
+                        isCustomer: false,
+                        itemCount: suppliers.length,
                       ),
                       enterpriseFormPair(
                           _outline('ADDRESS',

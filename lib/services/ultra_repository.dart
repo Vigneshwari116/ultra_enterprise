@@ -5,6 +5,8 @@ import 'package:uuid/uuid.dart';
 import '../config/ultra_config.dart';
 import '../database/app_database.dart';
 import '../widgets/transaction_line_math.dart';
+import '../utils/api_errors.dart';
+import '../utils/voucher_display.dart';
 import 'api_service.dart';
 
 /// Single entry point for app data: server-first when [UltraConfig.persistLocally] is false.
@@ -20,15 +22,22 @@ class UltraRepository {
   // ---- HTTP helpers ----
 
   bool _isApiNotFound(Object e) {
+    if (e is ApiException && e.statusCode == 404) return true;
     final msg = e.toString();
     return msg.contains('404') || msg.contains('Route not found');
   }
 
+  /// GET that returns null for missing routes (404). Other failures throw
+  /// [ApiException]; screen [load] methods should catch and call
+  /// [showReadableErrorSnackBar].
   Future<dynamic> _safeGet(String path) async {
     try {
       return await _api.get(path);
     } catch (e) {
       if (_isApiNotFound(e)) return null;
+      if (e is! ApiException) {
+        throw ApiException(0, readableApiError(e));
+      }
       rethrow;
     }
   }
@@ -372,7 +381,7 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> customers() async {
     if (UltraConfig.persistLocally) return _db.customers();
-    return await _getList('/api/customers');
+    return await _getPartyList('/api/customers', isCustomer: true);
   }
 
   Future<int> insertCustomer(Map<String, dynamic> row) async {
@@ -388,7 +397,26 @@ class UltraRepository {
 
   Future<List<Map<String, dynamic>>> suppliers() async {
     if (UltraConfig.persistLocally) return _db.suppliers();
-    return await _getList('/api/suppliers');
+    return await _getPartyList('/api/suppliers', isCustomer: false);
+  }
+
+  Future<List<Map<String, dynamic>>> _getPartyList(String path, {required bool isCustomer}) async {
+    try {
+      return _asRowList(await _api.get(path)).map(_flattenEnvelopeRow).toList();
+    } catch (e) {
+      if (e is ApiException && e.statusCode == 404) {
+        throw ApiException(
+          404,
+          isCustomer
+              ? 'Customer list route not found on server'
+              : 'Supplier list route not found on server',
+        );
+      }
+      if (e is! ApiException) {
+        throw ApiException(0, readableApiError(e));
+      }
+      rethrow;
+    }
   }
 
   Future<int> insertSupplier(Map<String, dynamic> row) async {
@@ -406,8 +434,8 @@ class UltraRepository {
     if (UltraConfig.persistLocally) {
       if (partyKind.toUpperCase() == 'SUPPLIER') {
         final s = await supplierById(partyId);
-        final cr = (s?['opening_balance_cr'] as num?)?.toDouble() ?? 0;
-        final dr = (s?['opening_balance_dr'] as num?)?.toDouble() ?? 0;
+        final cr = parseApiAmount(s?['opening_balance_cr']);
+        final dr = parseApiAmount(s?['opening_balance_dr']);
         if (cr >= dr && cr > 0) {
           return {
             'party_kind': 'SUPPLIER',
@@ -435,7 +463,8 @@ class UltraRepository {
     final raw = await _safeGet(
       '/api/party-ledgers?party_kind=${partyKind.toUpperCase()}&party_id=$partyId',
     );
-    return Map<String, dynamic>.from(_asRow(raw) ?? {});
+    if (raw == null) return {};
+    return Map<String, dynamic>.from(_asRow(raw));
   }
 
   Future<void> setPartyLedgerOpening({
@@ -524,7 +553,7 @@ class UltraRepository {
     final list = await salesInvoicesWithParty();
     var max = 0;
     for (final row in list) {
-      final n = (row['invoice_no'] as num?)?.toInt() ?? 0;
+      final n = parseApiInt(row['invoice_no']) ?? 0;
       if (n > max) max = n;
     }
     return max + 1;
@@ -571,7 +600,7 @@ class UltraRepository {
     final list = await _getList('/api/purchase-orders');
     var max = 0;
     for (final row in list) {
-      final n = (row['po_no'] as num?)?.toInt() ?? 0;
+      final n = parseApiInt(row['po_no']) ?? 0;
       if (n > max) max = n;
     }
     return max + 1;
@@ -731,7 +760,7 @@ class UltraRepository {
       final id = await _createWithItems('purchase_vouchers', 'purchase_voucher_items', body, 'voucher_id');
       for (final it in items) {
         final productId = it['product_id'] as int?;
-        final qty = (it['quantity'] as num?)?.toDouble() ?? 0;
+        final qty = parseApiAmount(it['quantity']);
         if (productId != null) await incrementStock(productId, qty);
       }
       if (poId != null) await markPurchaseOrderReceived(poId);
@@ -748,7 +777,7 @@ class UltraRepository {
     final list = await _getList('/api/purchase-vouchers');
     var max = 0;
     for (final row in list) {
-      final n = (row['voucher_no'] as num?)?.toInt() ?? 0;
+      final n = parseApiInt(row['voucher_no']) ?? 0;
       if (n > max) max = n;
     }
     return max + 1;
@@ -816,14 +845,171 @@ class UltraRepository {
     return await _getList('/api/adjustment-notes');
   }
 
+  Map<String, dynamic> _voucherSaveMeta(dynamic decoded) {
+    final row = _asRow(decoded);
+    for (final key in ['receipt', 'payment', 'voucher']) {
+      final nested = row[key];
+      if (nested is Map) {
+        return Map<String, dynamic>.from(nested);
+      }
+    }
+    return row;
+  }
+
   Future<int> insertReceipt(Map<String, dynamic> row) async {
     if (UltraConfig.persistLocally) return _db.insertReceipt(row);
     return _idFromResponse(await _api.post('/api/receipts', row));
   }
 
+  Future<Map<String, dynamic>> saveReceipt(Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      final id = await _db.insertReceipt(row);
+      return {'id': id};
+    }
+    return _voucherSaveMeta(await _api.post('/api/receipts', row));
+  }
+
+  Future<void> updateReceipt(int id, Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      await _db.db.update('receipts', row, where: 'id = ?', whereArgs: [id]);
+      return;
+    }
+    await _api.put('/api/receipts/$id', row);
+  }
+
+  Future<void> deleteReceipt(int id) async {
+    if (UltraConfig.persistLocally) {
+      await _db.db.delete('receipts', where: 'id = ?', whereArgs: [id]);
+      return;
+    }
+    await _api.delete('/api/receipts/$id');
+  }
+
   Future<int> insertPayment(Map<String, dynamic> row) async {
     if (UltraConfig.persistLocally) return _db.insertPayment(row);
     return _idFromResponse(await _api.post('/api/payments', row));
+  }
+
+  Future<Map<String, dynamic>> savePayment(Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      final id = await _db.insertPayment(row);
+      return {'id': id};
+    }
+    return _voucherSaveMeta(await _api.post('/api/payments', row));
+  }
+
+  Future<void> updatePayment(int id, Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      await _db.db.update('payments', row, where: 'id = ?', whereArgs: [id]);
+      return;
+    }
+    await _api.put('/api/payments/$id', row);
+  }
+
+  Future<void> deletePayment(int id) async {
+    if (UltraConfig.persistLocally) {
+      await _db.db.delete('payments', where: 'id = ?', whereArgs: [id]);
+      return;
+    }
+    await _api.delete('/api/payments/$id');
+  }
+
+  Future<List<Map<String, dynamic>>> expenseLedgers() async {
+    if (UltraConfig.persistLocally) return [];
+    return _asRowList(await _api.get('/api/expense-ledgers'));
+  }
+
+  /// Preview next global voucher number without allocating on the server.
+  Future<int?> peekNextVoucherNumber(String voucherType, {String? voucherDate}) async {
+    if (UltraConfig.persistLocally) return null;
+    try {
+      final q = <String>['type=${Uri.encodeQueryComponent(voucherType)}'];
+      if (voucherDate != null && voucherDate.isNotEmpty) {
+        q.add('date=${Uri.encodeQueryComponent(voucherDate)}');
+      }
+      final row = _asRow(await _api.get('/api/voucher-numbers/next?${q.join('&')}'));
+      return parseApiInt(row['next_no']);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> expenseVouchers() async {
+    if (UltraConfig.persistLocally) return [];
+    return await _getList('/api/expense-vouchers');
+  }
+
+  Future<Map<String, dynamic>> saveExpenseVoucher(Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      throw StateError('Expense vouchers require server mode');
+    }
+    return _voucherSaveMeta(await _api.post('/api/expense-vouchers', row));
+  }
+
+  Future<void> updateExpenseVoucher(int id, Map<String, dynamic> row) async {
+    await _api.put('/api/expense-vouchers/$id', row);
+  }
+
+  Future<void> deleteExpenseVoucher(int id) async {
+    await _api.delete('/api/expense-vouchers/$id');
+  }
+
+  Future<List<Map<String, dynamic>>> salaryVouchers() async {
+    if (UltraConfig.persistLocally) return [];
+    return await _getList('/api/salary-vouchers');
+  }
+
+  Future<Map<String, dynamic>> saveSalaryVoucher(Map<String, dynamic> row) async {
+    if (UltraConfig.persistLocally) {
+      throw StateError('Salary vouchers require server mode');
+    }
+    return _voucherSaveMeta(await _api.post('/api/salary-vouchers', row));
+  }
+
+  Future<void> updateSalaryVoucher(int id, Map<String, dynamic> row) async {
+    await _api.put('/api/salary-vouchers/$id', row);
+  }
+
+  Future<void> deleteSalaryVoucher(int id) async {
+    await _api.delete('/api/salary-vouchers/$id');
+  }
+
+  Future<Map<String, dynamic>> reportPartyLedger({
+    required String partyKind,
+    required int partyId,
+    String? from,
+    String? to,
+  }) async {
+    final q = <String>[
+      'party_kind=${Uri.encodeQueryComponent(partyKind)}',
+      'party_id=$partyId',
+    ];
+    if (from != null && from.isNotEmpty) q.add('from=${Uri.encodeQueryComponent(from)}');
+    if (to != null && to.isNotEmpty) q.add('to=${Uri.encodeQueryComponent(to)}');
+    return Map<String, dynamic>.from(
+      _asRow(await _api.get('/api/reports/party-ledger?${q.join('&')}')),
+    );
+  }
+
+  Future<Map<String, dynamic>> reportTrialBalance({String? from, String? to}) async {
+    final q = <String>[];
+    if (from != null && from.isNotEmpty) q.add('from=${Uri.encodeQueryComponent(from)}');
+    if (to != null && to.isNotEmpty) q.add('to=${Uri.encodeQueryComponent(to)}');
+    final path = q.isEmpty ? '/api/reports/trial-balance' : '/api/reports/trial-balance?${q.join('&')}';
+    return Map<String, dynamic>.from(_asRow(await _api.get(path)));
+  }
+
+  Future<Map<String, dynamic>> reportCashBankBook({
+    required String cashBank,
+    String? from,
+    String? to,
+  }) async {
+    final q = <String>['cash_bank=${Uri.encodeQueryComponent(cashBank)}'];
+    if (from != null && from.isNotEmpty) q.add('from=${Uri.encodeQueryComponent(from)}');
+    if (to != null && to.isNotEmpty) q.add('to=${Uri.encodeQueryComponent(to)}');
+    return Map<String, dynamic>.from(
+      _asRow(await _api.get('/api/reports/cash-bank-book?${q.join('&')}')),
+    );
   }
 
   Future<List<Map<String, dynamic>>> allReceipts() async {
