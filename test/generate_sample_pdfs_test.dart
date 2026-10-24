@@ -1,32 +1,29 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-
-import 'pdf_document_layout_test.dart' as samples;
 import 'package:ultra_enterprise/widgets/invoice.dart';
+
+import 'bill_format_pdf_smoke_test.dart';
+import 'pdf_document_layout_test.dart' as samples;
 
 void main() {
   test('generate sample PDFs for visual review', () async {
-    final outDir = Directory('/opt/cursor/artifacts/pdfs');
+    final outDir = Directory('build/sample_pdfs');
     outDir.createSync(recursive: true);
     final docs = <String, InvoiceData>{
-      'tax_invoice': samples.taxInvoiceSample(),
-      'purchase_order': samples.purchaseOrderSample(),
-      'purchase_voucher': samples.purchaseVoucherSample(),
-      'quotation': samples.quotationSample(),
-      'delivery_challan': samples.deliveryChallanSample(),
-      'credit_note': samples.creditNoteSample(),
-      'debit_note': samples.debitNoteSample(),
+      'normal_bill': _normalBillStress(),
+      'labour_bill': _labourBillStress(),
+      'proforma': _proformaStress(),
+      'dc_inward': _dcStress(inward: true),
+      'dc_outward': _dcStress(inward: false),
     };
     for (final e in docs.entries) {
       final bytes = await buildUltraInvoicePdf(e.value);
       final path = '${outDir.path}/${e.key}.pdf';
       await File(path).writeAsBytes(bytes);
-      if (e.key == 'tax_invoice' || e.key == 'delivery_challan') {
-        expect(samples.pdfPageCount(bytes), 1);
-      } else {
-        expect(samples.pdfPageCount(bytes), e.value.copyLabels.length);
-      }
+      expect(samples.pdfPageCount(bytes), 1);
     }
+    // ignore: avoid_print
+    print(outDir.absolute.path);
   });
 }
