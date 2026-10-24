@@ -11,7 +11,7 @@ import 'ultra_print_helpers.dart';
 
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
 const double _pageMarginH = 8;
-const double _pageMarginV = 6;
+const double _pageMarginV = 3;
 
 /// Max line items on the first page (header + footer included).
 const int ultraSalesBillFirstPageItemCapacity = 18;
@@ -112,7 +112,16 @@ pw.Widget _salesBillPage({
       else
         _normalConsigneeAndMeta(data),
     ],
-    pw.Expanded(child: _itemsTable(data, items, itemStartIndex)),
+    pw.Expanded(
+      child: pw.LayoutBuilder(
+        builder: (ctx, constraints) => _itemsTable(
+          data,
+          items,
+          itemStartIndex,
+          bodyHeight: constraints?.maxHeight ?? 320,
+        ),
+      ),
+    ),
   ];
   if (showFooter) {
     children.add(_totalsAndBank(data));
@@ -168,11 +177,10 @@ pw.Widget _normalCompanyHeader(pw.MemoryImage logo) {
               pw.Text(UltraCompanyConstants.tagline,
                   style: _body(size: 10, bold: true)),
               pw.SizedBox(height: 2),
-              pw.Text(
-                UltraCompanyConstants.officeAddressLine,
-                style: _body(size: 7.5),
-                textAlign: pw.TextAlign.center,
-              ),
+              pw.Text(UltraCompanyConstants.billOfficeLine1,
+                  style: _body(size: 7.5), textAlign: pw.TextAlign.center),
+              pw.Text(UltraCompanyConstants.billOfficeLine2,
+                  style: _body(size: 7.5), textAlign: pw.TextAlign.center),
               pw.RichText(
                 textAlign: pw.TextAlign.center,
                 text: pw.TextSpan(
@@ -187,11 +195,8 @@ pw.Widget _normalCompanyHeader(pw.MemoryImage logo) {
                   ],
                 ),
               ),
-              pw.Text(
-                UltraCompanyConstants.worksAddressLine,
-                style: _body(size: 7.5),
-                textAlign: pw.TextAlign.center,
-              ),
+              pw.Text(UltraCompanyConstants.billWorksLine,
+                  style: _body(size: 7.5), textAlign: pw.TextAlign.center),
             ],
           ),
         ),
@@ -225,11 +230,13 @@ pw.Widget _labourHeaderRow(InvoiceData d, pw.MemoryImage logo) {
                     pw.Text(UltraCompanyConstants.tagline,
                         style: _body(size: 8.5, bold: true)),
                     pw.SizedBox(height: 2),
-                    pw.Text(UltraCompanyConstants.officeAddressLine,
+                    pw.Text(UltraCompanyConstants.billOfficeLine1,
                         style: _body(size: 6.8)),
-                    pw.Text(UltraCompanyConstants.contactLine,
+                    pw.Text(UltraCompanyConstants.billOfficeLine2,
                         style: _body(size: 6.8)),
-                    pw.Text(UltraCompanyConstants.worksAddressLine,
+                    pw.Text(UltraCompanyConstants.billContactLine,
+                        style: _body(size: 6.8)),
+                    pw.Text(UltraCompanyConstants.billWorksLine,
                         style: _body(size: 6.8)),
                   ],
                 ),
@@ -247,48 +254,53 @@ pw.Widget _labourHeaderRow(InvoiceData d, pw.MemoryImage logo) {
 pw.Widget _metaCell(String text, {bool bold = false, double size = 7.5}) =>
     pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-      child: pw.Text(text, style: _body(size: size, bold: bold)),
+      child: pw.FittedBox(
+        fit: pw.BoxFit.scaleDown,
+        alignment: pw.Alignment.centerLeft,
+        child: pw.Text(
+          text,
+          style: _body(size: size, bold: bold),
+          softWrap: false,
+          maxLines: 1,
+        ),
+      ),
     );
+
+String _dispatchValue(String raw) => printableDispatch(raw);
 
 pw.Widget _labourInvoiceBox(InvoiceData d) {
   final border = pw.TableBorder.all(color: _black, width: 1);
   return pw.Table(
     border: border,
-    columnWidths: {
-      0: const pw.FlexColumnWidth(1.4),
-      1: const pw.FlexColumnWidth(1.2),
-      2: const pw.FlexColumnWidth(0.4),
-      3: const pw.FlexColumnWidth(1.2),
+    columnWidths: const {
+      0: pw.FlexColumnWidth(1.3),
+      1: pw.FlexColumnWidth(1.0),
+      2: pw.FlexColumnWidth(1.4),
     },
     children: [
       pw.TableRow(children: [
         _metaCell('Invoice No:'),
         _metaCell(d.invoiceNo, bold: true),
-        _metaCell('DATE :'),
-        _metaCell(d.date, bold: true),
+        _metaCell('DATE : ${d.date}', bold: true),
       ]),
       pw.TableRow(children: [
         _metaCell('SEL DC NO :'),
         _metaCell(d.selDcNo.isEmpty ? '0' : d.selDcNo),
-        _metaCell('|'),
         _metaCell(d.selDcDate.isEmpty ? d.date : d.selDcDate, bold: true),
       ]),
       pw.TableRow(children: [
         _metaCell('UEW DC.NO :'),
         _metaCell(d.dcNo.isEmpty ? '0' : d.dcNo),
-        _metaCell('|'),
         _metaCell(d.dcDate.isEmpty ? '0' : d.dcDate, bold: true),
       ]),
       pw.TableRow(children: [
         _metaCell('DESPATCH :'),
-        _metaCell(d.dispatch.isEmpty ? '0' : d.dispatch, bold: true),
-        _metaCell(''),
+        _metaCell(_dispatchValue(d.dispatch), bold: true),
         _metaCell(''),
       ]),
       pw.TableRow(children: [
         _metaCell('EWB NO:'),
         _metaCell(d.ewbNo),
-        _metaCell(''),
         _metaCell(''),
       ]),
     ],
@@ -375,52 +387,36 @@ pw.Widget _normalInvoiceMetaBox(InvoiceData d) {
     children: [
       pw.Table(
         border: border,
-        columnWidths: {
-          0: const pw.FlexColumnWidth(1.4),
-          1: const pw.FlexColumnWidth(0.2),
-          2: const pw.FlexColumnWidth(1.0),
-          3: const pw.FlexColumnWidth(1.4),
+        columnWidths: const {
+          0: pw.FlexColumnWidth(1.3),
+          1: pw.FlexColumnWidth(1.0),
+          2: pw.FlexColumnWidth(1.4),
         },
         children: [
           pw.TableRow(children: [
             _metaCell('Invoice No'),
-            _metaCell('|'),
             _metaCell(d.invoiceNo, bold: true),
             _metaCell('DATE : ${d.date}', bold: true),
           ]),
           pw.TableRow(children: [
             _metaCell('Cust.P.O :'),
-            _metaCell('|'),
             _metaCell(d.custPo.isEmpty ? '0' : d.custPo),
             _metaCell(poDate, bold: true),
           ]),
           pw.TableRow(children: [
             _metaCell('D.C.NO :'),
-            _metaCell('|'),
             _metaCell(d.dcNo.isEmpty ? '0' : d.dcNo),
             _metaCell(dcDate, bold: true),
           ]),
-        ],
-      ),
-      pw.Table(
-        border: pw.TableBorder(
-          left: const pw.BorderSide(color: _black, width: 1),
-          right: const pw.BorderSide(color: _black, width: 1),
-          bottom: const pw.BorderSide(color: _black, width: 1),
-          horizontalInside: const pw.BorderSide(color: _black, width: 1),
-        ),
-        columnWidths: {
-          0: const pw.FlexColumnWidth(1.4),
-          1: const pw.FlexColumnWidth(3.6),
-        },
-        children: [
           pw.TableRow(children: [
             _metaCell('DESPATCH :'),
-            _metaCell('| ${d.dispatch.isEmpty ? '0' : d.dispatch}', bold: true),
+            _metaCell(_dispatchValue(d.dispatch), bold: true),
+            _metaCell(''),
           ]),
           pw.TableRow(children: [
             _metaCell('EWB NO:'),
             _metaCell(d.ewbNo),
+            _metaCell(''),
           ]),
         ],
       ),
@@ -479,120 +475,97 @@ pw.Widget _labourPartyBlocks(InvoiceData d) {
 pw.Widget _itemsTable(
   InvoiceData d,
   List<InvoiceItem> items,
-  int startIndex,
-) {
+  int startIndex, {
+  required double bodyHeight,
+}) {
   final labour = d.salesBillType == UltraSalesBillType.labour;
   final hsnHeader = labour ? 'SAC CODE' : 'HSN/SAC';
-  return pw.Container(
-    decoration: pw.BoxDecoration(border: pw.Border.all(color: _black, width: 1)),
-    child: pw.Column(
+  const rowH = 17.0;
+  const headerH = 24.0;
+  final minDataRows =
+      ((bodyHeight - headerH) / rowH).ceil().clamp(items.length, 40);
+  final tableRows = <pw.TableRow>[
+    pw.TableRow(
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1)),
+      ),
       children: [
-        pw.Row(
-          children: [
-            _itemColHeader('SL.NO', width: 28),
-            _itemColHeader('DESCRIPTION', flex: 4),
-            _itemColHeader(hsnHeader, width: 52),
-            _itemColHeader('QTY', width: 42),
-            _itemColHeader('PRICE/UNIT', width: 54),
-            _itemColHeader('AMOUNT', width: 58, right: true),
-          ],
-        ),
-        pw.Expanded(
-          child: pw.Column(
-            children: [
-              for (var i = 0; i < items.length; i++)
-                pw.Container(
-                  width: double.infinity,
-                  decoration: const pw.BoxDecoration(
-                    border: pw.Border(
-                      top: pw.BorderSide(color: _black, width: 0.5),
-                    ),
-                  ),
-                  child: pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      _itemCell('${startIndex + i + 1}', width: 28),
-                      _itemCell(
-                        items[i].description,
-                        flex: 4,
-                        bold: true,
-                        small: labour,
-                      ),
-                      _itemCell(items[i].hsnCode, width: 52, center: true),
-                      _itemCell(
-                        items[i].qty.toStringAsFixed(2),
-                        width: 42,
-                        center: true,
-                      ),
-                      _itemCell(
-                        formatUltraMoney(items[i].price),
-                        width: 54,
-                        right: true,
-                      ),
-                      _itemCell(
-                        formatUltraMoney(items[i].amount),
-                        width: 58,
-                        right: true,
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
+        _tblHead('SL.NO'),
+        _tblHead('DESCRIPTION'),
+        _tblHead(hsnHeader),
+        _tblHead('QTY'),
+        _tblHead('PRICE/UNIT'),
+        _tblHead('AMOUNT', right: true),
       ],
     ),
+  ];
+  for (var i = 0; i < minDataRows; i++) {
+    if (i < items.length) {
+      final it = items[i];
+      final sac = labour && it.hsnCode.trim().isEmpty ? '9988' : it.hsnCode;
+      tableRows.add(
+        pw.TableRow(
+          children: [
+            _tblCell('${startIndex + i + 1}', align: pw.TextAlign.center),
+            _tblCell(it.description, bold: true, small: labour),
+            _tblCell(sac, align: pw.TextAlign.center),
+            _tblCell(it.qty.toStringAsFixed(2), align: pw.TextAlign.center),
+            _tblCell(formatUltraMoney(it.price), align: pw.TextAlign.right),
+            _tblCell(formatUltraMoney(it.amount), align: pw.TextAlign.right),
+          ],
+        ),
+      );
+    } else {
+      tableRows.add(
+        pw.TableRow(
+          children: List.generate(6, (_) => _tblCell('')),
+        ),
+      );
+    }
+  }
+  return pw.Table(
+    border: pw.TableBorder.all(color: _black, width: 1),
+    columnWidths: {
+      0: const pw.FixedColumnWidth(36),
+      1: const pw.FlexColumnWidth(4),
+      2: const pw.FixedColumnWidth(54),
+      3: const pw.FixedColumnWidth(44),
+      4: const pw.FixedColumnWidth(66),
+      5: const pw.FixedColumnWidth(58),
+    },
+    defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
+    children: tableRows,
   );
 }
 
-pw.Widget _itemColHeader(String text,
-    {double? width, int flex = 1, bool right = false}) {
-  final child = pw.Container(
-    padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-    decoration: const pw.BoxDecoration(
-      border: pw.Border(
-        right: pw.BorderSide(color: _black, width: 1),
-        bottom: pw.BorderSide(color: _black, width: 1),
+pw.Widget _tblHead(String text, {bool right = false}) => pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 5),
+      child: pw.FittedBox(
+        fit: pw.BoxFit.scaleDown,
+        alignment:
+            right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
+        child: pw.Text(text,
+            style: _sansHeader(size: 7.5),
+            softWrap: false,
+            maxLines: 1,
+            textAlign: right ? pw.TextAlign.right : pw.TextAlign.left),
       ),
-    ),
-    child: pw.Text(
-      text,
-      style: _sansHeader(size: 8.5, bold: true),
-      textAlign: right ? pw.TextAlign.right : pw.TextAlign.left,
-    ),
-  );
-  if (width != null) return pw.SizedBox(width: width, child: child);
-  return pw.Expanded(flex: flex, child: child);
-}
+    );
 
-pw.Widget _itemCell(
+pw.Widget _tblCell(
   String text, {
-  double? width,
-  int flex = 1,
   bool bold = false,
   bool small = false,
-  bool center = false,
-  bool right = false,
-}) {
-  final align = right
-      ? pw.TextAlign.right
-      : center
-          ? pw.TextAlign.center
-          : pw.TextAlign.left;
-  final child = pw.Container(
-    padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-    decoration: const pw.BoxDecoration(
-      border: pw.Border(right: pw.BorderSide(color: _black, width: 1)),
-    ),
-    child: pw.Text(
-      text,
-      style: _body(size: small ? 7.5 : 9, bold: bold),
-      textAlign: align,
-    ),
-  );
-  if (width != null) return pw.SizedBox(width: width, child: child);
-  return pw.Expanded(flex: flex, child: child);
-}
+  pw.TextAlign align = pw.TextAlign.left,
+}) =>
+    pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+      child: pw.Text(
+        text,
+        style: _body(size: small ? 7.5 : 9, bold: bold),
+        textAlign: align,
+      ),
+    );
 
 pw.Widget _totalsAndBank(InvoiceData d) {
   return pw.Table(

@@ -18,6 +18,28 @@ void main() {
     expect(ultraPlainDocumentNumber('DC-2026-338'), '338');
   });
 
+  test('taxPercentsFromTotals uses stored amounts not fixed 9/9/18', () {
+    final intra = taxPercentsFromTotals(
+      taxable: 1000,
+      cgst: 90,
+      sgst: 90,
+      igst: 0,
+    );
+    expect(intra.cgst, closeTo(9, 0.01));
+    expect(intra.sgst, closeTo(9, 0.01));
+    expect(intra.igst, closeTo(0, 0.01));
+
+    final inter = taxPercentsFromTotals(
+      taxable: 184,
+      cgst: 0,
+      sgst: 0,
+      igst: 33.12,
+    );
+    expect(inter.cgst, closeTo(0, 0.01));
+    expect(inter.sgst, closeTo(0, 0.01));
+    expect(inter.igst, closeTo(18, 0.01));
+  });
+
   test('formatUltraAmountInWords examples', () {
     expect(formatUltraAmountInWords(31010.40),
         'THIRTY ONE THOUSAND TEN ONLY');

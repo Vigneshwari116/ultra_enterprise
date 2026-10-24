@@ -30,9 +30,6 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
   final inward = type == 'INWARD';
   final title =
       inward ? 'DELIVERY CHALLAN - INWARD' : 'DELIVERY CHALLAN';
-  final copyLabel = inward
-      ? 'DUPLICATE DC INWARD'
-      : 'DUPLICATE DC OUTWARD';
 
   final items = rawItems
       .map(
@@ -59,14 +56,14 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
   return InvoiceData(
     kind: UltraBillKind.deliveryChallan,
     documentTitle: title,
-    copyLabels: ['ORIGINAL $title', copyLabel],
+    copyLabels: [title],
     invoiceNo: serial.isEmpty ? '${dc['id'] ?? ''}' : serial,
     date: formatUltraDcDateTime(docDate, fallbackTime: DateTime.tryParse(created ?? '')),
     custPo: '${dc['account_ref'] ?? ''}',
     poDate: formatUltraDcPoDate(dc['account_ref_date'] as String? ?? dc['po_ref_date'] as String?),
     dcNo: '${dc['po_ref_no'] ?? ''}',
     dcDate: formatUltraDcPoDate(dc['po_ref_date'] as String?),
-    dispatch: '${dc['vehicle_dispatch'] ?? ''}',
+    dispatch: printableDispatch(dc['vehicle_dispatch']),
     ewbNo: '${dc['eway_bill_no'] ?? ''}',
     consigneeName: '${dc['party_name'] ?? ''}',
     consigneeAddress: address,
@@ -122,6 +119,12 @@ InvoiceData _proformaInvoiceData(
   final fwd = parseApiAmount(dc['fwd_charge']);
   final grand = (dc['grand_total'] as num?)?.toDouble() ??
       subtotal + cgstTotal + sgstTotal + igstTotal + fwd;
+  final pct = taxPercentsFromTotals(
+    taxable: subtotal,
+    cgst: cgstTotal,
+    sgst: sgstTotal,
+    igst: igstTotal,
+  );
 
   final city = '${dc['city'] ?? ''}'.trim();
   final pin = '${dc['pincode'] ?? ''}'.trim();
@@ -139,9 +142,9 @@ InvoiceData _proformaInvoiceData(
     date: formatUltraBillDateShort(dc['document_date'] as String?),
     custPo: '${dc['po_ref_no'] ?? ''}',
     poDate: formatUltraBillDateShort(dc['po_ref_date'] as String?),
-    dcNo: '${dc['account_ref'] ?? ''}',
+    dcNo: printableDcReference('${dc['po_ref_no'] ?? ''}'),
     dcDate: formatUltraBillDateShort(dc['po_ref_date'] as String?),
-    dispatch: '${dc['vehicle_dispatch'] ?? ''}',
+    dispatch: printableDispatch(dc['vehicle_dispatch']),
     ewbNo: '${dc['eway_bill_no'] ?? ''}',
     consigneeName: '${dc['party_name'] ?? ''}',
     consigneeAddress: address,
@@ -150,6 +153,9 @@ InvoiceData _proformaInvoiceData(
     mobile: '',
     items: items,
     pAndF: fwd,
+    cgstPercent: pct.cgst,
+    sgstPercent: pct.sgst,
+    igstPercent: pct.igst,
     cgstAmountOverride: cgstTotal,
     sgstAmountOverride: sgstTotal,
     igstAmountOverride: igstTotal,

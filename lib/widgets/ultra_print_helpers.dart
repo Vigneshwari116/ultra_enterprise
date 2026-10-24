@@ -73,7 +73,7 @@ String formatUltraBillDateLong(String? iso) {
   return DateFormat('d MMMM yyyy').format(d);
 }
 
-/// Delivery challan header date with time: dd-MMM-yyyy h:mm a
+/// Delivery challan header date with time: 23-Oct-2026 2:53 pm (single line).
 String formatUltraDcDateTime(String? iso, {DateTime? fallbackTime}) {
   if (iso == null || iso.isEmpty) return '';
   final d = DateTime.tryParse(iso);
@@ -86,6 +86,42 @@ String formatUltraDcDateTime(String? iso, {DateTime? fallbackTime}) {
     fallbackTime?.minute ?? d.minute,
   );
   return DateFormat('dd-MMM-yyyy h:mm a').format(withTime);
+}
+
+/// Real tax % for printed totals from stored amounts (not hard-coded 9/9/18).
+({double cgst, double sgst, double igst}) taxPercentsFromTotals({
+  required double taxable,
+  required double cgst,
+  required double sgst,
+  required double igst,
+}) {
+  if (taxable <= 0) {
+    return (cgst: 0, sgst: 0, igst: 0);
+  }
+  return (
+    cgst: cgst / taxable * 100,
+    sgst: sgst / taxable * 100,
+    igst: igst / taxable * 100,
+  );
+}
+
+/// Omit internal ids / uuids from printed D.C.NO fields.
+String printableDcReference(String? raw) {
+  final s = '${raw ?? ''}'.trim();
+  if (s.isEmpty) return '';
+  if (RegExp(r'^[0-9a-fA-F-]{32,}$').hasMatch(s.replaceAll('-', ''))) {
+    return '';
+  }
+  if (RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-', caseSensitive: false).hasMatch(s)) {
+    return '';
+  }
+  return s;
+}
+
+String printableDispatch(String? raw) {
+  final s = '${raw ?? ''}'.trim();
+  if (s.isEmpty || s == '0') return '';
+  return s;
 }
 
 /// DC P.O date line: dd-MM-yyyy

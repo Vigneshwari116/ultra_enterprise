@@ -147,10 +147,7 @@ InvoiceData deliveryChallanSample() => InvoiceData(
       kind: UltraBillKind.deliveryChallan,
       documentTitle: 'DELIVERY CHALLAN',
       partySectionTitle: 'NAME & ADDRESS OF RECEIVER',
-      copyLabels: const [
-        'ORIGINAL DELIVERY CHALLAN',
-        'DUPLICATE DC INWARD LABELS',
-      ],
+      copyLabels: const ['DELIVERY CHALLAN'],
       invoiceNo: 'DC-2026-TEST',
       date: '04-07-2026',
       custPo: '123',
@@ -295,7 +292,7 @@ void main() {
     expect(data.items.first.remarks, isNotEmpty);
     final bytes = await buildUltraInvoicePdf(data);
     expect(bytes, isNotEmpty);
-    expect(pdfPageCount(bytes), data.copyLabels.length);
+    expect(pdfPageCount(bytes), 1);
   });
 
   test('credit note PDF builds with reversal metadata fields', () async {
@@ -330,7 +327,11 @@ void main() {
       final data = builder();
       final bytes = await buildUltraInvoicePdf(data);
       expect(bytes.length, greaterThan(1000));
-      expect(pdfPageCount(bytes), data.copyLabels.length);
+      final expectedPages = data.kind == UltraBillKind.taxInvoice ||
+              data.kind == UltraBillKind.deliveryChallan
+          ? 1
+          : data.copyLabels.length;
+      expect(pdfPageCount(bytes), expectedPages);
     }
   });
 

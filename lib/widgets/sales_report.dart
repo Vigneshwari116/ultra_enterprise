@@ -9,6 +9,7 @@ import '../utils/sales_invoice_display.dart';
 import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import '../config/ultra_company_constants.dart';
+import 'sales_bill_format_dialog.dart';
 import 'ultra_print_helpers.dart';
 
 String _money(num v) => formatReportAmount(v);
@@ -182,7 +183,10 @@ Future<void> printSalesAuditReport(List<Map<String, dynamic>> invoices) async {
   await Printing.layoutPdf(onLayout: (_) => doc.save());
 }
 
-Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
+Future<InvoiceData?> invoiceDataFromId(
+  int invoiceId, {
+  UltraSalesBillType? printFormat,
+}) async {
   final bundle = await UltraRepository.instance.salesInvoicePrintBundle(invoiceId);
   if (bundle == null) return null;
   final inv = bundle['invoice'] as Map<String, dynamic>;
@@ -209,8 +213,15 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
       ? toDouble(fwdFromApi)
       : (grand - taxable - cgstAmt - sgstAmt - igstAmt);
   final roundOff = toDouble(inv['round_off'], fallback: 0);
-  final billType = _billTypeFromRow(inv);
+  final storedType = _billTypeFromRow(inv);
+  final billType = printFormat ?? storedType;
   final labour = billType == UltraSalesBillType.labour;
+  final pct = taxPercentsFromTotals(
+    taxable: taxable,
+    cgst: cgstAmt,
+    sgst: sgstAmt,
+    igst: igstAmt,
+  );
   return InvoiceData(
     kind: UltraBillKind.taxInvoice,
     salesBillType: billType,
@@ -220,7 +231,7 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
     copyLabels: ultraSalesBillCopyLabels,
     invoiceNo: salesInvoiceDisplayNo(inv),
     date: labour
-        ? formatUltraBillDateLong(inv['transaction_date'] as String?)
+        ? formatUltraBillDateLong('${inv['transaction_date'] ?? ''}')
         : _fmtInvoicePrintDate(inv['transaction_date'] as String?),
     custPo: '${inv['po_no'] ?? ''}',
     poDate: _fmtInvoicePrintDate(inv['po_date'] as String?),
@@ -232,7 +243,7 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
             inv['challan_dc_date'] as String?),
     selDcNo: '${inv['sel_dc_no'] ?? ''}',
     selDcDate: _fmtInvoicePrintDate(inv['sel_dc_date'] as String?),
-    dispatch: '${inv['vehicle_dispatch_mode'] ?? ''}',
+    dispatch: printableDispatch(inv['vehicle_dispatch_mode']),
     ewbNo: '${inv['eway_bill_no'] ?? ''}',
     consigneeName: '${inv['customer_name'] ?? ''}',
     consigneeAddress: _partyAddress(inv),
@@ -242,9 +253,9 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
     gstin: '${inv['customer_gstin'] ?? ''}',
     mobile: '${inv['customer_mobile'] ?? ''}',
     items: items,
-    cgstPercent: isInter ? 0 : 9,
-    sgstPercent: isInter ? 0 : 9,
-    igstPercent: isInter ? 18 : 0,
+    cgstPercent: pct.cgst,
+    sgstPercent: pct.sgst,
+    igstPercent: pct.igst,
     pAndF: freight > 0 ? freight : 0,
     roundOff: roundOff,
     cgstAmountOverride: cgstAmt,
@@ -261,7 +272,16 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
 }
 
 Future<void> reprintSalesInvoice(BuildContext context, int invoiceId) async {
-  final data = await invoiceDataFromId(invoiceId);
+  final bundle =
+      await UltraRepository.instance.salesInvoicePrintBundle(invoiceId);
+  if (bundle == null) {
+    throw Exception('Sales invoice not found (id: $invoiceId)');
+  }
+  final inv = bundle['invoice'] as Map<String, dynamic>;
+  final stored = _billTypeFromRow(inv);
+  final chosen = await showSalesBillFormatDialog(context, initial: stored);
+  if (chosen == null) return;
+  final data = await invoiceDataFromId(invoiceId, printFormat: chosen);
   if (data == null) {
     throw Exception('Sales invoice not found (id: $invoiceId)');
   }
