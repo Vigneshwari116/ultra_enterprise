@@ -305,6 +305,9 @@ class UltraRepository {
     out['customer_address'] = out['customer_address'] ?? out['address'];
     out['customer_gstin'] = out['customer_gstin'] ?? out['gstin'];
     out['bank_name'] = out['bank_name'] ?? out['bank_identifier_name'];
+    out['bill_type'] = out['bill_type'] ?? 'NORMAL';
+    out['sel_dc_no'] = out['sel_dc_no'] ?? '';
+    out['sel_dc_date'] = out['sel_dc_date'];
     return out;
   }
 

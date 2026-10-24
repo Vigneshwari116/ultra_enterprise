@@ -7,6 +7,7 @@ import '../services/ultra_repository.dart';
 import '../utils/sales_invoice_display.dart';
 import '../utils/voucher_display.dart';
 import 'invoice.dart';
+import '../config/ultra_company_constants.dart';
 import 'ultra_print_helpers.dart';
 
 String _money(num v) => formatReportAmount(v);
@@ -22,18 +23,24 @@ double toDouble(dynamic value, {double fallback = 0}) => toNum(value)?.toDouble(
 
 String _fmtDate(String? iso) => formatReportDate(iso);
 
-String _fmtInvoicePrintDate(String? iso) {
-  final d = DateTime.tryParse(iso ?? '');
-  return d == null ? (iso ?? '') : DateFormat('MM/dd/yyyy').format(d);
-}
+String _fmtInvoicePrintDate(String? iso) => formatUltraBillDateShort(iso);
 
 String _partyAddress(Map<String, dynamic> inv) {
-  final parts = <String>[
-    '${inv['customer_address'] ?? ''}'.trim(),
-    '${inv['customer_city'] ?? ''}'.trim(),
-    '${inv['customer_pincode'] ?? ''}'.trim(),
-  ].where((p) => p.isNotEmpty);
-  return parts.join(', ');
+  return '${inv['customer_address'] ?? ''}'.trim();
+}
+
+String _partyCityLine(Map<String, dynamic> inv) {
+  final city = '${inv['customer_city'] ?? ''}'.trim();
+  final pin = '${inv['customer_pincode'] ?? ''}'.trim();
+  if (city.isEmpty && pin.isEmpty) return '';
+  if (pin.isEmpty) return city;
+  if (city.isEmpty) return pin;
+  return '$city - $pin';
+}
+
+UltraSalesBillType _billTypeFromRow(Map<String, dynamic> inv) {
+  final raw = '${inv['bill_type'] ?? 'NORMAL'}'.toUpperCase();
+  return raw == 'LABOUR' ? UltraSalesBillType.labour : UltraSalesBillType.normal;
 }
 
 pw.Widget _h(String t, {bool right = false}) => pw.Container(
@@ -201,18 +208,34 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
       ? toDouble(fwdFromApi)
       : (grand - taxable - cgstAmt - sgstAmt - igstAmt);
   final roundOff = toDouble(inv['round_off'], fallback: 0);
+  final billType = _billTypeFromRow(inv);
+  final labour = billType == UltraSalesBillType.labour;
   return InvoiceData(
     kind: UltraBillKind.taxInvoice,
+    salesBillType: billType,
+    documentTitle: labour
+        ? 'LABOUR BILL - JOB WORK SERVICE INVOICE'
+        : 'TAX INVOICE',
+    copyLabels: ultraSalesBillCopyLabels,
     invoiceNo: salesInvoiceDisplayNo(inv),
-    date: _fmtInvoicePrintDate(inv['transaction_date'] as String?),
+    date: labour
+        ? formatUltraBillDateLong(inv['transaction_date'] as String?)
+        : _fmtInvoicePrintDate(inv['transaction_date'] as String?),
     custPo: '${inv['po_no'] ?? ''}',
     poDate: _fmtInvoicePrintDate(inv['po_date'] as String?),
-    dcNo: '${inv['challan_no'] ?? ''}',
-    dcDate: _fmtInvoicePrintDate(inv['challan_date'] as String?),
+    dcNo: '${inv['challan_no'] ?? inv['challan_dc_no'] ?? ''}',
+    dcDate: labour
+        ? formatUltraLabourDcDate(inv['challan_date'] as String? ??
+            inv['challan_dc_date'] as String?)
+        : _fmtInvoicePrintDate(inv['challan_date'] as String? ??
+            inv['challan_dc_date'] as String?),
+    selDcNo: '${inv['sel_dc_no'] ?? ''}',
+    selDcDate: _fmtInvoicePrintDate(inv['sel_dc_date'] as String?),
     dispatch: '${inv['vehicle_dispatch_mode'] ?? ''}',
     ewbNo: '${inv['eway_bill_no'] ?? ''}',
     consigneeName: '${inv['customer_name'] ?? ''}',
     consigneeAddress: _partyAddress(inv),
+    consigneeCityLine: _partyCityLine(inv),
     shippingName: '${inv['shipping_name'] ?? ''}',
     shippingAddress: '${inv['shipping_address'] ?? ''}'.trim(),
     gstin: '${inv['customer_gstin'] ?? ''}',

@@ -3,7 +3,13 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../config/ultra_company_constants.dart';
 import 'ultra_logo.dart';
+import 'ultra_print_helpers.dart';
+import 'ultra_dc_pdf.dart';
+import 'ultra_sales_bill_pdf.dart';
+
+export 'ultra_print_helpers.dart' show formatUltraAmountInWords;
 
 /// One line item on the tax invoice.
 class InvoiceItem {
@@ -32,6 +38,8 @@ enum UltraBillKind {
   purchaseVoucher,
 }
 
+enum UltraSalesBillType { normal, labour, proforma }
+
 /// Everything needed to render the ULTRA ENGINEERING WORKS tax invoice —
 /// field names match the printed sample exactly (invoiceNo, custPo, dcNo,
 /// dispatch, ewbNo, consignee block, GST break-up, bank details).
@@ -46,8 +54,12 @@ class InvoiceData {
   final String ewbNo;
   final String consigneeName;
   final String consigneeAddress;
+  final String consigneeCityLine;
   final String shippingName;
   final String shippingAddress;
+  final String selDcNo;
+  final String selDcDate;
+  final UltraSalesBillType salesBillType;
   final String serviceTaxNo;
   final String gstin;
   final String mobile;
@@ -99,8 +111,12 @@ class InvoiceData {
     this.ewbNo = '',
     required this.consigneeName,
     required this.consigneeAddress,
+    this.consigneeCityLine = '',
     this.shippingName = '',
     this.shippingAddress = '',
+    this.selDcNo = '',
+    this.selDcDate = '',
+    this.salesBillType = UltraSalesBillType.normal,
     this.serviceTaxNo = '',
     required this.gstin,
     this.mobile = '',
@@ -116,7 +132,7 @@ class InvoiceData {
     required this.bankAddress,
     this.documentTitle = 'TAX INVOICE',
     this.partySectionTitle = 'NAME & ADDRESS OF CONSIGNEE',
-    this.copyLabels = ultraInvoiceCopyLabels,
+    this.copyLabels = ultraSalesBillCopyLabels,
     this.kind = UltraBillKind.taxInvoice,
     this.customTerms,
     this.leftSignatureLabel = 'Receiver signature',
@@ -143,14 +159,8 @@ class InvoiceData {
       subtotal + cgstAmt + sgstAmt + igstAmt + pAndF + roundOff;
 }
 
-/// Tax invoice copy labels (top-right), matching the paper form (5 copies).
-const List<String> ultraInvoiceCopyLabels = [
-  'ORIGINAL FOR RECIPIENT',
-  'DUPLICATE FOR TRANSPORTER',
-  'TRIPLICATE FOR SUPPLIER',
-  'COPY FOR ACCOUNTS',
-  'EXTRA COPY',
-];
+/// Legacy name — sales bills print a single original copy.
+const List<String> ultraInvoiceCopyLabels = ultraSalesBillCopyLabels;
 
 /// Purchase order prints as original + duplicate reprint (accounting layout).
 const List<String> ultraPurchaseOrderCopyLabels = [
@@ -206,86 +216,57 @@ pw.TextStyle _ts(
         fontSize: size,
         color: _black);
 
-String _money(double v) => v.toStringAsFixed(2);
+String _money(double v) => formatUltraMoney(v);
 
-/// Indian-style amount in words for printed tax invoices (matches portal PDFs).
-String formatUltraAmountInWords(double amount) {
-  if (amount == 0) return 'ZERO RUPEES ONLY';
-  final rupees = amount.round();
-  if (rupees == 0) return 'ZERO RUPEES ONLY';
-
-  const ones = [
-    '',
-    'ONE',
-    'TWO',
-    'THREE',
-    'FOUR',
-    'FIVE',
-    'SIX',
-    'SEVEN',
-    'EIGHT',
-    'NINE',
-    'TEN',
-    'ELEVEN',
-    'TWELVE',
-    'THIRTEEN',
-    'FOURTEEN',
-    'FIFTEEN',
-    'SIXTEEN',
-    'SEVENTEEN',
-    'EIGHTEEN',
-    'NINETEEN',
-  ];
-  const tens = [
-    '',
-    '',
-    'TWENTY',
-    'THIRTY',
-    'FORTY',
-    'FIFTY',
-    'SIXTY',
-    'SEVENTY',
-    'EIGHTY',
-    'NINETY'
-  ];
-
-  String under1000(int n) {
-    if (n == 0) return '';
-    if (n < 20) return ones[n];
-    if (n < 100) {
-      final t = tens[n ~/ 10];
-      final r = n % 10;
-      return r == 0 ? t : '$t ${ones[r]}';
-    }
-    final h = n ~/ 100;
-    final r = n % 100;
-    return r == 0
-        ? '${ones[h]} HUNDRED'
-        : '${ones[h]} HUNDRED AND ${under1000(r)}';
-  }
-
-  String chunk(int n, String label) {
-    if (n == 0) return '';
-    return '${under1000(n)} $label'.trim();
-  }
-
-  var n = rupees;
-  final parts = <String>[];
-  final crore = n ~/ 10000000;
-  n %= 10000000;
-  final lakh = n ~/ 100000;
-  n %= 100000;
-  final thousand = n ~/ 1000;
-  n %= 1000;
-  if (crore > 0) parts.add(chunk(crore, 'CRORE'));
-  if (lakh > 0) parts.add(chunk(lakh, 'LAKH'));
-  if (thousand > 0) parts.add(chunk(thousand, 'THOUSAND'));
-  if (n > 0) parts.add(under1000(n));
-  return '${parts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim()} RUPEES ONLY';
-}
-
-/// Builds the full multi-copy PDF (one page per copy label) for [data].
+/// Builds the PDF for [data] (single-copy sales bills paginate line items).
 Future<Uint8List> buildUltraInvoicePdf(InvoiceData data) async {
+  if (data.kind == UltraBillKind.taxInvoice) {
+    return buildUltraSalesBillPdf(data);
+  }
+  if (data.kind == UltraBillKind.deliveryChallan &&
+      data.documentTitle != 'PROFORMA INVOICE') {
+    return buildUltraDcPdf(data);
+  }
+  if (data.kind == UltraBillKind.deliveryChallan &&
+      data.documentTitle == 'PROFORMA INVOICE') {
+    return buildUltraSalesBillPdf(
+      InvoiceData(
+        kind: UltraBillKind.taxInvoice,
+        salesBillType: UltraSalesBillType.proforma,
+        documentTitle: data.documentTitle,
+        copyLabels: data.copyLabels,
+        invoiceNo: data.invoiceNo,
+        date: data.date,
+        custPo: data.custPo,
+        poDate: data.poDate,
+        dcNo: data.dcNo,
+        dcDate: data.dcDate,
+        dispatch: data.dispatch,
+        ewbNo: data.ewbNo,
+        consigneeName: data.consigneeName,
+        consigneeAddress: data.consigneeAddress,
+        consigneeCityLine: data.consigneeCityLine,
+        gstin: data.gstin,
+        mobile: data.mobile,
+        items: data.items,
+        cgstPercent: data.cgstPercent,
+        sgstPercent: data.sgstPercent,
+        igstPercent: data.igstPercent,
+        pAndF: data.pAndF,
+        roundOff: data.roundOff,
+        amountInWords: data.amountInWords,
+        bankName: data.bankName,
+        accountNo: data.accountNo,
+        ifscCode: data.ifscCode,
+        bankAddress: data.bankAddress,
+        cgstAmountOverride: data.cgstAmountOverride,
+        sgstAmountOverride: data.sgstAmountOverride,
+        igstAmountOverride: data.igstAmountOverride,
+        grandTotalOverride: data.grandTotalOverride,
+        leftSignatureLabel: data.leftSignatureLabel,
+      ),
+    );
+  }
   final doc = pw.Document();
   final logoBytes = base64Decode(ultraLogoBase64);
   final logo = pw.MemoryImage(logoBytes);

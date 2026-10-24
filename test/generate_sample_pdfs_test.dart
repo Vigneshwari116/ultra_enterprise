@@ -22,7 +22,11 @@ void main() {
       final bytes = await buildUltraInvoicePdf(e.value);
       final path = '${outDir.path}/${e.key}.pdf';
       await File(path).writeAsBytes(bytes);
-      expect(samples.pdfPageCount(bytes), e.value.copyLabels.length);
+      if (e.key == 'tax_invoice') {
+        expect(samples.pdfPageCount(bytes), 1);
+      } else {
+        expect(samples.pdfPageCount(bytes), e.value.copyLabels.length);
+      }
     }
   });
 }

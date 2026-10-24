@@ -30,3 +30,8 @@ String vpsFixturesDir() => resolveServerRelativePath('test/fixtures');
 
 String vpsMigrationPath() =>
     resolveServerRelativePath('schema/migrations/001_accounting.sql');
+
+List<String> vpsMigrationPaths() => [
+      vpsMigrationPath(),
+      resolveServerRelativePath('schema/migrations/002_sales_bill_type.sql'),
+    ];

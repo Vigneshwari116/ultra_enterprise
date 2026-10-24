@@ -1,5 +1,5 @@
+import '../config/ultra_company_constants.dart';
 import '../services/ultra_repository.dart';
-import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import 'transaction_line_math.dart';
 import 'ultra_print_helpers.dart';
@@ -20,13 +20,16 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
 
   final type = '${dc['dc_type']}';
-  final title = type == 'PROFORMA' ? 'PROFORMA INVOICE' : 'DELIVERY CHALLAN';
-  final copyLabel = switch (type) {
-    'INWARD' => 'DUPLICATE DC INWARD LABELS',
-    'OUTWARD' => 'DUPLICATE DC OUTWARD LABELS',
-    'PROFORMA' => 'DUPLICATE PROFORMA LABELS',
-    _ => 'DUPLICATE DELIVERY CHALLAN',
-  };
+  if (type == 'PROFORMA') {
+    return _proformaInvoiceData(dc, rawItems);
+  }
+
+  final inward = type == 'INWARD';
+  final title =
+      inward ? 'DELIVERY CHALLAN - INWARD' : 'DELIVERY CHALLAN';
+  final copyLabel = inward
+      ? 'DUPLICATE DC INWARD'
+      : 'DUPLICATE DC OUTWARD';
 
   final items = rawItems
       .map(
@@ -36,6 +39,55 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
           qty: parseApiAmount(it['quantity']),
           price: parseApiAmount(it['rate']),
           remarks: '${it['remarks'] ?? ''}',
+        ),
+      )
+      .toList();
+
+  final address = [
+    dc['billing_address'] ?? '',
+    dc['city'] ?? '',
+    dc['pincode'] ?? '',
+  ].where((e) => '$e'.trim().isNotEmpty).join(', ');
+
+  final serial = '${dc['serial_no'] ?? ''}'.trim();
+  final docDate = dc['document_date'] as String?;
+  final created = dc['created_at'] as String?;
+
+  return InvoiceData(
+    kind: UltraBillKind.deliveryChallan,
+    documentTitle: title,
+    copyLabels: ['ORIGINAL $title', copyLabel],
+    invoiceNo: serial.isEmpty ? '${dc['id'] ?? ''}' : serial,
+    date: formatUltraDcDateTime(docDate, fallbackTime: DateTime.tryParse(created ?? '')),
+    custPo: '${dc['account_ref'] ?? ''}',
+    poDate: formatUltraDcPoDate(dc['account_ref_date'] as String? ?? dc['po_ref_date'] as String?),
+    dcNo: '${dc['po_ref_no'] ?? ''}',
+    dcDate: formatUltraDcPoDate(dc['po_ref_date'] as String?),
+    dispatch: '${dc['vehicle_dispatch'] ?? ''}',
+    ewbNo: '${dc['eway_bill_no'] ?? ''}',
+    consigneeName: '${dc['party_name'] ?? ''}',
+    consigneeAddress: address,
+    gstin: '${dc['gstin'] ?? ''}',
+    items: items,
+    amountInWords: '',
+    bankName: UltraCompanyConstants.bankName,
+    accountNo: UltraCompanyConstants.bankAccountNo,
+    ifscCode: UltraCompanyConstants.bankIfsc,
+    bankAddress: UltraCompanyConstants.bankBranch,
+  );
+}
+
+InvoiceData _proformaInvoiceData(
+  Map<String, dynamic> dc,
+  List<Map<String, dynamic>> rawItems,
+) async {
+  final items = rawItems
+      .map(
+        (it) => InvoiceItem(
+          description: '${it['description'] ?? ''}',
+          hsnCode: '${it['hsn'] ?? ''}',
+          qty: parseApiAmount(it['quantity']),
+          price: parseApiAmount(it['rate']),
         ),
       )
       .toList();
@@ -67,27 +119,32 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
   final fwd = parseApiAmount(dc['fwd_charge']);
   final grand = (dc['grand_total'] as num?)?.toDouble() ??
       subtotal + cgstTotal + sgstTotal + igstTotal + fwd;
-  final validityDays = '${dc['validity_days'] ?? '0'}';
+
+  final city = '${dc['city'] ?? ''}'.trim();
+  final pin = '${dc['pincode'] ?? ''}'.trim();
+  final cityLine = [
+    if (city.isNotEmpty) city,
+    if (pin.isNotEmpty) pin,
+  ].join(' - ');
 
   return InvoiceData(
     kind: UltraBillKind.deliveryChallan,
-    documentTitle: title,
-    partySectionTitle: 'NAME & ADDRESS OF RECEIVER',
-    copyLabels: ['ORIGINAL $title', copyLabel],
-    invoiceNo: '${dc['doc_id'] ?? dc['serial_no'] ?? ''}',
-    date: ultraFmtDate(dc['document_date'] as String?),
+    salesBillType: UltraSalesBillType.proforma,
+    documentTitle: 'PROFORMA INVOICE',
+    copyLabels: ultraSalesBillCopyLabels,
+    invoiceNo: '${dc['serial_no'] ?? dc['doc_id'] ?? ''}',
+    date: formatUltraBillDateShort(dc['document_date'] as String?),
     custPo: '${dc['po_ref_no'] ?? ''}',
-    poDate: ultraFmtDate(dc['po_ref_date'] as String?),
+    poDate: formatUltraBillDateShort(dc['po_ref_date'] as String?),
     dcNo: '${dc['account_ref'] ?? ''}',
-    dcDate: ultraFmtDate(dc['po_ref_date'] as String?),
+    dcDate: formatUltraBillDateShort(dc['po_ref_date'] as String?),
     dispatch: '${dc['vehicle_dispatch'] ?? ''}',
-    ewbNo: type == 'PROFORMA' && validityDays != '0'
-        ? 'VALIDITY: $validityDays DAYS'
-        : '${dc['eway_bill_no'] ?? ''}',
+    ewbNo: '${dc['eway_bill_no'] ?? ''}',
     consigneeName: '${dc['party_name'] ?? ''}',
     consigneeAddress: address,
+    consigneeCityLine: cityLine,
     gstin: '${dc['gstin'] ?? ''}',
-    mobile: 'NOT AVAILABLE',
+    mobile: '',
     items: items,
     pAndF: fwd,
     cgstAmountOverride: cgstTotal,
@@ -95,11 +152,10 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
     igstAmountOverride: igstTotal,
     grandTotalOverride: grand,
     amountInWords: formatUltraAmountInWords(grand),
-    bankName: ultraDefaultBankName,
-    accountNo: ultraDefaultBankAccount,
-    ifscCode: ultraDefaultBankIfsc,
-    bankAddress: ultraDefaultBankAddress,
-    forwardingLabel: 'Forwarding',
-    totalGrandLabel: 'Total Value',
+    bankName: UltraCompanyConstants.bankName,
+    accountNo: UltraCompanyConstants.bankAccountNo,
+    ifscCode: UltraCompanyConstants.bankIfsc,
+    bankAddress: UltraCompanyConstants.bankBranch,
+    leftSignatureLabel: 'Receiver signature & Seal',
   );
 }
