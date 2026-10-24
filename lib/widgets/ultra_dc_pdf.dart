@@ -178,13 +178,11 @@ pw.Widget _dcPartyAndMeta(InvoiceData d) {
 
 pw.Widget _cell(String t, {bool bold = false}) => pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 3),
-      child: pw.FittedBox(
-        fit: pw.BoxFit.scaleDown,
-        alignment: pw.Alignment.centerLeft,
-        child: pw.Text(t,
-            style: _body(size: 7.5, bold: bold),
-            softWrap: false,
-            maxLines: 1),
+      child: pw.Text(
+        t.isEmpty ? ' ' : t,
+        style: _body(size: 7.5, bold: bold),
+        softWrap: false,
+        maxLines: 1,
       ),
     );
 
@@ -232,7 +230,7 @@ pw.Widget _dcItems(InvoiceData d, {required double bodyHeight}) {
       horizontalInside: pw.BorderSide(color: _black, width: 0.5),
     ),
     columnWidths: {
-      0: const pw.FixedColumnWidth(30),
+      0: const pw.FixedColumnWidth(42),
       1: const pw.FlexColumnWidth(3),
       2: const pw.FixedColumnWidth(40),
       3: const pw.FixedColumnWidth(46),
@@ -244,8 +242,13 @@ pw.Widget _dcItems(InvoiceData d, {required double bodyHeight}) {
 }
 
 pw.Widget _hdr(String t) => pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-      child: pw.Text(t, style: _sansHeader(size: 8)),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 5),
+      child: pw.Text(
+        t,
+        style: _sansHeader(size: 6.8),
+        softWrap: false,
+        maxLines: 1,
+      ),
     );
 
 pw.Widget _dat(String t, {pw.TextAlign align = pw.TextAlign.left}) => pw.Padding(

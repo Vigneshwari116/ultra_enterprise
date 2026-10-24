@@ -254,15 +254,11 @@ pw.Widget _labourHeaderRow(InvoiceData d, pw.MemoryImage logo) {
 pw.Widget _metaCell(String text, {bool bold = false, double size = 7.5}) =>
     pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-      child: pw.FittedBox(
-        fit: pw.BoxFit.scaleDown,
-        alignment: pw.Alignment.centerLeft,
-        child: pw.Text(
-          text,
-          style: _body(size: size, bold: bold),
-          softWrap: false,
-          maxLines: 1,
-        ),
+      child: pw.Text(
+        text.isEmpty ? ' ' : text,
+        style: _body(size: size, bold: bold),
+        softWrap: false,
+        maxLines: 1,
       ),
     );
 
@@ -526,11 +522,11 @@ pw.Widget _itemsTable(
   return pw.Table(
     border: pw.TableBorder.all(color: _black, width: 1),
     columnWidths: {
-      0: const pw.FixedColumnWidth(36),
+      0: const pw.FixedColumnWidth(42),
       1: const pw.FlexColumnWidth(4),
       2: const pw.FixedColumnWidth(54),
       3: const pw.FixedColumnWidth(44),
-      4: const pw.FixedColumnWidth(66),
+      4: const pw.FixedColumnWidth(76),
       5: const pw.FixedColumnWidth(58),
     },
     defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
@@ -539,16 +535,13 @@ pw.Widget _itemsTable(
 }
 
 pw.Widget _tblHead(String text, {bool right = false}) => pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 5),
-      child: pw.FittedBox(
-        fit: pw.BoxFit.scaleDown,
-        alignment:
-            right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
-        child: pw.Text(text,
-            style: _sansHeader(size: 7.5),
-            softWrap: false,
-            maxLines: 1,
-            textAlign: right ? pw.TextAlign.right : pw.TextAlign.left),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 5),
+      child: pw.Text(
+        text,
+        style: _sansHeader(size: 6.8),
+        softWrap: false,
+        maxLines: 1,
+        textAlign: right ? pw.TextAlign.right : pw.TextAlign.left,
       ),
     );
 
