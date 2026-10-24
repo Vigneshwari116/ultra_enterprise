@@ -50,18 +50,19 @@ Future<Uint8List> buildUltraDcPdf(InvoiceData data) async {
                     border: pw.Border.all(color: _black, width: 1),
                   ),
                   child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                     children: [
                       _dcCompanyHeader(logo),
                       _dcPartyAndMeta(data),
                       pw.Expanded(
-                        child: pw.LayoutBuilder(
-                          builder: (ctx, c) => _dcItems(
-                            data,
-                            bodyHeight: c?.maxHeight ?? 300,
-                          ),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                          children: [
+                            pw.Expanded(child: _dcItemsPanel(data)),
+                            _dcFooter(data),
+                          ],
                         ),
                       ),
-                      _dcFooter(data),
                     ],
                   ),
                 ),
@@ -107,7 +108,27 @@ pw.Widget _dcCompanyHeader(pw.MemoryImage logo) {
   );
 }
 
+List<String> _dcAddressLines(InvoiceData d) {
+  final lines = <String>[];
+  final raw = pdfLatin1(d.consigneeAddress).trim();
+  if (raw.isNotEmpty) {
+    if (raw.contains(',')) {
+      lines.addAll(
+        raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
+      );
+    } else {
+      lines.add(raw);
+    }
+  }
+  final city = pdfLatin1(d.consigneeCityLine).trim();
+  if (city.isNotEmpty) {
+    lines.add(city);
+  }
+  return lines;
+}
+
 pw.Widget _dcPartyAndMeta(InvoiceData d) {
+  final yourDc = d.custPo.isEmpty ? '0' : d.custPo;
   return pw.Container(
     decoration: const pw.BoxDecoration(
       border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1)),
@@ -127,9 +148,10 @@ pw.Widget _dcPartyAndMeta(InvoiceData d) {
               children: [
                 pw.Text('NAME & ADDRESS OF CONSIGNEE',
                     style: _body(size: 7.5, bold: true)),
-                pw.Text(pdfLatin1(d.consigneeName),
-                    style: _body(size: 9, bold: true)),
-                pw.Text(pdfLatin1(d.consigneeAddress), style: _body(size: 8)),
+                pw.Text(pdfLatin1(d.consigneeName), style: _body(size: 9)),
+                ..._dcAddressLines(d).map(
+                  (line) => pw.Text(line, style: _body(size: 8)),
+                ),
               ],
             ),
           ),
@@ -151,8 +173,8 @@ pw.Widget _dcPartyAndMeta(InvoiceData d) {
               ]),
               pw.TableRow(children: [
                 _cell('Your D.C.No:'),
-                _cell(d.custPo),
-                _cell(d.poDate, bold: true),
+                _cell(yourDc),
+                _cell(yourDc),
               ]),
               pw.TableRow(children: [
                 _cell('P.O NO:'),
@@ -190,58 +212,108 @@ pw.Widget _cell(String t, {bool bold = false}) {
   );
 }
 
-pw.Widget _dcItems(InvoiceData d, {required double bodyHeight}) {
-  const rowH = 17.0;
-  const headerH = 24.0;
-  final minRows =
-      ((bodyHeight - headerH) / rowH).ceil().clamp(d.items.length, 40);
-  final rows = <pw.TableRow>[
-    pw.TableRow(
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1)),
-      ),
-      children: [
+List<double> _dcItemColumnWidths(double totalWidth) {
+  const fixed = [42.0, 40.0, 46.0, 50.0];
+  final remarks = 72.0;
+  final desc = totalWidth - fixed.fold<double>(0, (a, b) => a + b) - remarks;
+  return [42, desc, 40, 46, 50, remarks];
+}
+
+pw.Widget _dcItemRow(
+  List<double> widths,
+  List<pw.Widget> cells, {
+  bool bottomBorder = false,
+}) {
+  return pw.Row(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      for (var i = 0; i < cells.length; i++)
+        pw.Container(
+          width: widths[i],
+          decoration: pw.BoxDecoration(
+            border: pw.Border(
+              right: i < cells.length - 1
+                  ? const pw.BorderSide(color: _black, width: 1)
+                  : pw.BorderSide.none,
+              bottom: bottomBorder
+                  ? const pw.BorderSide(color: _black, width: 1)
+                  : pw.BorderSide.none,
+            ),
+          ),
+          child: cells[i],
+        ),
+    ],
+  );
+}
+
+pw.Widget _dcItemVerticalGuides(List<double> widths) {
+  return pw.Row(
+    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < widths.length; i++)
+        pw.Container(
+          width: widths[i],
+          decoration: pw.BoxDecoration(
+            border: pw.Border(
+              right: i < widths.length - 1
+                  ? const pw.BorderSide(color: _black, width: 1)
+                  : pw.BorderSide.none,
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+pw.Widget _dcItemsPanel(InvoiceData d) {
+  return pw.LayoutBuilder(
+    builder: (ctx, constraints) {
+      final totalW = constraints?.maxWidth ?? 400;
+      final widths = _dcItemColumnWidths(totalW);
+      final headerCells = [
         _hdr('SL.NO'),
         _hdr('DESCRIPTION'),
         _hdr('QTY'),
         _hdr('RATE'),
         _hdr('AMOUNT'),
         _hdr('REMARKS'),
-      ],
-    ),
-  ];
-  for (var i = 0; i < minRows; i++) {
-    if (i < d.items.length) {
-      final it = d.items[i];
-      rows.add(pw.TableRow(children: [
-        _dat('${i + 1}', align: pw.TextAlign.center),
-        _dat(it.description),
-        _dat(it.qty.toStringAsFixed(2), align: pw.TextAlign.center),
-        _dat(formatUltraMoney(it.price), align: pw.TextAlign.right),
-        _dat(formatUltraMoney(it.amount), align: pw.TextAlign.right),
-        _dat(it.remarks),
-      ]));
-    } else {
-      rows.add(pw.TableRow(children: List.generate(6, (_) => _dat(''))));
-    }
-  }
-  return pw.Table(
-    border: const pw.TableBorder(
-      bottom: pw.BorderSide(color: _black, width: 1),
-      left: pw.BorderSide(color: _black, width: 1),
-      right: pw.BorderSide(color: _black, width: 1),
-      verticalInside: pw.BorderSide(color: _black, width: 1),
-      horizontalInside: pw.BorderSide(color: _black, width: 0.5),
-    ),
-    columnWidths: {
-      0: const pw.FixedColumnWidth(42),
-      1: const pw.FlexColumnWidth(3),
-      2: const pw.FixedColumnWidth(40),
-      3: const pw.FixedColumnWidth(46),
-      4: const pw.FixedColumnWidth(50),
-      5: const pw.FlexColumnWidth(2),
+      ];
+      final dataRows = <pw.Widget>[];
+      for (var i = 0; i < d.items.length; i++) {
+        final it = d.items[i];
+        dataRows.add(
+          _dcItemRow(
+            widths,
+            [
+              _dat('${i + 1}', align: pw.TextAlign.center),
+              _dat(it.description),
+              _dat(formatPrintQuantity(it.qty), align: pw.TextAlign.center),
+              _dat(formatPrintQuantity(it.price), align: pw.TextAlign.right),
+              _dat(formatUltraMoney(it.amount), align: pw.TextAlign.right),
+              _dat(it.remarks),
+            ],
+            bottomBorder: true,
+          ),
+        );
+      }
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _dcItemRow(widths, headerCells, bottomBorder: true),
+          pw.Expanded(
+            child: pw.Stack(
+              children: [
+                pw.Positioned.fill(child: _dcItemVerticalGuides(widths)),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: dataRows,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
     },
-    children: rows,
   );
 }
 
@@ -266,7 +338,10 @@ pw.Widget _dat(String t, {pw.TextAlign align = pw.TextAlign.left}) =>
     );
 
 pw.Widget _dcFooter(InvoiceData d) {
-  return pw.Padding(
+  return pw.Container(
+    decoration: const pw.BoxDecoration(
+      border: pw.Border(top: pw.BorderSide(color: _black, width: 1)),
+    ),
     padding: const pw.EdgeInsets.all(6),
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
