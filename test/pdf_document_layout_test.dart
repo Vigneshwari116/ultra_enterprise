@@ -7,6 +7,7 @@ import 'package:ultra_enterprise/widgets/invoice.dart';
 import 'package:ultra_enterprise/widgets/purchase_order_document.dart';
 import 'package:ultra_enterprise/widgets/purchase_voucher_document.dart';
 import 'package:ultra_enterprise/widgets/quotation_document.dart';
+import 'package:ultra_enterprise/config/ultra_company_constants.dart';
 import 'package:ultra_enterprise/widgets/sales_report.dart';
 
 /// PDF streams are Flate-compressed; count pages from the document catalog.
@@ -25,17 +26,20 @@ InvoiceItem _sampleItem({String remarks = ''}) => InvoiceItem(
       remarks: remarks,
     );
 
-InvoiceData taxInvoiceSample() => InvoiceData(
+InvoiceData taxInvoiceSample({List<InvoiceItem>? items}) => InvoiceData(
       kind: UltraBillKind.taxInvoice,
       documentTitle: 'TAX INVOICE',
-      invoiceNo: 'INV-2026-TEST',
-      date: '07-04-2026',
+      copyLabels: ultraSalesBillCopyLabels,
+      invoiceNo: '224',
+      date: '12-Oct-26',
       dispatch: 'KA50B2331',
       consigneeName: 'Test Customer',
       consigneeAddress: 'Test Address',
+      consigneeCityLine: 'Bengaluru - 560099',
       gstin: '29AACCC5171H1ZM',
-      items: [_sampleItem()],
-      amountInWords: 'ONE THOUSAND ONE HUNDRED EIGHTY RUPEES ONLY',
+      mobile: '9876543210',
+      items: items ?? [_sampleItem()],
+      amountInWords: 'ONE THOUSAND ONE HUNDRED EIGHTY ONLY',
       bankName: 'STATE BANK OF INDIA',
       accountNo: '54009859972',
       ifscCode: 'SBIN0040552',
@@ -230,13 +234,29 @@ InvoiceData debitNoteSample() => InvoiceData(
     );
 
 void main() {
-  test('tax invoice PDF builds with 5 copy pages', () async {
+  test('tax invoice PDF is one page for one line item', () async {
     final data = taxInvoiceSample();
-    expect(data.copyLabels.length, 5);
-    expect(data.kind, UltraBillKind.taxInvoice);
+    expect(data.copyLabels, ultraSalesBillCopyLabels);
     final bytes = await buildUltraInvoicePdf(data);
     expect(bytes, isNotEmpty);
-    expect(pdfPageCount(bytes), 5);
+    expect(pdfPageCount(bytes), 1);
+  });
+
+  test('tax invoice PDF is one page for fifteen line items', () async {
+    final items = List.generate(15, (_) => _sampleItem());
+    final bytes = await buildUltraInvoicePdf(taxInvoiceSample(items: items));
+    expect(pdfPageCount(bytes), 1);
+  });
+
+  test('tax invoice PDF uses two pages for a very long item list', () async {
+    final items = List.generate(25, (i) => InvoiceItem(
+          description: 'Line item $i',
+          hsnCode: '9988',
+          qty: 1,
+          price: 100,
+        ));
+    final bytes = await buildUltraInvoicePdf(taxInvoiceSample(items: items));
+    expect(pdfPageCount(bytes), 2);
   });
 
   test('purchase order PDF builds with PO copy labels', () async {

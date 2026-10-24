@@ -16,7 +16,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 14,
+      version: 15,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -115,6 +115,9 @@ class AppDatabase {
             sgst_total REAL DEFAULT 0,
             igst_total REAL DEFAULT 0,
             grand_total REAL DEFAULT 0,
+            bill_type TEXT DEFAULT 'NORMAL',
+            sel_dc_no TEXT,
+            sel_dc_date TEXT,
             status TEXT DEFAULT 'DRAFT'
           )
         ''');
@@ -435,6 +438,17 @@ class AppDatabase {
           try {
             await db.execute('ALTER TABLE adjustment_notes ADD COLUMN note_bill_no TEXT');
           } catch (_) {}
+        }
+        if (oldVersion < 15) {
+          for (final col in [
+            "bill_type TEXT DEFAULT 'NORMAL'",
+            'sel_dc_no TEXT',
+            'sel_dc_date TEXT',
+          ]) {
+            try {
+              await db.execute('ALTER TABLE sales_invoices ADD COLUMN $col');
+            } catch (_) {}
+          }
         }
         if (oldVersion < 13) {
           await db.execute('''

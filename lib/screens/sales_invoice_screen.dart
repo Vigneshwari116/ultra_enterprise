@@ -14,8 +14,11 @@ import '../widgets/transaction_line_math.dart';
 /// Used by [AppShell] to refresh UOM/product lists after Unit Master saves.
 final salesInvoiceCatalogKey = GlobalKey<SalesInvoiceCatalogHostState>();
 
+enum SalesBillTypeChoice { normal, labour }
+
 abstract class SalesInvoiceCatalogHostState extends State<SalesInvoiceScreen> {
   Future<void> refreshCatalog();
+  Future<void> openExistingInvoice(int invoiceId);
 }
 
 class SalesInvoiceScreen extends StatefulWidget {
@@ -40,11 +43,16 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       account = TextEditingController(),
       shipping = TextEditingController();
   final fwdCharge = TextEditingController(text: '0');
+  final selDcNo = TextEditingController();
+  SalesBillTypeChoice billType = SalesBillTypeChoice.normal;
+  bool _billTypeChosen = false;
+  int? _editingInvoiceId;
 
   // Internal dates are kept as ISO (yyyy-MM-dd); displayed as dd-MM-yyyy like the reference.
   String date = DateFormat('yyyy-MM-dd').format(DateTime.now());
   String poDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   String challanDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  String selDcDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   // Empty until the user picks one — mirrors the reference's mandatory red "Choose Option" state.
   String zone = '';
   String voucherNo = '';
@@ -60,7 +68,114 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   @override
   void initState() {
     super.initState();
-    load();
+    load().then((_) {
+      if (mounted && _editingInvoiceId == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _promptBillType());
+      }
+    });
+  }
+
+  @override
+  Future<void> openExistingInvoice(int invoiceId) async {
+    _editingInvoiceId = invoiceId;
+    _billTypeChosen = true;
+    try {
+      final bundle = await repo.salesInvoicePrintBundle(invoiceId);
+      if (bundle == null) return;
+      final inv = bundle['invoice'] as Map<String, dynamic>;
+      final rawItems = bundle['items'] as List<Map<String, dynamic>>;
+      final type = '${inv['bill_type'] ?? 'NORMAL'}'.toUpperCase();
+      billType = type == 'LABOUR'
+          ? SalesBillTypeChoice.labour
+          : SalesBillTypeChoice.normal;
+      date = '${inv['transaction_date'] ?? date}';
+      po.text = '${inv['po_no'] ?? ''}';
+      poDate = '${inv['po_date'] ?? poDate}';
+      challan.text = '${inv['challan_no'] ?? inv['challan_dc_no'] ?? ''}';
+      challanDate =
+          '${inv['challan_date'] ?? inv['challan_dc_date'] ?? challanDate}';
+      selDcNo.text = '${inv['sel_dc_no'] ?? ''}';
+      selDcDate = '${inv['sel_dc_date'] ?? selDcDate}';
+      packages.text = '${inv['total_packages'] ?? 0}';
+      vehicle.text = '${inv['vehicle_dispatch_mode'] ?? ''}';
+      due.text = '${inv['due_days'] ?? 0}';
+      eway.text = '${inv['eway_bill_no'] ?? ''}';
+      fwdCharge.text = '${inv['fwd_charge'] ?? 0}';
+      zone = '${inv['state_zone'] ?? zone}';
+      customerId = coerceCatalogId(inv['customer_id']);
+      customerAddress.text = '${inv['customer_address'] ?? ''}';
+      city.text = '${inv['customer_city'] ?? ''}';
+      pin.text = '${inv['customer_pincode'] ?? ''}';
+      gstin.text = '${inv['customer_gstin'] ?? ''}';
+      shipping.text = '${inv['shipping_address'] ?? ''}';
+      for (final r in rows) {
+        r.dispose();
+      }
+      rows.clear();
+      for (final it in rawItems) {
+        final row = _InvoiceRow();
+        row.description = '${it['description'] ?? ''}';
+        row.hsn = '${it['hsn'] ?? it['hsn_code'] ?? ''}';
+        row.qty = (it['quantity'] as num?)?.toDouble() ?? 0;
+        row.rate = (it['rate'] as num?)?.toDouble() ?? 0;
+        row.qtyController.text = row.qty == 0 ? '' : row.qty.toStringAsFixed(2);
+        row.rateController.text =
+            row.rate == 0 ? '' : row.rate.toStringAsFixed(2);
+        row.cgstPct = (it['cgst_percent'] as num?)?.toDouble() ?? 9;
+        row.sgstPct = (it['sgst_percent'] as num?)?.toDouble() ?? 9;
+        row.igstPct = (it['igst_percent'] as num?)?.toDouble() ?? 0;
+        rows.add(row);
+      }
+      if (rows.isEmpty) rows.add(_InvoiceRow());
+      voucherNo = '${inv['invoice_no'] ?? voucherNo}';
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _promptBillType() async {
+    if (_billTypeChosen || !mounted) return;
+    final choice = await showDialog<SalesBillTypeChoice>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select bill type'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('Normal Bill'),
+              onTap: () => Navigator.pop(ctx, SalesBillTypeChoice.normal),
+            ),
+            ListTile(
+              title: const Text('Labour Bill'),
+              onTap: () => Navigator.pop(ctx, SalesBillTypeChoice.labour),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (choice == null) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    setState(() {
+      billType = choice;
+      _billTypeChosen = true;
+      if (billType == SalesBillTypeChoice.labour) {
+        for (final r in rows) {
+          if (r.hsn.isEmpty) r.hsn = '9988';
+        }
+      }
+    });
   }
 
   Future<void> load() async {
@@ -181,7 +296,8 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       bank,
       account,
       shipping,
-      fwdCharge
+      fwdCharge,
+      selDcNo,
     ]) c.dispose();
     super.dispose();
   }
@@ -263,6 +379,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
         'igst_total': igst,
         'grand_total': netPayable,
         'fwd_charge': fwd,
+        'bill_type': billType == SalesBillTypeChoice.labour ? 'LABOUR' : 'NORMAL',
+        'sel_dc_no': billType == SalesBillTypeChoice.labour ? selDcNo.text : null,
+        'sel_dc_date': billType == SalesBillTypeChoice.labour ? selDcDate : null,
         'status': 'POSTED',
         'items': items,
       });
@@ -429,6 +548,17 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                       _outline('DUE DAYS', controller: due),
                       _outline('E-WAY BILL NO (EWB NO)', controller: eway),
                     ),
+                    if (billType == SalesBillTypeChoice.labour) ...[
+                      enterpriseFormPair(
+                        _outline('SEL DC NO', controller: selDcNo),
+                        enterpriseInsetDateField(
+                          label: 'SEL DC DATE',
+                          isoDate: selDcDate,
+                          onTap: () => _pickDate(
+                              selDcDate, (v) => setState(() => selDcDate = v)),
+                        ),
+                      ),
+                    ],
                   ],
                 );
                 final section2 = enterprisePlainSection(
@@ -628,7 +758,8 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
             enterpriseMatrixHeadCell('SL'),
             enterpriseMatrixHeadCell('MATERIAL PRODUCT DESCRIPTION'),
             enterpriseMatrixHeadCell('UOM'),
-            enterpriseMatrixHeadCell('HSN'),
+            enterpriseMatrixHeadCell(
+                billType == SalesBillTypeChoice.labour ? 'SAC' : 'HSN'),
             enterpriseMatrixHeadCell('QTY'),
             enterpriseMatrixHeadCell('RATE'),
             enterpriseMatrixHeadCell('CGST%'),
@@ -672,7 +803,11 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                   onChanged: (v) {
                     final p = products
                         .firstWhere((x) => coerceCatalogId(x['id']) == v);
-                    setState(() => rows[i].setProduct(p, stateZone: zone));
+                    setState(() => rows[i].setProduct(
+                          p,
+                          stateZone: zone,
+                          labourBill: billType == SalesBillTypeChoice.labour,
+                        ));
                   },
                 ),
               ),
@@ -831,12 +966,17 @@ class _InvoiceRow {
     igstController.dispose();
   }
 
-  void setProduct(Map<String, dynamic> p, {required String stateZone}) {
+  void setProduct(
+    Map<String, dynamic> p, {
+    required String stateZone,
+    bool labourBill = false,
+  }) {
     productId = coerceCatalogId(p['id']);
     description = '${p['product_name'] ?? ''}';
     unitId = catalogUnitId(p);
     uom = catalogUomCode(p);
-    hsn = catalogProductHsn(p);
+    final productHsn = catalogProductHsn(p);
+    hsn = labourBill ? (productHsn.isEmpty ? '9988' : productHsn) : productHsn;
     rate = catalogSalesRate(p);
     rateController.text = rate == 0 ? '' : rate.toStringAsFixed(2);
     final productGst = catalogTotalGstPercent(p);
