@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -309,10 +310,27 @@ Future<void> printUltraInvoice(InvoiceData data) async {
       bytes: bytes, filename: ultraInvoicePdfFilename(data));
 }
 
-/// Opens the system print dialog with the vector PDF (optional physical print).
-Future<void> layoutPrintUltraInvoice(InvoiceData data) async {
+/// Print file name for sales bills (normal, labour, proforma) and delivery challans.
+String ultraPrintDocumentName(InvoiceData data) {
+  final plain = ultraPlainDocumentNumber(data.invoiceNo);
+  final isProforma = data.documentTitle == 'PROFORMA INVOICE' ||
+      data.salesBillType == UltraSalesBillType.proforma;
+  if (isProforma || data.kind == UltraBillKind.taxInvoice) {
+    return ultraPrintPdfFileNameInvoice(plain);
+  }
+  if (data.kind == UltraBillKind.deliveryChallan) {
+    return ultraPrintPdfFileNameDc(plain);
+  }
+  return ultraInvoicePdfFilename(data).replaceAll(RegExp(r'\.pdf$'), '');
+}
+
+/// Sales bill or delivery challan — system print dialog (Windows / web).
+Future<void> printInvoiceDataDocument(
+  BuildContext context,
+  InvoiceData data,
+) async {
   final bytes = await buildUltraInvoicePdf(data);
-  await Printing.layoutPdf(onLayout: (_) async => bytes);
+  await printPdfDocument(context, bytes, ultraPrintDocumentName(data));
 }
 
 /// Lets the user share / save the PDF file directly (e.g. WhatsApp, email,

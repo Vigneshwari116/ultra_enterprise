@@ -1,15 +1,17 @@
+import 'package:flutter/material.dart';
+
 import '../config/ultra_company_constants.dart';
 import '../services/ultra_repository.dart';
 import 'invoice.dart';
 import 'transaction_line_math.dart';
 import 'ultra_print_helpers.dart';
 
-Future<void> reprintDeliveryChallan(int challanId) async {
+Future<void> reprintDeliveryChallan(BuildContext context, int challanId) async {
   final data = await deliveryChallanInvoiceData(challanId);
   if (data == null) {
     throw Exception('Delivery challan not found (id: $challanId)');
   }
-  await layoutPrintUltraInvoice(data);
+  await printInvoiceDataDocument(context, data);
 }
 
 Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {

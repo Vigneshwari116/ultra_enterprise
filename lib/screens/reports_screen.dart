@@ -945,7 +945,13 @@ class _SalesReportsScreenState extends SalesReportsScreenState {
     final total = _asDouble(r['grand_total']);
     final narrow = AppBreakpoints.isNarrow(context);
     final reprintBtn = OutlinedButton.icon(
-      onPressed: () => reprintSalesInvoice(r['id'] as int),
+      onPressed: () async {
+        try {
+          await reprintSalesInvoice(context, r['id'] as int);
+        } catch (e) {
+          if (context.mounted) showReadableErrorSnackBar(context, e);
+        }
+      },
       icon: const Icon(Icons.print, size: 12),
       label: const Text('REPRINT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
       style: OutlinedButton.styleFrom(foregroundColor: _navy, side: const BorderSide(color: _border), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8)),

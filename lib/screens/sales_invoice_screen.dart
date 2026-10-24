@@ -7,6 +7,7 @@ import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
 import '../widgets/sales_report.dart';
+import '../widgets/ultra_print_helpers.dart';
 import '../utils/api_errors.dart';
 import '../utils/party_directory.dart';
 import '../widgets/transaction_line_math.dart';
@@ -440,23 +441,24 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     if (invoiceId == null) return;
     try {
       final data = await invoiceDataFromId(invoiceId);
-      if (data != null) {
-        await layoutPrintUltraInvoice(data);
+      if (data == null) {
+        throw Exception('Saved invoice could not be loaded for printing');
       }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('SALES VOUCHER SAVED — PRINT DIALOG OPENED')),
-        );
-      }
-    } catch (e) {
+      final billNo = ultraPlainDocumentNumber(data.invoiceNo);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content:
-                  Text('SALES INVOICE SAVED, BUT PDF PRINTING FAILED: $e')),
+            content: Text(
+              UltraConfig.persistLocally
+                  ? 'Sales invoice $billNo saved locally — pending sync'
+                  : 'Sales invoice $billNo saved successfully',
+            ),
+          ),
         );
       }
+      await printInvoiceDataDocument(context, data);
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     await load();
     _resetForm();
