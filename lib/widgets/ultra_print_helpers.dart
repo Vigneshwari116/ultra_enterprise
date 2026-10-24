@@ -162,6 +162,15 @@ String formatUltraMoney(num value) {
   return NumberFormat('#,##0.00', 'en_IN').format(value);
 }
 
+/// Qty / rate on DC and bills: whole numbers without decimals (1, 0).
+String formatPrintQuantity(num value) {
+  final d = value.toDouble();
+  if (d == d.roundToDouble()) {
+    return d.round().toString();
+  }
+  return d.toStringAsFixed(2);
+}
+
 const ultraDefaultBankName = UltraCompanyConstants.bankName;
 const ultraDefaultBankAccount = UltraCompanyConstants.bankAccountNo;
 const ultraDefaultBankIfsc = UltraCompanyConstants.bankIfsc;
