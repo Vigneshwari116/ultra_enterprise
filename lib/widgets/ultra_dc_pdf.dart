@@ -23,7 +23,7 @@ pw.TextStyle _sansHeader({double size = 8}) => pw.TextStyle(
       color: _black,
     );
 
-/// Delivery challan PDF (INWARD / OUTWARD) — layout from docs/bill_formats/dc_sample.pdf.
+/// Delivery challan PDF (INWARD / OUTWARD); layout from docs/bill_formats/dc_sample.pdf.
 Future<Uint8List> buildUltraDcPdf(InvoiceData data) async {
   final doc = pw.Document();
   final logo = pw.MemoryImage(base64Decode(ultraLogoBase64));
@@ -127,8 +127,9 @@ pw.Widget _dcPartyAndMeta(InvoiceData d) {
               children: [
                 pw.Text('NAME & ADDRESS OF CONSIGNEE',
                     style: _body(size: 7.5, bold: true)),
-                pw.Text(d.consigneeName, style: _body(size: 9, bold: true)),
-                pw.Text(d.consigneeAddress, style: _body(size: 8)),
+                pw.Text(pdfLatin1(d.consigneeName),
+                    style: _body(size: 9, bold: true)),
+                pw.Text(pdfLatin1(d.consigneeAddress), style: _body(size: 8)),
               ],
             ),
           ),
@@ -176,15 +177,18 @@ pw.Widget _dcPartyAndMeta(InvoiceData d) {
   );
 }
 
-pw.Widget _cell(String t, {bool bold = false}) => pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 3),
-      child: pw.Text(
-        t.isEmpty ? ' ' : t,
-        style: _body(size: 7.5, bold: bold),
-        softWrap: false,
-        maxLines: 1,
-      ),
-    );
+pw.Widget _cell(String t, {bool bold = false}) {
+  final text = pdfLatin1(t);
+  return pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+    child: pw.Text(
+      text.isEmpty ? ' ' : text,
+      style: _body(size: 7.5, bold: bold),
+      softWrap: false,
+      maxLines: 1,
+    ),
+  );
+}
 
 pw.Widget _dcItems(InvoiceData d, {required double bodyHeight}) {
   const rowH = 17.0;
@@ -251,9 +255,14 @@ pw.Widget _hdr(String t) => pw.Padding(
       ),
     );
 
-pw.Widget _dat(String t, {pw.TextAlign align = pw.TextAlign.left}) => pw.Padding(
+pw.Widget _dat(String t, {pw.TextAlign align = pw.TextAlign.left}) =>
+    pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-      child: pw.Text(t, style: _body(size: 8.5), textAlign: align),
+      child: pw.Text(
+        pdfLatin1(t),
+        style: _body(size: 8.5),
+        textAlign: align,
+      ),
     );
 
 pw.Widget _dcFooter(InvoiceData d) {

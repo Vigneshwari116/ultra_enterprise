@@ -18,6 +18,11 @@ void main() {
     expect(ultraPlainDocumentNumber('DC-2026-338'), '338');
   });
 
+  test('pdfLatin1 replaces em dash and drops non-Latin-1', () {
+    expect(pdfLatin1('empty\u2014field'), 'empty-field');
+    expect(pdfLatin1('plain ASCII'), 'plain ASCII');
+  });
+
   test('taxPercentsFromTotals uses stored amounts not fixed 9/9/18', () {
     final intra = taxPercentsFromTotals(
       taxable: 1000,
