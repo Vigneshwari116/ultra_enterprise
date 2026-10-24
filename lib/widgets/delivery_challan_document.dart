@@ -38,7 +38,7 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
           hsnCode: pdfLatin1('${it['hsn'] ?? ''}'),
           qty: parseApiAmount(it['quantity']),
           price: parseApiAmount(it['rate']),
-          remarks: '${it['remarks'] ?? ''}',
+          remarks: pdfLatin1('${it['remarks'] ?? ''}'),
         ),
       )
       .toList();
