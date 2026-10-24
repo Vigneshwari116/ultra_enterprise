@@ -121,7 +121,26 @@ String printableDcReference(String? raw) {
 String printableDispatch(String? raw) {
   final s = '${raw ?? ''}'.trim();
   if (s.isEmpty || s == '0') return '';
-  return s;
+  return pdfLatin1(s);
+}
+
+/// Text safe for Times/Helvetica in the `pdf` package (Latin-1 only).
+String pdfLatin1(String text) {
+  if (text.isEmpty) return text;
+  final replaced = text
+      .replaceAll('\u2014', '-')
+      .replaceAll('\u2013', '-')
+      .replaceAll('\u2018', "'")
+      .replaceAll('\u2019', "'")
+      .replaceAll('\u201c', '"')
+      .replaceAll('\u201d', '"');
+  final out = StringBuffer();
+  for (final unit in replaced.runes) {
+    if (unit <= 0xFF) {
+      out.writeCharCode(unit);
+    }
+  }
+  return out.toString();
 }
 
 /// DC P.O date line: dd-MM-yyyy

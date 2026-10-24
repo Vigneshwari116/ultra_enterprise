@@ -34,8 +34,8 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
   final items = rawItems
       .map(
         (it) => InvoiceItem(
-          description: '${it['description'] ?? ''}',
-          hsnCode: '${it['hsn'] ?? ''}',
+          description: pdfLatin1('${it['description'] ?? ''}'),
+          hsnCode: pdfLatin1('${it['hsn'] ?? ''}'),
           qty: parseApiAmount(it['quantity']),
           price: parseApiAmount(it['rate']),
           remarks: '${it['remarks'] ?? ''}',
@@ -65,9 +65,9 @@ Future<InvoiceData?> deliveryChallanInvoiceData(int challanId) async {
     dcDate: formatUltraDcPoDate(dc['po_ref_date'] as String?),
     dispatch: printableDispatch(dc['vehicle_dispatch']),
     ewbNo: '${dc['eway_bill_no'] ?? ''}',
-    consigneeName: '${dc['party_name'] ?? ''}',
-    consigneeAddress: address,
-    gstin: '${dc['gstin'] ?? ''}',
+    consigneeName: pdfLatin1('${dc['party_name'] ?? ''}'),
+    consigneeAddress: pdfLatin1(address),
+    gstin: pdfLatin1('${dc['gstin'] ?? ''}'),
     items: items,
     amountInWords: '',
     bankName: UltraCompanyConstants.bankName,
@@ -84,8 +84,8 @@ InvoiceData _proformaInvoiceData(
   final items = rawItems
       .map(
         (it) => InvoiceItem(
-          description: '${it['description'] ?? ''}',
-          hsnCode: '${it['hsn'] ?? ''}',
+          description: pdfLatin1('${it['description'] ?? ''}'),
+          hsnCode: pdfLatin1('${it['hsn'] ?? ''}'),
           qty: parseApiAmount(it['quantity']),
           price: parseApiAmount(it['rate']),
         ),
@@ -146,10 +146,10 @@ InvoiceData _proformaInvoiceData(
     dcDate: formatUltraBillDateShort(dc['po_ref_date'] as String?),
     dispatch: printableDispatch(dc['vehicle_dispatch']),
     ewbNo: '${dc['eway_bill_no'] ?? ''}',
-    consigneeName: '${dc['party_name'] ?? ''}',
-    consigneeAddress: address,
-    consigneeCityLine: cityLine,
-    gstin: '${dc['gstin'] ?? ''}',
+    consigneeName: pdfLatin1('${dc['party_name'] ?? ''}'),
+    consigneeAddress: pdfLatin1(address),
+    consigneeCityLine: pdfLatin1(cityLine),
+    gstin: pdfLatin1('${dc['gstin'] ?? ''}'),
     mobile: '',
     items: items,
     pAndF: fwd,

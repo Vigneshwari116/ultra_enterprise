@@ -251,16 +251,18 @@ pw.Widget _labourHeaderRow(InvoiceData d, pw.MemoryImage logo) {
   );
 }
 
-pw.Widget _metaCell(String text, {bool bold = false, double size = 7.5}) =>
-    pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-      child: pw.Text(
-        text.isEmpty ? ' ' : text,
-        style: _body(size: size, bold: bold),
-        softWrap: false,
-        maxLines: 1,
-      ),
-    );
+pw.Widget _metaCell(String text, {bool bold = false, double size = 7.5}) {
+  final t = pdfLatin1(text);
+  return pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+    child: pw.Text(
+      t.isEmpty ? ' ' : t,
+      style: _body(size: size, bold: bold),
+      softWrap: false,
+      maxLines: 1,
+    ),
+  );
+}
 
 String _dispatchValue(String raw) => printableDispatch(raw);
 
@@ -331,12 +333,13 @@ pw.Widget _normalConsigneeAndMeta(InvoiceData d) {
                       pw.Text('NAME & ADDRESS OF CONSIGNEE',
                           style: _body(size: 7.2, bold: true)),
                       pw.SizedBox(height: 2),
-                      pw.Text(d.consigneeName,
+                      pw.Text(pdfLatin1(d.consigneeName),
                           style: _body(size: 8.5, bold: true)),
                       if (d.consigneeAddress.isNotEmpty)
-                        pw.Text(d.consigneeAddress, style: _body(size: 7.5)),
+                        pw.Text(pdfLatin1(d.consigneeAddress),
+                            style: _body(size: 7.5)),
                       if (cityPin.isNotEmpty)
-                        pw.Text(cityPin, style: _body(size: 7.5)),
+                        pw.Text(pdfLatin1(cityPin), style: _body(size: 7.5)),
                     ],
                   ),
                 ),
@@ -362,7 +365,8 @@ pw.Widget _normalConsigneeAndMeta(InvoiceData d) {
                     padding: const pw.EdgeInsets.fromLTRB(6, 0, 6, 4),
                     child: pw.Align(
                       alignment: pw.Alignment.centerRight,
-                      child: pw.Text(d.mobile, style: _body(size: 8.5, bold: true)),
+                      child: pw.Text(pdfLatin1(d.mobile),
+                          style: _body(size: 8.5, bold: true)),
                     ),
                   ),
               ],
@@ -439,8 +443,9 @@ pw.Widget _labourPartyBlocks(InvoiceData d) {
               children: [
                 pw.Text('NAME & ADDRESS OF CONSIGNEE',
                     style: _body(size: 7.2, bold: true)),
-                pw.Text(d.consigneeName, style: _body(size: 8.5, bold: true)),
-                pw.Text(d.consigneeAddress, style: _body(size: 7.5)),
+                pw.Text(pdfLatin1(d.consigneeName),
+                    style: _body(size: 8.5, bold: true)),
+                pw.Text(pdfLatin1(d.consigneeAddress), style: _body(size: 7.5)),
               ],
             ),
           ),
@@ -458,7 +463,7 @@ pw.Widget _labourPartyBlocks(InvoiceData d) {
                   style: _body(size: 8.5, bold: true),
                 ),
                 if (d.shippingAddress.isNotEmpty)
-                  pw.Text(d.shippingAddress, style: _body(size: 7.5)),
+                  pw.Text(pdfLatin1(d.shippingAddress), style: _body(size: 7.5)),
               ],
             ),
           ),
@@ -554,7 +559,7 @@ pw.Widget _tblCell(
     pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 4),
       child: pw.Text(
-        text,
+        pdfLatin1(text),
         style: _body(size: small ? 7.5 : 9, bold: bold),
         textAlign: align,
       ),
