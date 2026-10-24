@@ -10,6 +10,7 @@ import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
 import '../widgets/transaction_line_math.dart';
+import '../widgets/ultra_print_helpers.dart';
 import 'product_catalog_refresh.dart';
 
 final deliveryChallanScreenKey = GlobalKey<DeliveryChallanScreenState>();
@@ -391,18 +392,20 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     final id = await _persistChallan();
     if (id == null) return;
     try {
-      await reprintDeliveryChallan(id);
+      final data = await deliveryChallanInvoiceData(id);
+      if (data == null) {
+        throw Exception('Saved document could not be loaded for printing');
+      }
+      final docNo = ultraPlainDocumentNumber(data.invoiceNo);
+      final label = kind == DcKind.proforma ? 'Proforma' : 'Delivery challan';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('DOCUMENT SAVED — PRINT DIALOG OPENED')),
+          SnackBar(content: Text('$label $docNo saved successfully')),
         );
       }
+      await printInvoiceDataDocument(context, data);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Document saved, but printing failed: $e')),
-        );
-      }
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     await load();
     historyRegister = kind.dbType;
@@ -550,13 +553,9 @@ class _DeliveryChallanScreenState extends DeliveryChallanScreenState {
     final reprintBtn = OutlinedButton(
       onPressed: () async {
         try {
-          await reprintDeliveryChallan(id);
+          await reprintDeliveryChallan(context, id);
         } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to load Delivery Challan for reprint: $e')),
-            );
-          }
+          if (mounted) showReadableErrorSnackBar(context, e);
         }
       },
       child: const Icon(Icons.print_outlined, size: 18),

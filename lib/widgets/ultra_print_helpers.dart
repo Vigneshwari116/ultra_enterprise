@@ -1,6 +1,48 @@
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 
 import '../config/ultra_company_constants.dart';
+import '../utils/api_errors.dart';
+
+/// Plain numeric document number for print/save-as-PDF file names (no FY prefix).
+String ultraPlainDocumentNumber(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty) return '0';
+  final matches = RegExp(r'\d+').allMatches(s);
+  if (matches.isEmpty) return s;
+  return matches.last.group(0)!;
+}
+
+/// System print dialog default name, e.g. `Invoice-209` (no `.pdf` suffix).
+String ultraPrintPdfFileNameInvoice(String billNumber) =>
+    'Invoice-${ultraPlainDocumentNumber(billNumber)}';
+
+/// e.g. `DC-338`
+String ultraPrintPdfFileNameDc(String dcNumber) =>
+    'DC-${ultraPlainDocumentNumber(dcNumber)}';
+
+/// Opens the OS / browser print preview (not a direct desktop save).
+Future<void> printPdfDocument(
+  BuildContext context,
+  Uint8List bytes,
+  String name,
+) async {
+  try {
+    await Printing.layoutPdf(
+      onLayout: (_) async => bytes,
+      name: name,
+      format: PdfPageFormat.a4,
+    );
+  } catch (e) {
+    if (context.mounted) {
+      showReadableErrorSnackBar(context, e);
+    }
+  }
+}
 
 String ultraFmtDate(String? iso) {
   if (iso == null || iso.isEmpty) return '';

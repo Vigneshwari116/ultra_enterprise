@@ -11,6 +11,13 @@ void main() {
     expect(formatUltraMoney(14580.4), '14,580.40');
   });
 
+  test('print PDF file names use plain numbers', () {
+    expect(ultraPrintPdfFileNameInvoice('209'), 'Invoice-209');
+    expect(ultraPrintPdfFileNameInvoice('SAL-209'), 'Invoice-209');
+    expect(ultraPrintPdfFileNameDc('338'), 'DC-338');
+    expect(ultraPlainDocumentNumber('DC-2026-338'), '338');
+  });
+
   test('formatUltraAmountInWords examples', () {
     expect(formatUltraAmountInWords(31010.40),
         'THIRTY ONE THOUSAND TEN ONLY');

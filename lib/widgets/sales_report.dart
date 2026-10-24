@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -259,8 +260,10 @@ Future<InvoiceData?> invoiceDataFromId(int invoiceId) async {
   );
 }
 
-Future<void> reprintSalesInvoice(int invoiceId) async {
+Future<void> reprintSalesInvoice(BuildContext context, int invoiceId) async {
   final data = await invoiceDataFromId(invoiceId);
-  if (data == null) return;
-  await printUltraInvoice(data);
+  if (data == null) {
+    throw Exception('Sales invoice not found (id: $invoiceId)');
+  }
+  await printInvoiceDataDocument(context, data);
 }
