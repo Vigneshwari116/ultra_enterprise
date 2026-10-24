@@ -46,7 +46,14 @@ Future<Response> listSalesInvoices(Connection conn) async {
 Future<Response> getSalesInvoiceById(Connection conn, int id) async {
   final headerRows = await conn.execute(
     Sql.named('''
-      SELECT si.*, c.customer_name
+      SELECT si.*, c.customer_name,
+        COALESCE(c.address, '') AS customer_address,
+        COALESCE(c.city, '') AS customer_city,
+        COALESCE(c.postal_pincode, '') AS customer_pincode,
+        COALESCE(c.gstin, '') AS customer_gstin,
+        COALESCE(c.primary_mobile, '') AS customer_mobile,
+        COALESCE(c.shipping_address, '') AS shipping_address,
+        COALESCE(c.shipping_consignee_name, '') AS shipping_name
       FROM sales_invoices si
       LEFT JOIN customers c ON c.id = si.customer_id
       WHERE si.id = @id

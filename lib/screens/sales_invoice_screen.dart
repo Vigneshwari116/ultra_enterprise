@@ -6,6 +6,7 @@ import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/invoice.dart';
+import '../widgets/sales_bill_format_dialog.dart';
 import '../widgets/sales_report.dart';
 import '../widgets/ultra_print_helpers.dart';
 import '../utils/api_errors.dart';
@@ -14,8 +15,6 @@ import '../widgets/transaction_line_math.dart';
 
 /// Used by [AppShell] to refresh UOM/product lists after Unit Master saves.
 final salesInvoiceCatalogKey = GlobalKey<SalesInvoiceCatalogHostState>();
-
-enum SalesBillTypeChoice { normal, labour }
 
 abstract class SalesInvoiceCatalogHostState extends State<SalesInvoiceScreen> {
   Future<void> refreshCatalog();
@@ -45,8 +44,6 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
       shipping = TextEditingController();
   final fwdCharge = TextEditingController(text: '0');
   final selDcNo = TextEditingController();
-  SalesBillTypeChoice billType = SalesBillTypeChoice.normal;
-  bool _billTypeChosen = false;
   int? _editingInvoiceId;
 
   // Internal dates are kept as ISO (yyyy-MM-dd); displayed as dd-MM-yyyy like the reference.
@@ -69,26 +66,17 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   @override
   void initState() {
     super.initState();
-    load().then((_) {
-      if (mounted && _editingInvoiceId == null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _promptBillType());
-      }
-    });
+    load();
   }
 
   @override
   Future<void> openExistingInvoice(int invoiceId) async {
     _editingInvoiceId = invoiceId;
-    _billTypeChosen = true;
     try {
       final bundle = await repo.salesInvoicePrintBundle(invoiceId);
       if (bundle == null) return;
       final inv = bundle['invoice'] as Map<String, dynamic>;
       final rawItems = bundle['items'] as List<Map<String, dynamic>>;
-      final type = '${inv['bill_type'] ?? 'NORMAL'}'.toUpperCase();
-      billType = type == 'LABOUR'
-          ? SalesBillTypeChoice.labour
-          : SalesBillTypeChoice.normal;
       date = '${inv['transaction_date'] ?? date}';
       po.text = '${inv['po_no'] ?? ''}';
       poDate = '${inv['po_date'] ?? poDate}';
@@ -135,48 +123,23 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     if (mounted) setState(() {});
   }
 
-  Future<void> _promptBillType() async {
-    if (_billTypeChosen || !mounted) return;
-    final choice = await showDialog<SalesBillTypeChoice>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Select bill type'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Normal Bill'),
-              onTap: () => Navigator.pop(ctx, SalesBillTypeChoice.normal),
-            ),
-            ListTile(
-              title: const Text('Labour Bill'),
-              onTap: () => Navigator.pop(ctx, SalesBillTypeChoice.labour),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted) return;
-    if (choice == null) {
-      Navigator.of(context).maybePop();
-      return;
+  bool _validateSalesForm() {
+    if (zone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Please select the State Zone Applicability before saving.')),
+      );
+      return false;
     }
-    setState(() {
-      billType = choice;
-      _billTypeChosen = true;
-      if (billType == SalesBillTypeChoice.labour) {
-        for (final r in rows) {
-          if (r.hsn.isEmpty) r.hsn = '9988';
-        }
-      }
-    });
+    if (customerId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Please select a customer before saving.')),
+      );
+      return false;
+    }
+    return true;
   }
 
   Future<void> load() async {
@@ -322,22 +285,8 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
 
   double get netPayable => total + fwd;
 
-  Future<int?> _persistInvoice() async {
-    if (zone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-                'Please select the State Zone Applicability before saving.')),
-      );
-      return null;
-    }
-    if (customerId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please select a customer before saving.')),
-      );
-      return null;
-    }
+  Future<int?> _persistInvoice({required UltraSalesBillType billType}) async {
+    if (!_validateSalesForm()) return null;
     final uuid = repo.newUuid();
     final items = rows.map(
       (r) {
@@ -380,9 +329,9 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
         'igst_total': igst,
         'grand_total': netPayable,
         'fwd_charge': fwd,
-        'bill_type': billType == SalesBillTypeChoice.labour ? 'LABOUR' : 'NORMAL',
-        'sel_dc_no': billType == SalesBillTypeChoice.labour ? selDcNo.text : null,
-        'sel_dc_date': billType == SalesBillTypeChoice.labour ? selDcDate : null,
+        'bill_type': billType == UltraSalesBillType.labour ? 'LABOUR' : 'NORMAL',
+        'sel_dc_no': selDcNo.text.trim().isEmpty ? null : selDcNo.text.trim(),
+        'sel_dc_date': selDcNo.text.trim().isEmpty ? null : selDcDate,
         'status': 'POSTED',
         'items': items,
       });
@@ -419,7 +368,8 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   }
 
   Future<void> save() async {
-    final invoiceId = await _persistInvoice();
+    if (!_validateSalesForm()) return;
+    final invoiceId = await _persistInvoice(billType: UltraSalesBillType.normal);
     if (invoiceId == null) return;
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -437,10 +387,16 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
   }
 
   Future<void> saveAndPrint() async {
-    final invoiceId = await _persistInvoice();
+    if (!_validateSalesForm()) return;
+    final format = await showSalesBillFormatDialog(
+      context,
+      initial: UltraSalesBillType.normal,
+    );
+    if (format == null) return;
+    final invoiceId = await _persistInvoice(billType: format);
     if (invoiceId == null) return;
     try {
-      final data = await invoiceDataFromId(invoiceId);
+      final data = await invoiceDataFromId(invoiceId, printFormat: format);
       if (data == null) {
         throw Exception('Saved invoice could not be loaded for printing');
       }
@@ -462,6 +418,16 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
     }
     await load();
     _resetForm();
+  }
+
+  Future<void> _reprintOpenedInvoice() async {
+    final id = _editingInvoiceId;
+    if (id == null) return;
+    try {
+      await reprintSalesInvoice(context, id);
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
   }
 
   @override
@@ -550,17 +516,15 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                       _outline('DUE DAYS', controller: due),
                       _outline('E-WAY BILL NO (EWB NO)', controller: eway),
                     ),
-                    if (billType == SalesBillTypeChoice.labour) ...[
-                      enterpriseFormPair(
-                        _outline('SEL DC NO', controller: selDcNo),
-                        enterpriseInsetDateField(
-                          label: 'SEL DC DATE',
-                          isoDate: selDcDate,
-                          onTap: () => _pickDate(
-                              selDcDate, (v) => setState(() => selDcDate = v)),
-                        ),
+                    enterpriseFormPair(
+                      _outline('SEL DC NO (Labour bill only)', controller: selDcNo),
+                      enterpriseInsetDateField(
+                        label: 'SEL DC DATE (Labour bill only)',
+                        isoDate: selDcDate,
+                        onTap: () => _pickDate(
+                            selDcDate, (v) => setState(() => selDcDate = v)),
                       ),
-                    ],
+                    ),
                   ],
                 );
                 final section2 = enterprisePlainSection(
@@ -688,20 +652,35 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
             ),
             const SizedBox(height: 18),
             Center(
-              child: ElevatedButton.icon(
-                onPressed: saveAndPrint,
-                icon: const Icon(Icons.print_outlined, size: 17),
-                label: const Text('SAVE & PRINT SALES VOUCHER',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E8B30),
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3)),
-                ),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                alignment: WrapAlignment.center,
+                children: [
+                  if (_editingInvoiceId != null)
+                    OutlinedButton.icon(
+                      onPressed: _reprintOpenedInvoice,
+                      icon: const Icon(Icons.print_outlined, size: 17),
+                      label: const Text('REPRINT VOUCHER',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 12)),
+                    ),
+                  ElevatedButton.icon(
+                    onPressed: saveAndPrint,
+                    icon: const Icon(Icons.print_outlined, size: 17),
+                    label: const Text('SAVE & PRINT SALES VOUCHER',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 12.5)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E8B30),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 26, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(3)),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 30),
@@ -760,8 +739,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
             enterpriseMatrixHeadCell('SL'),
             enterpriseMatrixHeadCell('MATERIAL PRODUCT DESCRIPTION'),
             enterpriseMatrixHeadCell('UOM'),
-            enterpriseMatrixHeadCell(
-                billType == SalesBillTypeChoice.labour ? 'SAC' : 'HSN'),
+            enterpriseMatrixHeadCell('HSN/SAC'),
             enterpriseMatrixHeadCell('QTY'),
             enterpriseMatrixHeadCell('RATE'),
             enterpriseMatrixHeadCell('CGST%'),
@@ -805,11 +783,7 @@ class _SalesInvoiceScreenState extends SalesInvoiceCatalogHostState {
                   onChanged: (v) {
                     final p = products
                         .firstWhere((x) => coerceCatalogId(x['id']) == v);
-                    setState(() => rows[i].setProduct(
-                          p,
-                          stateZone: zone,
-                          labourBill: billType == SalesBillTypeChoice.labour,
-                        ));
+                    setState(() => rows[i].setProduct(p, stateZone: zone));
                   },
                 ),
               ),
@@ -968,17 +942,12 @@ class _InvoiceRow {
     igstController.dispose();
   }
 
-  void setProduct(
-    Map<String, dynamic> p, {
-    required String stateZone,
-    bool labourBill = false,
-  }) {
+  void setProduct(Map<String, dynamic> p, {required String stateZone}) {
     productId = coerceCatalogId(p['id']);
     description = '${p['product_name'] ?? ''}';
     unitId = catalogUnitId(p);
     uom = catalogUomCode(p);
-    final productHsn = catalogProductHsn(p);
-    hsn = labourBill ? (productHsn.isEmpty ? '9988' : productHsn) : productHsn;
+    hsn = catalogProductHsn(p);
     rate = catalogSalesRate(p);
     rateController.text = rate == 0 ? '' : rate.toStringAsFixed(2);
     final productGst = catalogTotalGstPercent(p);
