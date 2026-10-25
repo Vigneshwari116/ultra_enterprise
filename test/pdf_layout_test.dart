@@ -47,7 +47,7 @@ void main() {
       kind: UltraBillKind.purchaseVoucher,
       documentTitle: 'PURCHASE VOUCHER',
       partySectionTitle: 'SUPPLIER DETAILS',
-      copyLabels: ultraOriginalDuplicateLabels('PURCHASE VOUCHER'),
+      copyLabels: ultraDocumentCopyLabels,
     ),
     'quotation': _baseData(
       kind: UltraBillKind.quotation,

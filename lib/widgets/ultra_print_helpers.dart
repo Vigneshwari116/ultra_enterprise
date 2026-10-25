@@ -8,6 +8,30 @@ import 'package:printing/printing.dart';
 import '../config/ultra_company_constants.dart';
 import '../utils/api_errors.dart';
 
+/// Five GST copies, one page each. Only the top-right label changes.
+const List<String> ultraDocumentCopyLabels = <String>[
+  'ORIGINAL FOR RECIPIENT',
+  'DUPLICATE FOR TRANSPORTER',
+  'TRIPLICATE FOR SUPPLIER',
+  'COPY FOR ACCOUNTS',
+  'EXTRA COPY',
+];
+
+/// Sales bills, proforma invoices, purchase orders and purchase vouchers.
+const List<String> ultraSalesBillCopyLabels = ultraDocumentCopyLabels;
+
+/// Labels for one PDF build. An explicit [copyLabels] list wins, including a
+/// one-element reprint banner. Print, Save & Print, REPRINT, share and email
+/// omit [copyLabels] and keep [fallback] (the five copies on those documents).
+List<String> ultraResolveCopyLabels({
+  List<String>? copyLabels,
+  List<String> fallback = const <String>[],
+}) {
+  final chosen = copyLabels ?? fallback;
+  if (chosen.isEmpty) return ultraDocumentCopyLabels;
+  return chosen;
+}
+
 /// Plain numeric document number for print/save-as-PDF file names (no FY prefix).
 String ultraPlainDocumentNumber(String raw) {
   final s = raw.trim();

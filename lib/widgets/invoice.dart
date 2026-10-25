@@ -10,7 +10,12 @@ import 'ultra_print_helpers.dart';
 import 'ultra_dc_pdf.dart';
 import 'ultra_sales_bill_pdf.dart';
 
-export 'ultra_print_helpers.dart' show formatUltraAmountInWords;
+export 'ultra_print_helpers.dart'
+    show
+        formatUltraAmountInWords,
+        ultraDocumentCopyLabels,
+        ultraResolveCopyLabels,
+        ultraSalesBillCopyLabels;
 
 /// One line item on the tax invoice.
 class InvoiceItem {
@@ -81,7 +86,8 @@ class InvoiceData {
   /// Left party block heading on the printed form.
   final String partySectionTitle;
 
-  /// One page per label; sales uses five copies, PO typically one.
+  /// One page per label. Sales, proforma, purchase orders and vouchers
+  /// use [ultraDocumentCopyLabels] unless a caller passes a shorter list.
   final List<String> copyLabels;
   final UltraBillKind kind;
   final List<String>? customTerms;
@@ -160,16 +166,32 @@ class InvoiceData {
       subtotal + cgstAmt + sgstAmt + igstAmt + pAndF + roundOff;
 }
 
-/// Legacy name — sales bills print a single original copy.
-const List<String> ultraInvoiceCopyLabels = ultraSalesBillCopyLabels;
+/// Legacy name — same five copies as [ultraDocumentCopyLabels].
+const List<String> ultraInvoiceCopyLabels = ultraDocumentCopyLabels;
 
-/// Purchase order prints as original + duplicate reprint (accounting layout).
-const List<String> ultraPurchaseOrderCopyLabels = [
-  'ORIGINAL PURCHASE ORDER',
+/// Purchase orders print the same five copies as sales bills.
+const List<String> ultraPurchaseOrderCopyLabels = ultraDocumentCopyLabels;
+
+/// One-page purchase-order reprint banner.
+///
+/// Print, Save & Print, REPRINT, share and email do not use this. Build that
+/// single page with
+/// `buildUltraInvoicePdf(data, copyLabels: ultraPurchaseOrderReprintCopy)`.
+const List<String> ultraPurchaseOrderReprintCopy = [
   'DUPLICATE PURCHASE ORDER REPRINT',
 ];
 
+/// One-page purchase-voucher reprint banner (historical wording, not "REPRINT").
+///
+/// Trigger it the same way:
+/// `buildUltraInvoicePdf(data, copyLabels: ultraPurchaseVoucherReprintCopy)`.
+const List<String> ultraPurchaseVoucherReprintCopy = [
+  'DUPLICATE PURCHASE VOUCHER COPY',
+];
+
 /// Standard original + duplicate labels derived from the document title.
+/// Quotation and adjustment notes still use both pages. Pass only the second
+/// entry as [buildUltraInvoicePdf]'s `copyLabels` for a one-page reprint.
 List<String> ultraOriginalDuplicateLabels(
   String documentTitle, {
   String? duplicateLabel,
@@ -185,6 +207,9 @@ const PdfColor _black = PdfColor.fromInt(0xFF000000);
 
 const double _pageMarginH = 8;
 const double _pageMarginV = 6;
+
+/// Same vertical margin as the sales-bill PDF (outer border reaches the page).
+const double _salesPageMarginV = 3;
 
 class _ItemsGridColumn {
   final String header;
@@ -219,10 +244,21 @@ pw.TextStyle _ts(
 
 String _money(double v) => formatUltraMoney(v);
 
-/// Builds the PDF for [data] (single-copy sales bills paginate line items).
-Future<Uint8List> buildUltraInvoicePdf(InvoiceData data) async {
+/// Builds the PDF for [data].
+///
+/// [copyLabels] defaults to the document list (five copies for sales bills,
+/// proforma, purchase orders and purchase vouchers). Pass a one-element list
+/// such as [ultraPurchaseOrderReprintCopy] to build a single page.
+Future<Uint8List> buildUltraInvoicePdf(
+  InvoiceData data, {
+  List<String>? copyLabels,
+}) async {
+  final labels = ultraResolveCopyLabels(
+    copyLabels: copyLabels,
+    fallback: data.copyLabels,
+  );
   if (data.kind == UltraBillKind.taxInvoice) {
-    return buildUltraSalesBillPdf(data);
+    return buildUltraSalesBillPdf(data, copyLabels: labels);
   }
   if (data.kind == UltraBillKind.deliveryChallan &&
       data.documentTitle != 'PROFORMA INVOICE') {
@@ -235,7 +271,7 @@ Future<Uint8List> buildUltraInvoicePdf(InvoiceData data) async {
         kind: UltraBillKind.taxInvoice,
         salesBillType: UltraSalesBillType.proforma,
         documentTitle: data.documentTitle,
-        copyLabels: data.copyLabels,
+        copyLabels: labels,
         invoiceNo: data.invoiceNo,
         date: data.date,
         custPo: data.custPo,
@@ -266,18 +302,23 @@ Future<Uint8List> buildUltraInvoicePdf(InvoiceData data) async {
         grandTotalOverride: data.grandTotalOverride,
         leftSignatureLabel: data.leftSignatureLabel,
       ),
+      copyLabels: labels,
     );
   }
   final doc = pw.Document();
   final logoBytes = base64Decode(ultraLogoBase64);
   final logo = pw.MemoryImage(logoBytes);
+  final pinToPage = data.kind == UltraBillKind.purchaseOrder ||
+      data.kind == UltraBillKind.purchaseVoucher;
 
-  for (final copyLabel in data.copyLabels) {
+  for (final copyLabel in labels) {
     doc.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.symmetric(
-            horizontal: _pageMarginH, vertical: _pageMarginV),
+        margin: pw.EdgeInsets.symmetric(
+          horizontal: _pageMarginH,
+          vertical: pinToPage ? _salesPageMarginV : _pageMarginV,
+        ),
         build: (context) {
           final pageHeight = context.page.pageFormat.availableHeight;
           return pw.SizedBox(
@@ -405,7 +446,7 @@ pw.Widget _purchaseOrderPage(
     _consigneeAndMeta(d),
     _expandableItemsSection((h) => _purchaseOrderItemsTable(d, height: h)),
     _purchaseOrderTotalsAndBank(d),
-    _termsAndSignature(d),
+    _purchaseSignOff(d),
   ]);
 }
 
@@ -417,7 +458,7 @@ pw.Widget _purchaseVoucherPage(
     _consigneeAndMeta(d),
     _expandableItemsSection((h) => _purchaseVoucherItemsTable(d, height: h)),
     _noteTaxTotalsAndBank(d),
-    _termsAndSignature(d),
+    _purchaseSignOff(d),
   ]);
 }
 
@@ -775,17 +816,70 @@ pw.Widget _taxConsigneeAndShipping(InvoiceData d) {
   );
 }
 
-pw.Widget _metaField(String label, String value) => pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-      child: pw.Text(label, style: _ts(size: 7.5)),
+pw.Widget _metaField(String label, String value, {bool oneLine = false}) =>
+    pw.Padding(
+      padding: pw.EdgeInsets.symmetric(
+        horizontal: oneLine ? 2 : 5,
+        vertical: 3,
+      ),
+      child: pw.Text(
+        label,
+        style: _ts(size: oneLine ? 6.6 : 7.5),
+        softWrap: !oneLine,
+        maxLines: oneLine ? 1 : null,
+        overflow: oneLine ? pw.TextOverflow.clip : pw.TextOverflow.visible,
+      ),
     );
-pw.Widget _metaValue(String value, {bool bold = false}) => pw.Padding(
+pw.Widget _metaValue(String value, {bool bold = false, bool wrap = false}) =>
+    pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-      child: pw.Text(value,
-          style: _ts(
-              size: 8.5,
-              weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+      child: pw.Text(
+        value,
+        style: _ts(
+            size: 8.5,
+            weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal),
+        softWrap: true,
+        overflow: wrap ? pw.TextOverflow.clip : pw.TextOverflow.visible,
+      ),
     );
+
+String _supplierMobileLine(String mobile) {
+  final m = pdfLatin1(mobile).trim();
+  return m.isEmpty ? 'MOBILE :' : 'MOBILE : $m';
+}
+
+/// GSTIN wraps in a horizontal Expanded (inside the row only). Mobile is 110pt.
+pw.Widget _supplierGstinMobileRow(InvoiceData d) {
+  return pw.Container(
+    width: double.infinity,
+    decoration: const pw.BoxDecoration(
+      border: pw.Border(top: pw.BorderSide(color: _black, width: 1)),
+    ),
+    padding: const pw.EdgeInsets.fromLTRB(6, 3, 6, 4),
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Expanded(
+          child: pw.Text(
+            'GSTIN: ${pdfLatin1(d.gstin)}',
+            style: _ts(size: 8, weight: pw.FontWeight.bold),
+            softWrap: true,
+          ),
+        ),
+        pw.SizedBox(
+          width: 110,
+          child: pw.Text(
+            _supplierMobileLine(d.mobile),
+            style: _ts(size: 8, weight: pw.FontWeight.bold),
+            textAlign: pw.TextAlign.right,
+            softWrap: false,
+            maxLines: 1,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
 pw.Widget _consigneeAndMeta(InvoiceData d) {
   final metaBorder = pw.TableBorder.all(color: _black, width: 1);
@@ -854,25 +948,27 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
         pw.TableRow(children: [
           _metaField('P.O NO :', ''),
           _metaValue(d.invoiceNo, bold: true),
-          _metaField('P.O DATE :', ''),
+          _metaField('P.O DATE :', '', oneLine: true),
           _metaValue(d.date, bold: true),
         ]),
         pw.TableRow(children: [
           _metaField('Supplier Ref :', ''),
           _metaValue(d.custPo),
-          _metaField('Del. Due :', ''),
+          _metaField('Del. Due :', '', oneLine: true),
           _metaValue(d.poDate, bold: true),
         ]),
         pw.TableRow(children: [
           _metaField('Tot.Pkgs :', ''),
           _metaValue(d.dcNo),
-          _metaField('Delivery :', ''),
+          _metaField('Delivery :', '', oneLine: true),
           _metaValue(d.dispatch, bold: true),
         ]),
       ];
       metaRowsBottom = [
-        pw.TableRow(
-            children: [_metaField('REMARKS :', ''), _metaValue(d.ewbNo)]),
+        pw.TableRow(children: [
+          _metaField('REMARKS :', ''),
+          _metaValue(d.ewbNo, wrap: true),
+        ]),
       ];
       break;
     case UltraBillKind.purchaseVoucher:
@@ -886,13 +982,13 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
         pw.TableRow(children: [
           _metaField('Supp.Inv No :', ''),
           _metaValue(d.custPo),
-          _metaField('Inv.Date :', ''),
+          _metaField('Inv.Date :', '', oneLine: true),
           _metaValue(d.poDate, bold: true),
         ]),
         pw.TableRow(children: [
           _metaField('Against P.O :', ''),
           _metaValue(d.dcNo),
-          _metaField('P.O DATE', ''),
+          _metaField('P.O DATE', '', oneLine: true),
           _metaValue(d.dcDate, bold: true),
         ]),
       ];
@@ -965,6 +1061,22 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
       ];
   }
 
+  final wideDateLabels = d.kind == UltraBillKind.purchaseOrder ||
+      d.kind == UltraBillKind.purchaseVoucher;
+  final metaTopWidths = wideDateLabels
+      ? const <int, pw.TableColumnWidth>{
+          0: pw.FlexColumnWidth(1.6),
+          1: pw.FlexColumnWidth(1.45),
+          2: pw.FixedColumnWidth(50),
+          3: pw.FlexColumnWidth(1.85),
+        }
+      : const <int, pw.TableColumnWidth>{
+          0: pw.FlexColumnWidth(1.7),
+          1: pw.FlexColumnWidth(2.1),
+          2: pw.FlexColumnWidth(1.1),
+          3: pw.FlexColumnWidth(1.5),
+        };
+
   final partyBlock = pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
@@ -999,30 +1111,35 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
               children: [
                 pw.Padding(
                     padding: const pw.EdgeInsets.all(6), child: partyBlock),
-                pw.Container(
-                  decoration: const pw.BoxDecoration(
-                      border: pw.Border(
-                          top: pw.BorderSide(color: _black, width: 1))),
-                  padding:
-                      const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: d.kind == UltraBillKind.quotation
-                      ? pw.Text('GSTIN: ${d.gstin}',
-                          style: _ts(size: 8, weight: pw.FontWeight.bold))
-                      : pw.Row(
-                          children: [
-                            pw.Expanded(
-                                child: pw.Text('GSTIN: ${d.gstin}',
-                                    style: _ts(
-                                        size: 8, weight: pw.FontWeight.bold))),
-                            pw.Text(
-                              d.mobile.isEmpty
-                                  ? 'MOBILE:'
-                                  : 'MOBILE: ${d.mobile}',
-                              style: _ts(size: 8),
-                            ),
-                          ],
-                        ),
-                ),
+                if (d.kind == UltraBillKind.purchaseOrder ||
+                    d.kind == UltraBillKind.purchaseVoucher)
+                  _supplierGstinMobileRow(d)
+                else
+                  pw.Container(
+                    decoration: const pw.BoxDecoration(
+                        border: pw.Border(
+                            top: pw.BorderSide(color: _black, width: 1))),
+                    padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 4),
+                    child: d.kind == UltraBillKind.quotation
+                        ? pw.Text('GSTIN: ${d.gstin}',
+                            style: _ts(size: 8, weight: pw.FontWeight.bold))
+                        : pw.Row(
+                            children: [
+                              pw.Expanded(
+                                  child: pw.Text('GSTIN: ${d.gstin}',
+                                      style: _ts(
+                                          size: 8,
+                                          weight: pw.FontWeight.bold))),
+                              pw.Text(
+                                d.mobile.isEmpty
+                                    ? 'MOBILE:'
+                                    : 'MOBILE: ${d.mobile}',
+                                style: _ts(size: 8),
+                              ),
+                            ],
+                          ),
+                  ),
               ],
             ),
           ),
@@ -1033,12 +1150,7 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
             children: [
               pw.Table(
                 border: metaBorder,
-                columnWidths: const {
-                  0: pw.FlexColumnWidth(1.7),
-                  1: pw.FlexColumnWidth(2.1),
-                  2: pw.FlexColumnWidth(1.1),
-                  3: pw.FlexColumnWidth(1.5),
-                },
+                columnWidths: metaTopWidths,
                 children: metaRowsTop,
               ),
               pw.Table(
@@ -1517,6 +1629,73 @@ pw.Widget _sideBySideTotalsAndBank(
               1: pw.FlexColumnWidth(1.6)
             },
             children: totalRows,
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+/// Fixed 48pt signature row under the terms. No flex widgets in the cells.
+pw.Widget _purchaseSignOff(InvoiceData d) {
+  final terms = d.customTerms ?? _ultraDocumentTerms;
+  return pw.Table(
+    border: const pw.TableBorder(
+      left: pw.BorderSide(color: _black, width: 1),
+      right: pw.BorderSide(color: _black, width: 1),
+      bottom: pw.BorderSide(color: _black, width: 1),
+      verticalInside: pw.BorderSide(color: _black, width: 1),
+      horizontalInside: pw.BorderSide(color: _black, width: 1),
+    ),
+    columnWidths: const {
+      0: pw.FlexColumnWidth(3),
+      1: pw.FlexColumnWidth(2),
+    },
+    defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
+    children: [
+      pw.TableRow(
+        children: [
+          pw.Padding(
+            padding: const pw.EdgeInsets.all(6),
+            child: pw.Column(
+              mainAxisSize: pw.MainAxisSize.min,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('TERMS & CONDITIONS:',
+                    style: _ts(size: 8, weight: pw.FontWeight.bold)),
+                ...terms.map((t) => pw.Text(t, style: _ts(size: 7))),
+              ],
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.all(6),
+            child: pw.Text('For ULTRA ENGINEERING WORKS',
+                style: _ts(size: 8.5, weight: pw.FontWeight.bold)),
+          ),
+        ],
+      ),
+      pw.TableRow(
+        children: [
+          pw.SizedBox(
+            height: 48,
+            child: pw.Align(
+              alignment: pw.Alignment.bottomCenter,
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 4),
+                child: pw.Text('Receiver signature & Seal', style: _ts(size: 8)),
+              ),
+            ),
+          ),
+          pw.SizedBox(
+            height: 48,
+            child: pw.Align(
+              alignment: pw.Alignment.bottomRight,
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.only(right: 6, bottom: 4),
+                child: pw.Text('Authorised Signatory',
+                    style: _ts(size: 8.5, weight: pw.FontWeight.bold)),
+              ),
+            ),
           ),
         ],
       ),

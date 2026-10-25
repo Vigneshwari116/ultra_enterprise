@@ -7,7 +7,6 @@ import 'package:ultra_enterprise/widgets/invoice.dart';
 import 'package:ultra_enterprise/widgets/purchase_order_document.dart';
 import 'package:ultra_enterprise/widgets/purchase_voucher_document.dart';
 import 'package:ultra_enterprise/widgets/quotation_document.dart';
-import 'package:ultra_enterprise/config/ultra_company_constants.dart';
 import 'package:ultra_enterprise/widgets/sales_report.dart';
 
 /// PDF streams are Flate-compressed; count pages from the document catalog.
@@ -29,7 +28,7 @@ InvoiceItem _sampleItem({String remarks = ''}) => InvoiceItem(
 InvoiceData taxInvoiceSample({List<InvoiceItem>? items}) => InvoiceData(
       kind: UltraBillKind.taxInvoice,
       documentTitle: 'TAX INVOICE',
-      copyLabels: ultraSalesBillCopyLabels,
+      copyLabels: ultraDocumentCopyLabels,
       invoiceNo: '224',
       date: '12-Oct-26',
       dispatch: 'KA50B2331',
@@ -56,7 +55,8 @@ InvoiceData purchaseOrderSample() => InvoiceData(
       kind: UltraBillKind.purchaseOrder,
       documentTitle: 'PURCHASE ORDER',
       partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
-      copyLabels: ultraPurchaseOrderCopyLabels,
+      copyLabels: ultraDocumentCopyLabels,
+      mobile: '9845012345',
       invoiceNo: 'PO-2026-TEST',
       date: '06-10-2026',
       dispatch: 'Road',
@@ -82,10 +82,8 @@ InvoiceData purchaseVoucherSample() => InvoiceData(
       kind: UltraBillKind.purchaseVoucher,
       documentTitle: 'PURCHASE VOUCHER',
       partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
-      copyLabels: ultraOriginalDuplicateLabels(
-        'PURCHASE VOUCHER',
-        duplicateLabel: 'DUPLICATE PURCHASE VOUCHER COPY',
-      ),
+      copyLabels: ultraDocumentCopyLabels,
+      mobile: '9845012345',
       invoiceNo: 'PV-2026-TEST',
       date: '06-10-2026',
       dispatch: '',
@@ -231,21 +229,31 @@ InvoiceData debitNoteSample() => InvoiceData(
     );
 
 void main() {
-  test('tax invoice PDF is one page for one line item', () async {
+  test('five copy labels stay in order', () {
+    expect(ultraDocumentCopyLabels, const [
+      'ORIGINAL FOR RECIPIENT',
+      'DUPLICATE FOR TRANSPORTER',
+      'TRIPLICATE FOR SUPPLIER',
+      'COPY FOR ACCOUNTS',
+      'EXTRA COPY',
+    ]);
+  });
+
+  test('tax invoice PDF is five copies for one line item', () async {
     final data = taxInvoiceSample();
-    expect(data.copyLabels, ultraSalesBillCopyLabels);
+    expect(data.copyLabels, ultraDocumentCopyLabels);
     final bytes = await buildUltraInvoicePdf(data);
     expect(bytes, isNotEmpty);
-    expect(pdfPageCount(bytes), 1);
+    expect(pdfPageCount(bytes), 5);
   });
 
-  test('tax invoice PDF is one page for fifteen line items', () async {
+  test('tax invoice PDF is five copies for fifteen line items', () async {
     final items = List.generate(15, (_) => _sampleItem());
     final bytes = await buildUltraInvoicePdf(taxInvoiceSample(items: items));
-    expect(pdfPageCount(bytes), 1);
+    expect(pdfPageCount(bytes), ultraDocumentCopyLabels.length);
   });
 
-  test('tax invoice PDF uses two pages for a very long item list', () async {
+  test('long item list stays one page per copy', () async {
     final items = List.generate(25, (i) => InvoiceItem(
           description: 'Line item $i',
           hsnCode: '9988',
@@ -253,26 +261,50 @@ void main() {
           price: 100,
         ));
     final bytes = await buildUltraInvoicePdf(taxInvoiceSample(items: items));
-    expect(pdfPageCount(bytes), 2);
+    expect(pdfPageCount(bytes), ultraDocumentCopyLabels.length);
   });
 
-  test('purchase order PDF builds with PO copy labels', () async {
+  test('purchase order PDF builds five copies', () async {
     final data = purchaseOrderSample();
     expect(data.kind, UltraBillKind.purchaseOrder);
     expect(data.forwardingLabel, 'Estimated Freight');
-    expect(data.copyLabels, contains('ORIGINAL PURCHASE ORDER'));
+    expect(data.mobile, '9845012345');
+    expect(data.copyLabels, ultraDocumentCopyLabels);
     final bytes = await buildUltraInvoicePdf(data);
     expect(bytes, isNotEmpty);
-    expect(pdfPageCount(bytes), data.copyLabels.length);
+    expect(pdfPageCount(bytes), 5);
   });
 
-  test('purchase voucher PDF builds without freight totals mode', () async {
+  test('purchase order reprint banner is a single copy', () async {
+    final bytes = await buildUltraInvoicePdf(
+      purchaseOrderSample(),
+      copyLabels: ultraPurchaseOrderReprintCopy,
+    );
+    expect(ultraPurchaseOrderReprintCopy, ['DUPLICATE PURCHASE ORDER REPRINT']);
+    expect(pdfPageCount(bytes), 1);
+  });
+
+  test('purchase voucher PDF builds five copies', () async {
     final data = purchaseVoucherSample();
     expect(data.kind, UltraBillKind.purchaseVoucher);
     expect(data.documentTitle, 'PURCHASE VOUCHER');
+    expect(data.mobile, '9845012345');
+    expect(data.copyLabels, ultraDocumentCopyLabels);
     final bytes = await buildUltraInvoicePdf(data);
     expect(bytes, isNotEmpty);
-    expect(pdfPageCount(bytes), data.copyLabels.length);
+    expect(pdfPageCount(bytes), 5);
+  });
+
+  test('purchase voucher reprint banner is a single copy', () async {
+    final bytes = await buildUltraInvoicePdf(
+      purchaseVoucherSample(),
+      copyLabels: ultraPurchaseVoucherReprintCopy,
+    );
+    expect(
+      ultraPurchaseVoucherReprintCopy,
+      ['DUPLICATE PURCHASE VOUCHER COPY'],
+    );
+    expect(pdfPageCount(bytes), 1);
   });
 
   test('quotation PDF builds with custom terms and Prepared By label', () async {
@@ -327,8 +359,7 @@ void main() {
       final data = builder();
       final bytes = await buildUltraInvoicePdf(data);
       expect(bytes.length, greaterThan(1000));
-      final expectedPages = data.kind == UltraBillKind.taxInvoice ||
-              data.kind == UltraBillKind.deliveryChallan
+      final expectedPages = data.kind == UltraBillKind.deliveryChallan
           ? 1
           : data.copyLabels.length;
       expect(pdfPageCount(bytes), expectedPages);

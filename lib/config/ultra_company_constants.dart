@@ -40,9 +40,6 @@ class UltraCompanyConstants {
   static const String bankBranch = 'SINGASANDRA';
 }
 
-/// Single original copy label on tax / labour bills (matches paper samples).
-const List<String> ultraSalesBillCopyLabels = ['ORIGINAL FOR BUYER'];
-
 const List<String> ultraNormalBillTerms = [
   '1.Good once sold will not be taken back or exchange',
   '2.Interest @24% will be charged if not paid with inthe due period.',
