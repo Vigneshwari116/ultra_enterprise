@@ -390,6 +390,7 @@ pw.Widget _labourShippingBlock(InvoiceData d) {
   return pw.Padding(
     padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 2),
     child: pw.Column(
+      mainAxisSize: pw.MainAxisSize.min,
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Text('SHIPPING NAME & ADDRESS OF CONSIGNE',
@@ -478,13 +479,12 @@ pw.Widget _normalInvoiceMetaBox(InvoiceData d) {
 
 pw.Widget _labourConsigneeCell(InvoiceData d) {
   return pw.Column(
+    mainAxisSize: pw.MainAxisSize.min,
     crossAxisAlignment: pw.CrossAxisAlignment.stretch,
     children: [
-      pw.Expanded(
-        child: pw.Padding(
-          padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 2),
-          child: _consigneeAddressLines(d),
-        ),
+      pw.Padding(
+        padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 2),
+        child: _consigneeAddressLines(d),
       ),
       _gstinMobileRow(gstin: d.gstin, mobile: d.mobile),
     ],
@@ -799,60 +799,65 @@ pw.Widget _termsAndSignature(InvoiceData d) {
       (d.salesBillType == UltraSalesBillType.labour
           ? ultraLabourBillTerms
           : ultraNormalBillTerms);
-  return pw.Column(
+  return pw.Table(
+    border: const pw.TableBorder(
+      left: pw.BorderSide(color: _black, width: 1),
+      right: pw.BorderSide(color: _black, width: 1),
+      bottom: pw.BorderSide(color: _black, width: 1),
+      verticalInside: pw.BorderSide(color: _black, width: 1),
+      horizontalInside: pw.BorderSide(color: _black, width: 1),
+    ),
+    columnWidths: const {
+      0: pw.FlexColumnWidth(3),
+      1: pw.FlexColumnWidth(2),
+    },
+    defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
     children: [
-      pw.Table(
-        border: const pw.TableBorder(
-          left: pw.BorderSide(color: _black, width: 1),
-          right: pw.BorderSide(color: _black, width: 1),
-          verticalInside: pw.BorderSide(color: _black, width: 1),
-        ),
-        columnWidths: const {
-          0: pw.FlexColumnWidth(3),
-          1: pw.FlexColumnWidth(2),
-        },
+      pw.TableRow(
         children: [
-          pw.TableRow(
-            children: [
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(6),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('TERMS & CONDITIONS:',
-                        style: _body(size: 8, bold: true)),
-                    ...terms.map((t) => pw.Text(t, style: _body(size: 7))),
-                  ],
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(6),
-                child: pw.Text('For ${UltraCompanyConstants.legalName}',
-                    style: _body(size: 8.5, bold: true)),
-              ),
-            ],
+          pw.Padding(
+            padding: const pw.EdgeInsets.all(6),
+            child: pw.Column(
+              mainAxisSize: pw.MainAxisSize.min,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('TERMS & CONDITIONS:',
+                    style: _body(size: 8, bold: true)),
+                ...terms.map((t) => pw.Text(t, style: _body(size: 7))),
+              ],
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.all(6),
+            child: pw.Text('For ${UltraCompanyConstants.legalName}',
+                style: _body(size: 8.5, bold: true)),
           ),
         ],
       ),
-      pw.Container(
-        decoration: const pw.BoxDecoration(
-          border: pw.Border(
-            left: pw.BorderSide(color: _black, width: 1),
-            right: pw.BorderSide(color: _black, width: 1),
-            bottom: pw.BorderSide(color: _black, width: 1),
-            top: pw.BorderSide(color: _black, width: 1),
+      pw.TableRow(
+        children: [
+          pw.SizedBox(
+            height: 48,
+            child: pw.Align(
+              alignment: pw.Alignment.bottomCenter,
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 4),
+                child: pw.Text(d.leftSignatureLabel, style: _body(size: 8)),
+              ),
+            ),
           ),
-        ),
-        padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 6),
-        child: pw.Row(
-          children: [
-            pw.Expanded(child: pw.SizedBox()),
-            pw.Text(d.leftSignatureLabel, style: _body(size: 8)),
-            pw.Expanded(child: pw.SizedBox()),
-            pw.Text('Authorised Signatory',
-                style: _body(size: 8.5, bold: true)),
-          ],
-        ),
+          pw.SizedBox(
+            height: 48,
+            child: pw.Align(
+              alignment: pw.Alignment.bottomRight,
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.only(right: 6, bottom: 4),
+                child: pw.Text('Authorised Signatory',
+                    style: _body(size: 8.5, bold: true)),
+              ),
+            ),
+          ),
+        ],
       ),
     ],
   );
