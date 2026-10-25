@@ -2,6 +2,8 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
+import '../config/ultra_config.dart';
+
 class AppDatabase {
   AppDatabase._();
   static final AppDatabase instance = AppDatabase._();
@@ -9,11 +11,12 @@ class AppDatabase {
   Database? _db;
 
   Future<void> init() async {
+    if (!UltraConfig.persistLocally) return;
     if (_db != null) return;
     final path = p.join(await getDatabasesPath(), 'ultra_enterprise.db');
     _db = await openDatabase(
       path,
-      version: 14,
+      version: 15,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE units(
@@ -112,6 +115,9 @@ class AppDatabase {
             sgst_total REAL DEFAULT 0,
             igst_total REAL DEFAULT 0,
             grand_total REAL DEFAULT 0,
+            bill_type TEXT DEFAULT 'NORMAL',
+            sel_dc_no TEXT,
+            sel_dc_date TEXT,
             status TEXT DEFAULT 'DRAFT'
           )
         ''');
@@ -261,26 +267,6 @@ class AppDatabase {
 
         await db.insert('units', {'code': 'PCS', 'name': 'Pieces'});
         await db.insert('units', {'code': 'BOX', 'name': 'Box'});
-        await db.insert('customers', {
-          'customer_code': 'CUST001',
-          'customer_name': 'Test Customer',
-          'address': 'Test Address',
-          'city': 'Chennai',
-          'postal_pincode': '600001',
-          'gstin': 'TESTGSTIN',
-          'bank_name': 'Test Bank',
-          'bank_account_no': '0000000000',
-          'shipping_address': 'Test Address'
-        });
-        await db.insert('products', {
-          'product_code': 'PROD001',
-          'product_name': 'Test Product',
-          'unit_id': 1,
-          'hsn': '123456',
-          'rate': 100,
-          'opening_stock': 100,
-          'current_stock': 100
-        });
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -452,6 +438,17 @@ class AppDatabase {
           try {
             await db.execute('ALTER TABLE adjustment_notes ADD COLUMN note_bill_no TEXT');
           } catch (_) {}
+        }
+        if (oldVersion < 15) {
+          for (final col in [
+            "bill_type TEXT DEFAULT 'NORMAL'",
+            'sel_dc_no TEXT',
+            'sel_dc_date TEXT',
+          ]) {
+            try {
+              await db.execute('ALTER TABLE sales_invoices ADD COLUMN $col');
+            } catch (_) {}
+          }
         }
         if (oldVersion < 13) {
           await db.execute('''
@@ -669,7 +666,15 @@ class AppDatabase {
     );
   }
 
-  Database get db => _db!;
+  Database get db {
+    if (!UltraConfig.persistLocally) {
+      throw StateError('Local SQLite is disabled; UltraConfig.persistLocally is false.');
+    }
+    if (_db == null) {
+      throw StateError('AppDatabase.init() was not called.');
+    }
+    return _db!;
+  }
 
   Future<List<Map<String, dynamic>>> units() =>
       db.query('units', orderBy: 'id DESC');
@@ -772,12 +777,15 @@ class AppDatabase {
       SELECT si.*,
         COALESCE(c.customer_name, '-') AS customer_name,
         COALESCE(c.address, '') AS customer_address,
+        COALESCE(c.city, '') AS customer_city,
+        COALESCE(c.postal_pincode, '') AS customer_pincode,
         COALESCE(c.gstin, '') AS customer_gstin,
         COALESCE(c.primary_mobile, '') AS customer_mobile,
         COALESCE(c.bank_name, '') AS bank_name,
         COALESCE(c.bank_account_no, '') AS bank_account_no,
         COALESCE(c.ifsc_code, '') AS ifsc_code,
         COALESCE(c.branch_address, '') AS branch_address,
+        COALESCE(c.shipping_consignee_name, '') AS shipping_name,
         COALESCE(c.shipping_address, '') AS shipping_address
       FROM sales_invoices si
       LEFT JOIN customers c ON c.id = si.customer_id

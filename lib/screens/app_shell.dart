@@ -13,6 +13,7 @@ import 'purchase_voucher_screen.dart';
 import 'reports_screen.dart';
 import 'transactions_host_screen.dart';
 import 'job_work_host_screen.dart';
+import 'product_catalog_refresh.dart';
 
 class _NavLeaf {
   final String label;
@@ -74,7 +75,7 @@ class _AppShellState extends State<AppShell> {
     SalesReportsScreen(key: reportsCenterKey),
     const PurchaseOrderScreen(),
     const PurchaseVoucherScreen(),
-    const PurchaseReportsScreen(),
+    PurchaseReportsScreen(key: purchaseReportsScreenKey),
     TransactionsHostScreen(key: transactionsHostKey),
     JobWorkHostScreen(key: jobWorkHostKey),
   ];
@@ -104,6 +105,10 @@ class _AppShellState extends State<AppShell> {
     ]),
     _NavGroup('Transactions', Icons.swap_horiz_outlined, [
       _NavLeaf('Adjustment & Return', 12),
+      _NavLeaf('Receipt', 12),
+      _NavLeaf('Payment', 12),
+      _NavLeaf('Expense', 12),
+      _NavLeaf('Salary', 12),
       _NavLeaf('Cash Book', 12),
       _NavLeaf('Journal Entry', 12),
     ]),
@@ -114,6 +119,9 @@ class _AppShellState extends State<AppShell> {
     _NavGroup('Reports Center', Icons.assessment_outlined, [
       _NavLeaf('Journal Summary', 8),
       _NavLeaf('Debit / Credit Note History', 8),
+      _NavLeaf('Party Ledger', 8),
+      _NavLeaf('Trial Balance', 8),
+      _NavLeaf('Cash / Bank Book', 8),
     ]),
   ];
 
@@ -154,6 +162,18 @@ class _AppShellState extends State<AppShell> {
     }
     if (pageIndex == 12) {
       switch (leafLabel) {
+        case 'Receipt':
+          transactionsHostKey.currentState?.showReceipt();
+          break;
+        case 'Payment':
+          transactionsHostKey.currentState?.showPayment();
+          break;
+        case 'Expense':
+          transactionsHostKey.currentState?.showExpense();
+          break;
+        case 'Salary':
+          transactionsHostKey.currentState?.showSalary();
+          break;
         case 'Cash Book':
           transactionsHostKey.currentState?.showCashBook();
           break;
@@ -179,12 +199,27 @@ class _AppShellState extends State<AppShell> {
         case 'Debit / Credit Note History':
           reportsCenterKey.currentState?.showDebitCreditHistory();
           break;
+        case 'Party Ledger':
+          reportsCenterKey.currentState?.showPartyLedger();
+          break;
+        case 'Trial Balance':
+          reportsCenterKey.currentState?.showTrialBalance();
+          break;
+        case 'Cash / Bank Book':
+          reportsCenterKey.currentState?.showCashBankBook();
+          break;
         default:
           reportsCenterKey.currentState?.showSalesReports();
       }
     }
     if (pageIndex == 7) {
       salesInvoiceCatalogKey.currentState?.refreshCatalog();
+    }
+    if (pageIndex == 9 || pageIndex == 10) {
+      refreshMountedProductCatalogs();
+    }
+    if (pageIndex == 11) {
+      purchaseReportsScreenKey.currentState?.reload();
     }
   }
 
@@ -205,7 +240,8 @@ class _AppShellState extends State<AppShell> {
 
     if (overlay) {
       return Scaffold(
-        body: Stack(
+        body: SafeArea(
+          child: Stack(
           children: [
             main,
             if (sidebarOpen) ...[
@@ -229,11 +265,13 @@ class _AppShellState extends State<AppShell> {
             ],
           ],
         ),
+        ),
       );
     }
 
     return Scaffold(
-      body: Row(
+      body: SafeArea(
+        child: Row(
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -251,6 +289,7 @@ class _AppShellState extends State<AppShell> {
           ),
           Expanded(child: main),
         ],
+      ),
       ),
     );
   }
@@ -296,37 +335,49 @@ class _AppShellState extends State<AppShell> {
                       _headerDate(),
                       style: const TextStyle(
                         color: Color(0xFF748094),
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
-              if (MediaQuery.sizeOf(context).width >= 520) ...[
-                const Text(
-                  'ULTRA ENGINEERING',
-                  style: TextStyle(
-                    color: navy,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
+              if (MediaQuery.sizeOf(context).width >= AppBreakpoints.compact) ...[
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 200),
+                  child: Text(
+                    'ULTRA ENGINEERING',
+                    style: const TextStyle(
+                      color: navy,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 16),
               ],
-              const Text(
-                'SUPERUSER',
-                style: TextStyle(
-                  color: teal,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(width: 10),
-              CircleAvatar(
-                radius: 17,
-                backgroundColor: navy,
-                child: const Icon(Icons.person, size: 17, color: Colors.white),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (MediaQuery.sizeOf(context).width >= AppBreakpoints.compact)
+                    const Text(
+                      'SUPERUSER',
+                      style: TextStyle(
+                        color: teal,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  const CircleAvatar(
+                    radius: 17,
+                    backgroundColor: navy,
+                    child: Icon(Icons.person, size: 17, color: Colors.white),
+                  ),
+                ],
               ),
             ],
           ),
@@ -399,21 +450,32 @@ class _AppShellState extends State<AppShell> {
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: red.withOpacity(.35)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.logout, color: red, size: 16),
-                  SizedBox(width: 8),
-                  Text(
-                    'SIGN OUT ENGINE',
-                    style: TextStyle(
-                      color: red,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: .3,
-                    ),
-                  ),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 150;
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.logout, color: red, size: 16),
+                      if (!compact) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'SIGN OUT ENGINE',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: red,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -446,7 +508,7 @@ class _AppShellState extends State<AppShell> {
                 'Dashboard',
                 style: TextStyle(
                   color: selected ? tealDark : Colors.white70,
-                  fontSize: 10.5,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -482,7 +544,7 @@ class _AppShellState extends State<AppShell> {
                     group.title,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 10.5,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -525,7 +587,7 @@ class _AppShellState extends State<AppShell> {
                           leaf.label,
                           style: TextStyle(
                             color: highlight ? sidebarActiveBg : Colors.white60,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
                           ),
                         ),

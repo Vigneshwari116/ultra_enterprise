@@ -30,16 +30,28 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/images/ultra_logo.png
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: assets/images/ultra_logo.png
+  image_path: assets/icon/app_icon.png
+  adaptive_icon_background: "#C40526"
+  adaptive_icon_foreground: assets/icon/app_icon.png
+  adaptive_icon_foreground_inset: 17
+  remove_alpha_ios: true
   web:
     generate: true
-    image_path: assets/images/ultra_logo.png
-    background_color: "#FFFFFF"
-    theme_color: "#10233F"
+    image_path: assets/icon/app_icon.png
+    background_color: "#C40526"
+    theme_color: "#C40526"
+  windows:
+    generate: true
+    image_path: assets/icon/app_icon.png
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: assets/icon/app_icon.png
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/ultra_logo.png
+    - assets/images/ultra_launcher_source.png
+    - assets/images/ultra_app_icon_master.png
+    - assets/icon/app_icon.png

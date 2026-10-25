@@ -103,8 +103,38 @@ Widget masterRow2(BuildContext context, Widget a, Widget b) {
 double masterDirectoryWidth(BuildContext context) {
   final w = MediaQuery.sizeOf(context).width;
   if (w < 720) return 220;
-  if (w < 1100) return 250;
+  if (w < AppBreakpoints.wide) return 250;
   return 268;
+}
+
+/// Master list + form split. Stacks vertically on narrow web viewports.
+Widget masterSplitLayout({
+  required BuildContext context,
+  required Widget directory,
+  required Widget form,
+  double stackedDirectoryHeight = 300,
+}) {
+  if (AppBreakpoints.shouldStackMasterPanels(context)) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: stackedDirectoryHeight, child: directory),
+          form,
+        ],
+      ),
+    );
+  }
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SizedBox(
+        width: masterDirectoryWidth(context),
+        child: directory,
+      ),
+      Expanded(child: form),
+    ],
+  );
 }
 
 EdgeInsets masterFormPadding(BuildContext context) {

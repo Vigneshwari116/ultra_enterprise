@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
+import '../utils/voucher_display.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
 import '../widgets/purchase_order_document.dart';
 import '../widgets/transaction_line_math.dart';
+import 'product_catalog_refresh.dart';
 
 class PurchaseOrderScreen extends StatefulWidget {
   const PurchaseOrderScreen({super.key});
@@ -38,26 +42,61 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   List<Map<String, dynamic>> directoryRows = [];
 
   List<Map<String, dynamic>> suppliers = [];
+  bool suppliersLoading = false;
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> units = [];
   int? supplierId;
   final rows = [_PoRow()];
 
+  late final Future<void> Function() _productCatalogRefreshHandler;
+
   @override
   void initState() {
     super.initState();
+    _productCatalogRefreshHandler = refreshProductCatalog;
+    registerProductCatalogRefresh(_productCatalogRefreshHandler);
     load();
   }
 
+  Future<void> refreshProductCatalog() async {
+    try {
+      suppliersLoading = true;
+      if (mounted) setState(() {});
+      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      suppliersLoading = false;
+      products = await repo.products();
+      units = await repo.units();
+      _reconcileSupplierSelection();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _reconcileSupplierSelection() {
+    if (supplierId == null) return;
+    if (!suppliers.any((s) => coerceCatalogId(s['id']) == supplierId)) {
+      supplierId = null;
+    }
+  }
+
   Future<void> load() async {
-    suppliers = await repo.suppliers();
-    products = await repo.products();
-    units = await repo.units();
-    poNo = '${await repo.nextPurchaseOrderNo()}';
-    directoryRows = await repo.purchaseOrdersWithParty();
-    if (suppliers.isNotEmpty && supplierId == null) {
-      supplierId = suppliers.first['id'] as int;
-      fillSupplier(suppliers.first);
+    try {
+      suppliersLoading = true;
+      if (mounted) setState(() {});
+      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      suppliersLoading = false;
+      products = await repo.products();
+      units = await repo.units();
+      poNo = '${await repo.nextPurchaseOrderNo()}';
+      directoryRows = await repo.purchaseOrdersWithParty();
+      _reconcileSupplierSelection();
+      if (suppliers.isNotEmpty && supplierId == null) {
+        supplierId = coerceCatalogId(suppliers.first['id']);
+        fillSupplier(suppliers.first);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() {});
   }
@@ -100,6 +139,13 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
           r.igstPct = i;
         },
       );
+      r.syncGstControllers();
+    }
+  }
+
+  void _disposeAllRows() {
+    for (final r in rows) {
+      r.dispose();
     }
   }
 
@@ -114,6 +160,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
 
   @override
   void dispose() {
+    unregisterProductCatalogRefresh(_productCatalogRefreshHandler);
+    _disposeAllRows();
     for (final c in [
       supplierRef,
       packages,
@@ -147,11 +195,6 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       onPicked(formatIsoDate(picked));
       _syncDueDateFromDays();
     }
-  }
-
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
   String _billNoForRow(Map<String, dynamic> po) {
@@ -220,33 +263,43 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
           },
         )
         .toList();
-    final orderId = await repo.createPurchaseOrder({
-      'uuid': uuid,
-      'po_bill_no': billNo,
-      'po_no': int.tryParse(poNo),
-      'po_date': poDate,
-      'delivery_due_date': dueDate,
-      'supplier_ref_no': supplierRef.text,
-      'total_packages': int.tryParse(packages.text) ?? 0,
-      'delivery_mode': deliveryMode.text,
-      'remarks': remarks.text,
-      'supplier_id': supplierId,
-      'state_zone': zone,
-      'due_days': int.tryParse(dueDays.text) ?? 0,
-      'estimated_freight': freightVal,
-      'taxable_total': taxable,
-      'cgst_total': cgst,
-      'sgst_total': sgst,
-      'igst_total': igst,
-      'grand_total': total,
-      'status': 'PENDING',
-      'items': items,
-    });
-    return orderId;
+    try {
+      final orderId = await repo.createPurchaseOrder({
+        'uuid': uuid,
+        'po_bill_no': billNo,
+        'po_no': int.tryParse(poNo),
+        'po_date': poDate,
+        'delivery_due_date': dueDate,
+        'supplier_ref_no': supplierRef.text,
+        'total_packages': int.tryParse(packages.text) ?? 0,
+        'delivery_mode': deliveryMode.text,
+        'remarks': remarks.text,
+        'supplier_id': supplierId,
+        'state_zone': zone,
+        'due_days': int.tryParse(dueDays.text) ?? 0,
+        'estimated_freight': freightVal,
+        'taxable_total': taxable,
+        'cgst_total': cgst,
+        'sgst_total': sgst,
+        'igst_total': igst,
+        'grand_total': total,
+        'status': 'PENDING',
+        'items': items,
+      });
+      return orderId;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server save failed: $e')),
+        );
+      }
+      return null;
+    }
   }
 
   void _resetForm() {
     setState(() {
+      _disposeAllRows();
       rows
         ..clear()
         ..add(_PoRow());
@@ -263,9 +316,19 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Future<void> saveAndPrint() async {
     final orderId = await _persistOrder();
     if (orderId == null) return;
-    await reprintPurchaseOrder(orderId);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PURCHASE ORDER SAVED — PRINT DIALOG OPENED')));
+    try {
+      await reprintPurchaseOrder(orderId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PURCHASE ORDER SAVED — PRINT DIALOG OPENED')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PURCHASE ORDER SAVED, BUT PDF PRINTING FAILED: $e')),
+        );
+      }
     }
     await load();
     _resetForm();
@@ -360,8 +423,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Widget _directoryCard(Map<String, dynamic> row) {
     final id = row['id'] as int;
     final status = '${row['status'] ?? 'PENDING'}';
-    final qty = (row['total_qty'] as num?)?.toDouble() ?? 0;
-    final amount = (row['grand_total'] as num?)?.toDouble() ?? 0;
+    final qty = parseApiAmount(row['total_qty']);
+    final amount = parseApiAmount(row['grand_total']);
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -449,35 +512,19 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
   Widget _buildEntryView() {
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: enterpriseScrollColumn(children: [
           Container(
             width: double.infinity,
             color: const Color(0xFF19232C),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('PURCHASE ORDER PLACEMENT ENGINE',
-                          style: TextStyle(color: Color(0xFF2FE6E0), fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: .4)),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 22,
-                        runSpacing: 6,
-                        children: [
-                          _statMini('TOTAL QTY', totalQty.toStringAsFixed(0)),
-                          _statMini('TAXABLE VAL', taxable.toStringAsFixed(2)),
-                          _statMini('GST TOTAL', gstTotal.toStringAsFixed(2)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+            child: enterpriseTerminalHeader(
+              title: 'PURCHASE ORDER PLACEMENT ENGINE',
+              stats: [
+                enterpriseStatMini('TOTAL QTY', totalQty.toStringAsFixed(0)),
+                enterpriseStatMini('TAXABLE VAL', taxable.toStringAsFixed(2)),
+                enterpriseStatMini('GST TOTAL', gstTotal.toStringAsFixed(2)),
+              ],
+              actions: [
                 OutlinedButton(
                   onPressed: () async {
                     directoryRows = await repo.purchaseOrdersWithParty();
@@ -488,20 +535,12 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                     side: const BorderSide(color: Colors.white24),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
-                  child: const Text('VIEW PO DIRECTORY HISTORY', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
-                ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('₹ ${total.toStringAsFixed(2)}',
-                        style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 2),
-                    const Text('ESTIMATED PROCUREMENT COST',
-                        style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: .4)),
-                  ],
+                  child: const Text('VIEW PO DIRECTORY HISTORY',
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
                 ),
               ],
+              totalAmount: '₹ ${total.toStringAsFixed(2)}',
+              totalLabel: 'ESTIMATED PROCUREMENT COST',
             ),
           ),
           Padding(
@@ -512,18 +551,20 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final stacked = constraints.maxWidth < formTwoColumnMinWidth;
-                    final section1 = _plainSection(
+                    final section1 = enterprisePlainSection(
                       title: 'SECTION 1: ORDER METADATA',
                       children: [
-                        _pair(
+                        enterpriseFormPair(
                           _outline('PO NUMERIC SERIAL NO (AUTO)', controller: TextEditingController(text: poNo), readOnly: true, filled: true),
-                          _outline('ORDER PLACEMENT DATE', controller: TextEditingController(text: _display(poDate)), readOnly: true,
-                              prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
-                              onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v))),
+                          enterpriseInsetDateField(
+                            label: 'ORDER PLACEMENT DATE',
+                            isoDate: poDate,
+                            onTap: () => _pickDate(poDate, (v) => setState(() => poDate = v)),
+                          ),
                         ),
                         _zoneField(),
-                        _pair(
-                          _outline('DELIVERY TIMELINE VALIDITY (DAYS)', controller: dueDays,
+                        enterpriseFormPair(
+                          _outline('DELIVERY TIMELINE VALIDITY (DAYS)', controller: dueDays, autofocus: true,
                               onChanged: (_) {
                                 _syncDueDateFromDays();
                                 setState(() {});
@@ -534,31 +575,46 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         _outline('SUPPLIER REFERENCE / REMARKS', controller: supplierRef),
                       ],
                     );
-                    final section2 = _plainSection(
+                    final section2 = enterprisePlainSection(
                       title: 'SECTION 2: PARTY ALLOCATION — SUPPLIER',
                       children: [
                         enterpriseInsetDropdown<int>(
                           label: 'TARGET REGISTERED SUPPLIER PROFILES *',
                           value: supplierId,
                           items: suppliers
-                              .map((s) => DropdownMenuItem<int>(value: s['id'] as int, child: Text('${s['supplier_name']}')))
+                              .map((s) {
+                                final id = coerceCatalogId(s['id']);
+                                if (id == null) return null;
+                                return DropdownMenuItem<int>(
+                                  value: id,
+                                  child: Text('${s['supplier_name'] ?? s['name'] ?? ''}'),
+                                );
+                              })
+                              .whereType<DropdownMenuItem<int>>()
                               .toList(),
-                          onChanged: (v) {
-                            final s = suppliers.firstWhere((x) => x['id'] == v);
+                          onChanged: suppliersLoading
+                              ? null
+                              : (v) {
+                            final s = suppliers.firstWhere((x) => coerceCatalogId(x['id']) == v);
                             setState(() {
                               supplierId = v;
                               fillSupplier(s);
                             });
                           },
                         ),
+                        partyDirectoryStatus(
+                          loading: suppliersLoading,
+                          isCustomer: false,
+                          itemCount: suppliers.length,
+                        ),
                         const SizedBox(height: 12),
                         _outline('OFFICIAL BILLING HEADQUARTERS ADDRESS', controller: supplierAddress, readOnly: true, filled: true),
                         const SizedBox(height: 12),
-                        _pair(
+                        enterpriseFormPair(
                           _outline('CITY', controller: city, readOnly: true, filled: true),
                           _outline('PINCODE', controller: pin, readOnly: true, filled: true),
                         ),
-                        _pair(
+                        enterpriseFormPair(
                           _outline('REGISTERED GSTIN REFERENCE', controller: gstin, readOnly: true, filled: true),
                           _outline('BANK IDENTIFIER NAME', controller: bank, readOnly: true, filled: true),
                         ),
@@ -630,30 +686,35 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Container(
-                      width: 120,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF19232C),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('ESTIMATED FREIGHT',
-                              style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
-                          TextField(
-                            controller: freight,
-                            keyboardType: TextInputType.number,
-                            onChanged: (_) => setState(() {}),
-                            style: const TextStyle(color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 16),
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
+                    SizedBox(
+                      width: 200,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF19232C),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('ESTIMATED FREIGHT',
+                                style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 4),
+                            TextField(
+                              controller: freight,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              onChanged: (_) => setState(() {}),
+                              textAlign: TextAlign.right,
+                              textInputAction: TextInputAction.done,
+                              minLines: 1,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                  color: Color(0xFFF4D53A), fontWeight: FontWeight.w900, fontSize: 15, height: 1.2),
+                              decoration: enterpriseInsetInputDecoration(onDarkPanel: true, multiline: true),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -692,7 +753,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       bool filled = false,
       Widget? prefixIcon,
       VoidCallback? onTap,
-      ValueChanged<String>? onChanged}) {
+      ValueChanged<String>? onChanged,
+      bool autofocus = false}) {
     return enterpriseInsetTextField(
       label: label,
       controller: controller,
@@ -700,6 +762,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       filled: filled,
       prefixIcon: prefixIcon,
       onTap: onTap,
+      onChanged: onChanged,
+      autofocus: autofocus,
     );
   }
 
@@ -721,55 +785,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
     );
   }
 
-  Widget _statMini(String label, String value) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
-        ],
-      );
-
-  Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: a),
-            const SizedBox(width: 14),
-            Expanded(child: b),
-          ],
-        ),
-      );
-
-  Widget _plainSection({required String title, required List<Widget> children}) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: navy, letterSpacing: .3)),
-          const SizedBox(height: 4),
-          Container(height: 1, color: border),
-          const SizedBox(height: 12),
-          ...children,
-        ],
-      );
-
-  static const _matrixHeadStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 7.5, height: 1.15);
-  static const _matrixCellStyle = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: navy);
-  static final _matrixInputDecoration = InputDecoration(
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(3)),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(3), borderSide: const BorderSide(color: border)),
-  );
-
-  Widget _matrixHeadCell(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
-      child: Text(label, style: _matrixHeadStyle, maxLines: 2, overflow: TextOverflow.ellipsis),
-    );
-  }
-
-  Widget _productMatrixTable() {
+  Table _productMatrixTable() {
     return Table(
       columnWidths: enterpriseProductMatrixColumns,
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -777,16 +793,16 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
         TableRow(
           decoration: const BoxDecoration(color: navy2),
           children: [
-            _matrixHeadCell('SL'),
-            _matrixHeadCell('MATERIAL PROCUREMENT DESCRIPTION'),
-            _matrixHeadCell('UOM'),
-            _matrixHeadCell('HSN'),
-            _matrixHeadCell('REQ QTY'),
-            _matrixHeadCell('AGREED RATE'),
-            _matrixHeadCell('CGST%'),
-            _matrixHeadCell('SGST%'),
-            _matrixHeadCell('IGST%'),
-            _matrixHeadCell('COMPOUND ROW VALUE'),
+            enterpriseMatrixHeadCell('SL'),
+            enterpriseMatrixHeadCell('MATERIAL PROCUREMENT DESCRIPTION'),
+            enterpriseMatrixHeadCell('UOM'),
+            enterpriseMatrixHeadCell('HSN'),
+            enterpriseMatrixHeadCell('REQ QTY'),
+            enterpriseMatrixHeadCell('AGREED RATE'),
+            enterpriseMatrixHeadCell('CGST%'),
+            enterpriseMatrixHeadCell('SGST%'),
+            enterpriseMatrixHeadCell('IGST%'),
+            enterpriseMatrixHeadCell('COMPOUND ROW VALUE'),
             const SizedBox.shrink(),
           ],
         ),
@@ -796,14 +812,14 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-                child: Text('${i + 1}', style: _matrixCellStyle),
+                child: Text('${i + 1}', style: enterpriseMatrixCellStyle),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
                 child: DropdownButton<int>(
                   isExpanded: true,
                   isDense: true,
-                  hint: const Text('Enter Description', style: TextStyle(fontSize: 9, color: Color(0xFF9AA5B4))),
+                  hint: const Text('Enter Description', style: enterpriseMatrixHintStyle),
                   value: catalogIdInList(rows[i].productId, products),
                   items: products
                       .map((p) {
@@ -811,7 +827,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${p['product_name']}', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis),
+                          child: Text('${p['product_name']}', style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
@@ -829,14 +845,14 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   isDense: true,
                   underline: const SizedBox(),
                   value: catalogIdInList(rows[i].unitId, units),
-                  hint: const Text('UOM', style: TextStyle(fontSize: 9)),
+                  hint: const Text('UOM', style: enterpriseMatrixHintStyle),
                   items: units
                       .map((u) {
                         final id = coerceCatalogId(u['id']);
                         if (id == null) return null;
                         return DropdownMenuItem<int>(
                           value: id,
-                          child: Text('${u['code']}', style: const TextStyle(fontSize: 9)),
+                          child: Text('${u['code']}', style: enterpriseMatrixCellStyle),
                         );
                       })
                       .whereType<DropdownMenuItem<int>>()
@@ -852,66 +868,66 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-                child: Text(rows[i].hsn, style: _matrixCellStyle, overflow: TextOverflow.ellipsis),
+                child: Text(rows[i].hsn, style: enterpriseMatrixCellStyle, overflow: TextOverflow.ellipsis),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
-                  key: ValueKey('q$i'),
-                  keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  controller: rows[i].qtyController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (v) => setState(() => rows[i].qty = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
-                  key: ValueKey('r$i'),
-                  keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  controller: rows[i].rateController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (v) => setState(() => rows[i].rate = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
-                  controller: TextEditingController(text: '${rows[i].cgstPct}'),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  controller: rows[i].cgstController,
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].cgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
-                  controller: TextEditingController(text: '${rows[i].sgstPct}'),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  controller: rows[i].sgstController,
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].sgstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: TextField(
-                  controller: TextEditingController(text: '${rows[i].igstPct}'),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+                child: enterpriseMatrixTextField(
+                  context: context,
+                  controller: rows[i].igstController,
                   keyboardType: TextInputType.number,
-                  style: _matrixCellStyle,
-                  decoration: _matrixInputDecoration,
                   onChanged: (v) => setState(() => rows[i].igstPct = double.tryParse(v) ?? 0),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-                child: Text(_lineTotals(rows[i]).total.toStringAsFixed(2), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
+                child: Text(_lineTotals(rows[i]).total.toStringAsFixed(2), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
                 child: IconButton(
-                  onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
+                  onPressed: rows.length == 1
+                      ? null
+                      : () => setState(() {
+                            rows[i].dispose();
+                            rows.removeAt(i);
+                          }),
                   icon: const Icon(Icons.delete_outline, color: red, size: 17),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
@@ -936,6 +952,43 @@ class _PoRow {
   double cgstPct = 9;
   double sgstPct = 9;
   double igstPct = 0;
+
+  late final TextEditingController qtyController;
+  late final TextEditingController rateController;
+  late final TextEditingController cgstController;
+  late final TextEditingController sgstController;
+  late final TextEditingController igstController;
+
+  _PoRow() {
+    qtyController = TextEditingController();
+    rateController = TextEditingController();
+    cgstController =
+        TextEditingController(text: formatTransactionMatrixNum(cgstPct));
+    sgstController =
+        TextEditingController(text: formatTransactionMatrixNum(sgstPct));
+    igstController =
+        TextEditingController(text: formatTransactionMatrixNum(igstPct));
+  }
+
+  void syncGstControllers() {
+    cgstController.text = formatTransactionMatrixNum(cgstPct);
+    sgstController.text = formatTransactionMatrixNum(sgstPct);
+    igstController.text = formatTransactionMatrixNum(igstPct);
+  }
+
+  void _syncControllersFromModel() {
+    qtyController.text = formatTransactionMatrixNum(qty);
+    rateController.text = formatTransactionMatrixRate(rate);
+    syncGstControllers();
+  }
+
+  void dispose() {
+    qtyController.dispose();
+    rateController.dispose();
+    cgstController.dispose();
+    sgstController.dispose();
+    igstController.dispose();
+  }
 
   void setProduct(Map<String, dynamic> p, {required String stateZone}) {
     productId = coerceCatalogId(p['id']);
@@ -968,5 +1021,6 @@ class _PoRow {
         },
       );
     }
+    _syncControllersFromModel();
   }
 }

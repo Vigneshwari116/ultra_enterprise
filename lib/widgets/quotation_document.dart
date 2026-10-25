@@ -1,4 +1,5 @@
 import '../services/ultra_repository.dart';
+import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import 'ultra_print_helpers.dart';
 
@@ -9,7 +10,8 @@ Future<void> reprintQuotation(int quotationId) async {
 }
 
 Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
-  final bundle = await UltraRepository.instance.quotationPrintBundle(quotationId);
+  final bundle =
+      await UltraRepository.instance.quotationPrintBundle(quotationId);
   if (bundle == null) return null;
   final q = bundle['quotation'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
@@ -20,8 +22,8 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
         (it) => InvoiceItem(
           description: '${it['description'] ?? ''}',
           hsnCode: '',
-          qty: (it['quantity'] as num?)?.toDouble() ?? 0,
-          price: (it['rate'] as num?)?.toDouble() ?? 0,
+          qty: parseApiAmount(it['quantity']),
+          price: parseApiAmount(it['rate']),
         ),
       )
       .toList();
@@ -32,7 +34,7 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
     q['pincode'] ?? '',
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
-  final freight = (q['freight'] as num?)?.toDouble() ?? 0;
+  final freight = parseApiAmount(q['freight']);
   final subtotal = items.fold<double>(0, (s, i) => s + i.amount);
   final grand = (q['net_total'] as num?)?.toDouble() ?? subtotal + freight;
 
@@ -58,14 +60,14 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
     kind: UltraBillKind.quotation,
     documentTitle: 'QUOTATION',
     partySectionTitle: 'CUSTOMER / PARTY DETAILS',
-    copyLabels: const ['DUPLICATE QUOTATION REPRINT'],
+    copyLabels: ultraOriginalDuplicateLabels('QUOTATION'),
     invoiceNo: '${q['serial_no'] ?? q['ref_no'] ?? ''}',
-    date: ultraFmtDate(q['quotation_date'] as String?),
+    date: ultraFmtDateIso(q['quotation_date'] as String?),
     custPo: '${q['ref_no'] ?? ''}',
-    poDate: ultraFmtDate(q['reference_date'] as String?),
+    poDate: ultraFmtDateIso(q['reference_date'] as String?),
     dispatch: refName,
     ewbNo: '$validityDays DAYS',
-    consigneeName: '${q['party_name'] ?? ''} (${q['party_kind'] ?? ''})',
+    consigneeName: '${q['party_name'] ?? ''}',
     consigneeAddress: address,
     gstin: '${q['gstin'] ?? ''}',
     mobile: '',
@@ -82,5 +84,6 @@ Future<InvoiceData?> quotationInvoiceData(int quotationId) async {
     leftSignatureLabel: 'Prepared By',
     forwardingLabel: 'Forwarding',
     totalGrandLabel: 'Total Cost',
+    showBankInTotals: false,
   );
 }

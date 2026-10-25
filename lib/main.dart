@@ -5,12 +5,12 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'config/ultra_config.dart';
 import 'database/app_database.dart';
 import 'screens/login_screen.dart';
-import 'screens/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (!kIsWeb &&
+  if (UltraConfig.persistLocally &&
+      !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
           defaultTargetPlatform == TargetPlatform.linux ||
           defaultTargetPlatform == TargetPlatform.macOS)) {
@@ -18,7 +18,9 @@ Future<void> main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  await AppDatabase.instance.init();
+  if (UltraConfig.persistLocally) {
+    await AppDatabase.instance.init();
+  }
 
   runApp(const UltraApp());
 }
@@ -55,7 +57,7 @@ class UltraApp extends StatelessWidget {
             borderSide: const BorderSide(color: Color(0xFF17365D), width: 1.2),
           ),
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           isDense: true,
         ),
       ),

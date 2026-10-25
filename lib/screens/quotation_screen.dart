@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
+import '../utils/party_directory.dart';
 import '../widgets/compact_date_picker.dart';
 import '../widgets/enterprise_form_fields.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../utils/voucher_display.dart';
 import '../widgets/quotation_document.dart';
+import '../widgets/transaction_line_math.dart';
 
 class QuotationScreen extends StatefulWidget {
   const QuotationScreen({super.key});
@@ -36,6 +40,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
   List<Map<String, dynamic>> customers = [];
   List<Map<String, dynamic>> suppliers = [];
+  bool partiesLoading = false;
   List<Map<String, dynamic>> units = [];
   List<Map<String, dynamic>> historyRows = [];
   int? partyId;
@@ -62,17 +67,24 @@ class _QuotationScreenState extends State<QuotationScreen> {
   }
 
   Future<void> load() async {
-    customers = await repo.customers();
-    suppliers = await repo.suppliers();
-    units = await repo.units();
-    serial = '${await repo.nextQuotationSerial()}';
-    historyRows = await repo.quotationsWithParty();
-    if (!partyIsSupplier && customers.isNotEmpty) {
-      partyId = customers.first['id'] as int;
-      _fillParty(customers.first);
-    } else if (partyIsSupplier && suppliers.isNotEmpty) {
-      partyId = suppliers.first['id'] as int;
-      _fillParty(suppliers.first);
+    try {
+      partiesLoading = true;
+      if (mounted) setState(() {});
+      customers = await loadCustomersDirectory(repo, snackbarContext: context);
+      suppliers = await loadSuppliersDirectory(repo, snackbarContext: context);
+      partiesLoading = false;
+      units = await repo.units();
+      serial = '${await repo.nextQuotationSerial()}';
+      historyRows = await repo.quotationsWithParty();
+      if (!partyIsSupplier && customers.isNotEmpty) {
+        partyId = coerceCatalogId(customers.first['id']);
+        _fillParty(customers.first);
+      } else if (partyIsSupplier && suppliers.isNotEmpty) {
+        partyId = coerceCatalogId(suppliers.first['id']);
+        _fillParty(suppliers.first);
+      }
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
     }
     if (mounted) setState(() {});
   }
@@ -98,11 +110,6 @@ class _QuotationScreenState extends State<QuotationScreen> {
   Future<void> _pickDate(String iso, ValueChanged<String> on) async {
     final picked = await pickCompactDate(context, initialDate: DateTime.tryParse(iso) ?? DateTime.now());
     if (picked != null) on(formatIsoDate(picked));
-  }
-
-  String _display(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d == null ? iso : DateFormat('dd-MM-yyyy').format(d);
   }
 
   String _refForRow(Map<String, dynamic> q) {
@@ -138,31 +145,41 @@ class _QuotationScreenState extends State<QuotationScreen> {
       if (line.isEmpty) continue;
       termRows.add({'sort_order': i + 1, 'text': line});
     }
-    final id = await repo.createQuotation({
-      'uuid': uuid,
-      'ref_no': billRef,
-      'serial_no': int.tryParse(serial),
-      'quotation_date': qtDate,
-      'validity_days': int.tryParse(validity.text) ?? 0,
-      'reference_name': refName.text,
-      'reference_date': refDate,
-      'party_kind': partyIsSupplier ? 'SUPPLIER' : 'CUSTOMER',
-      'party_id': partyId,
-      'address': address.text,
-      'city': city.text,
-      'pincode': pin.text,
-      'gstin': gstin.text,
-      'salutation': salutation.text,
-      'subject': subject.text,
-      'body_text': body.text,
-      'freight': double.tryParse(freight.text) ?? 0,
-      'net_total': netTotal,
-      'total_qty': totalQty,
-      'status': 'PENDING',
-      'created_at': DateTime.now().toIso8601String(),
-      'items': items,
-      'terms': termRows,
-    });
+    int id;
+    try {
+      id = await repo.createQuotation({
+        'uuid': uuid,
+        'ref_no': billRef,
+        'serial_no': int.tryParse(serial),
+        'quotation_date': qtDate,
+        'validity_days': int.tryParse(validity.text) ?? 0,
+        'reference_name': refName.text,
+        'reference_date': refDate,
+        'party_kind': partyIsSupplier ? 'SUPPLIER' : 'CUSTOMER',
+        'party_id': partyId,
+        'address': address.text,
+        'city': city.text,
+        'pincode': pin.text,
+        'gstin': gstin.text,
+        'salutation': salutation.text,
+        'subject': subject.text,
+        'body_text': body.text,
+        'freight': double.tryParse(freight.text) ?? 0,
+        'net_total': netTotal,
+        'total_qty': totalQty,
+        'status': 'PENDING',
+        'created_at': DateTime.now().toIso8601String(),
+        'items': items,
+        'terms': termRows,
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server save failed: $e')),
+        );
+      }
+      return;
+    }
     await reprintQuotation(id);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('QUOTATION SAVED — PRINT OPENED')));
     await load();
@@ -195,21 +212,28 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
   Widget _history() {
     final list = _filteredHistory;
+    final narrow = AppBreakpoints.isNarrow(context);
+    final pad = AppBreakpoints.pagePadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               IconButton(onPressed: () => setState(() => showHistory = false), icon: const Icon(Icons.arrow_back)),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('QUOTATION LOGS DIRECTORY', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: navy)),
-                    Text('COMMERCIAL QUOTATIONS TRACK REVERSALS AUDIT TRAIL REPOSITORY',
-                        style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600)),
+                  children: [
+                    Text(
+                      'QUOTATION LOGS DIRECTORY',
+                      style: TextStyle(fontSize: narrow ? 16 : 20, fontWeight: FontWeight.w900, color: navy),
+                    ),
+                    const Text(
+                      'COMMERCIAL QUOTATIONS TRACK REVERSALS AUDIT TRAIL REPOSITORY',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF748094), fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
               ),
@@ -228,17 +252,37 @@ class _QuotationScreenState extends State<QuotationScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Text('FILTER BY PARTY: $partyFilter', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
-              const Spacer(),
-              _filterBtn('ALL'),
-              const SizedBox(width: 6),
-              _filterBtn('SUPPLIERS'),
-              const SizedBox(width: 6),
-              _filterBtn('CUSTOMERS'),
-            ],
-          ),
+          narrow
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('FILTER BY PARTY: $partyFilter', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _filterBtn('ALL'),
+                          const SizedBox(width: 6),
+                          _filterBtn('SUPPLIERS'),
+                          const SizedBox(width: 6),
+                          _filterBtn('CUSTOMERS'),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Text('FILTER BY PARTY: $partyFilter', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF748094))),
+                    const Spacer(),
+                    _filterBtn('ALL'),
+                    const SizedBox(width: 6),
+                    _filterBtn('SUPPLIERS'),
+                    const SizedBox(width: 6),
+                    _filterBtn('CUSTOMERS'),
+                  ],
+                ),
           const SizedBox(height: 16),
           ...list.map(_historyCard),
         ],
@@ -257,64 +301,113 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
   Widget _historyCard(Map<String, dynamic> r) {
     final id = r['id'] as int;
-    final amt = (r['net_total'] as num?)?.toDouble() ?? 0;
-    final qty = (r['total_qty'] as num?)?.toDouble() ?? 0;
+    final amt = parseApiAmount(r['net_total']);
+    final qty = parseApiAmount(r['total_qty']);
     final status = '${r['status'] ?? 'PENDING'}';
     final kind = '${r['party_kind']}';
+    final narrow = AppBreakpoints.isNarrow(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(color: Colors.white, border: Border.all(color: border), borderRadius: BorderRadius.circular(6)),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(width: 5, color: const Color(0xFFE67E22)),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
+              child: narrow
+                  ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text('${r['party_name']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                            const SizedBox(width: 6),
                             _badge(status, const Color(0xFFF4D53A)),
-                            const SizedBox(width: 4),
                             _badge(kind, kind == 'SUPPLIER' ? const Color(0xFFFFE4EC) : const Color(0xFFE3F2FD)),
                           ],
                         ),
-                        Text('SERIAL NO: ${r['serial_no']}  ·  REF NO: ${_refForRow(r)}  ·  QUOTATION DATE: ${r['quotation_date']}',
-                            style: const TextStyle(fontSize: 10, color: Color(0xFF748094))),
+                        const SizedBox(height: 6),
+                        Text(
+                          'SERIAL NO: ${r['serial_no']}  ·  REF NO: ${_refForRow(r)}  ·  QUOTATION DATE: ${r['quotation_date']}',
+                          style: const TextStyle(fontSize: 10, color: Color(0xFF748094)),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                        Text('${qty.toStringAsFixed(0)} PCS QUOTED', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
+                        const SizedBox(height: 8),
+                        DropdownButton<String>(
+                          isExpanded: true,
+                          value: ['PENDING', 'APPROVED', 'REJECTED'].contains(status) ? status : 'PENDING',
+                          items: const [
+                            DropdownMenuItem(value: 'PENDING', child: Text('PENDING')),
+                            DropdownMenuItem(value: 'APPROVED', child: Text('APPROVED')),
+                            DropdownMenuItem(value: 'REJECTED', child: Text('REJECTED')),
+                          ],
+                          onChanged: (v) async {
+                            if (v == null) return;
+                            await repo.updateQuotationStatus(id, v);
+                            historyRows = await repo.quotationsWithParty();
+                            setState(() {});
+                          },
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => reprintQuotation(id),
+                          icon: const Icon(Icons.print_outlined, size: 16),
+                          label: const Text('REPRINT QT'),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text('${r['party_name']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                                  const SizedBox(width: 6),
+                                  _badge(status, const Color(0xFFF4D53A)),
+                                  const SizedBox(width: 4),
+                                  _badge(kind, kind == 'SUPPLIER' ? const Color(0xFFFFE4EC) : const Color(0xFFE3F2FD)),
+                                ],
+                              ),
+                              Text(
+                                'SERIAL NO: ${r['serial_no']}  ·  REF NO: ${_refForRow(r)}  ·  QUOTATION DATE: ${r['quotation_date']}',
+                                style: const TextStyle(fontSize: 10, color: Color(0xFF748094)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                            Text('${qty.toStringAsFixed(0)} PCS QUOTED', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
+                          ],
+                        ),
+                        const SizedBox(width: 8),
+                        DropdownButton<String>(
+                          value: ['PENDING', 'APPROVED', 'REJECTED'].contains(status) ? status : 'PENDING',
+                          items: const [
+                            DropdownMenuItem(value: 'PENDING', child: Text('PENDING')),
+                            DropdownMenuItem(value: 'APPROVED', child: Text('APPROVED')),
+                            DropdownMenuItem(value: 'REJECTED', child: Text('REJECTED')),
+                          ],
+                          onChanged: (v) async {
+                            if (v == null) return;
+                            await repo.updateQuotationStatus(id, v);
+                            historyRows = await repo.quotationsWithParty();
+                            setState(() {});
+                          },
+                        ),
+                        OutlinedButton.icon(onPressed: () => reprintQuotation(id), icon: const Icon(Icons.print_outlined, size: 16), label: const Text('REPRINT QT')),
                       ],
                     ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('₹ ${amt.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-                      Text('${qty.toStringAsFixed(0)} PCS QUOTED', style: const TextStyle(fontSize: 9, color: Color(0xFF748094))),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  DropdownButton<String>(
-                    value: ['PENDING', 'APPROVED', 'REJECTED'].contains(status) ? status : 'PENDING',
-                    items: const [
-                      DropdownMenuItem(value: 'PENDING', child: Text('PENDING')),
-                      DropdownMenuItem(value: 'APPROVED', child: Text('APPROVED')),
-                      DropdownMenuItem(value: 'REJECTED', child: Text('REJECTED')),
-                    ],
-                    onChanged: (v) async {
-                      if (v == null) return;
-                      await repo.updateQuotationStatus(id, v);
-                      historyRows = await repo.quotationsWithParty();
-                      setState(() {});
-                    },
-                  ),
-                  OutlinedButton.icon(onPressed: () => reprintQuotation(id), icon: const Icon(Icons.print_outlined, size: 16), label: const Text('REPRINT QT')),
-                ],
-              ),
             ),
           ),
         ],
@@ -331,30 +424,23 @@ class _QuotationScreenState extends State<QuotationScreen> {
   Widget _entry() {
     return SingleChildScrollView(
       padding: EdgeInsets.zero,
-      child: Column(
-        children: [
+      child: enterpriseScrollColumn(children: [
           Container(
             width: double.infinity,
             color: const Color(0xFF19232C),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('QUOTATION PLACEMENT ENGINE', style: TextStyle(color: teal, fontSize: 15, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 18,
-                        children: [
-                          _mini('TOTAL QTY', totalQty.toStringAsFixed(0)),
-                          _mini('NET TOTAL', netTotal.toStringAsFixed(2)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppBreakpoints.isNarrow(context) ? 12 : 16,
+              vertical: 12,
+            ),
+            child: enterpriseTerminalHeader(
+              title: 'QUOTATION PLACEMENT ENGINE',
+              stats: [
+                _mini('TOTAL QTY', totalQty.toStringAsFixed(0)),
+                _mini('NET TOTAL', netTotal.toStringAsFixed(2)),
+              ],
+              totalAmount: '₹ ${netTotal.toStringAsFixed(2)}',
+              totalLabel: 'ESTIMATED OFFER VALUE',
+              actions: [
                 OutlinedButton.icon(
                   onPressed: () async {
                     historyRows = await repo.quotationsWithParty();
@@ -363,14 +449,6 @@ class _QuotationScreenState extends State<QuotationScreen> {
                   icon: const Icon(Icons.list_alt, size: 16),
                   label: const Text('VIEW QUOTATION HISTORY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
                   style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white24)),
-                ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('₹ ${netTotal.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFFF4D53A), fontSize: 20, fontWeight: FontWeight.w900)),
-                    const Text('ESTIMATED OFFER VALUE', style: TextStyle(color: Colors.white54, fontSize: 8.5)),
-                  ],
                 ),
               ],
             ),
@@ -385,7 +463,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
                     final stacked = constraints.maxWidth < formTwoColumnMinWidth;
                     final section1 = _sec('SECTION 1: QUOTATION METADATA & REFERENCES', [
                       _pair(_ro('QUOTATION SERIAL NO (AUTO)', serial), _date('QUOTATION DATE', qtDate, (v) => qtDate = v)),
-                      _pair(_field('VALIDITY (DAYS)', validity), _field('REFERENCE NO', refNo)),
+                      _pair(_field('VALIDITY (DAYS)', validity, autofocus: true), _field('REFERENCE NO', refNo)),
                       _pair(_field('REFERENCE NAME / KIND...', refName), _date('REFERENCE DATE', refDate, (v) => refDate = v)),
                     ]);
                     final section2 = _sec('SECTION 2: PARTY ALLOCATION', [
@@ -404,20 +482,32 @@ class _QuotationScreenState extends State<QuotationScreen> {
                         label: partyIsSupplier ? 'TARGET REGISTERED SUPPLIER PROFILES *' : 'TARGET REGISTERED CUSTOMER PROFILES *',
                         value: partyId,
                         items: (partyIsSupplier ? suppliers : customers)
-                            .map((p) => DropdownMenuItem<int>(
-                                  value: p['id'] as int,
-                                  child: Text('${partyIsSupplier ? p['supplier_name'] : p['customer_name']}',
-                                      style: const TextStyle(fontSize: 12)),
-                                ))
+                            .map((p) {
+                              final id = coerceCatalogId(p['id']);
+                              if (id == null) return null;
+                              return DropdownMenuItem<int>(
+                                value: id,
+                                child: Text('${partyIsSupplier ? p['supplier_name'] : p['customer_name']}',
+                                    style: const TextStyle(fontSize: 12)),
+                              );
+                            })
+                            .whereType<DropdownMenuItem<int>>()
                             .toList(),
-                        onChanged: (v) {
+                        onChanged: partiesLoading
+                            ? null
+                            : (v) {
                           final list = partyIsSupplier ? suppliers : customers;
-                          final p = list.firstWhere((x) => x['id'] == v);
+                          final p = list.firstWhere((x) => coerceCatalogId(x['id']) == v);
                           setState(() {
                             partyId = v;
                             _fillParty(p);
                           });
                         },
+                      ),
+                      partyDirectoryStatus(
+                        loading: partiesLoading,
+                        isCustomer: !partyIsSupplier,
+                        itemCount: partyIsSupplier ? suppliers.length : customers.length,
                       ),
                       const SizedBox(height: 10),
                       _field('OFFICIAL BILLING ADDRESS', address),
@@ -449,6 +539,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
                 const SizedBox(height: 14),
                 _sec('SECTION 4: SPECIFICATION MATRIX & PRICING GRID', [
                   Container(
+                    width: double.infinity,
                     decoration: BoxDecoration(border: Border.all(color: border), color: Colors.white),
                     child: enterpriseMatrixScroller(
                       minWidth: 520,
@@ -470,11 +561,12 @@ class _QuotationScreenState extends State<QuotationScreen> {
                             children: [
                               Text('${i + 1}', style: const TextStyle(fontSize: 9)),
                               Padding(
-                                padding: const EdgeInsets.all(3),
-                                child: TextField(
-                                  decoration: const InputDecoration(isDense: true, hintText: 'Enter Particulars'),
-                                  style: const TextStyle(fontSize: 9),
-                                  onChanged: (v) => r.description = v,
+                                padding: const EdgeInsets.all(2),
+                                child: Builder(
+                                  builder: (ctx) => enterpriseMatrixTextField(
+                                    context: ctx,
+                                    onChanged: (v) => r.description = v,
+                                  ),
                                 ),
                               ),
                               DropdownButton<int>(
@@ -491,8 +583,8 @@ class _QuotationScreenState extends State<QuotationScreen> {
                                   });
                                 },
                               ),
-                              _qtNum((v) => r.qty = v),
-                              _qtNum((v) => r.rate = v),
+                              _qtNum(context, (v) => r.qty = v),
+                              _qtNum(context, (v) => r.rate = v),
                               Text(r.lineTotal.toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
                               IconButton(
                                 onPressed: rows.length == 1 ? null : () => setState(() => rows.removeAt(i)),
@@ -536,7 +628,9 @@ class _QuotationScreenState extends State<QuotationScreen> {
                           child: TextField(
                             controller: terms[i].controller,
                             onChanged: (v) => terms[i].text = v,
-                            decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) => enterpriseAdvanceFocus(context),
+                            decoration: enterpriseMatrixInputDecoration,
                             style: const TextStyle(fontSize: 11),
                           ),
                         ),
@@ -583,7 +677,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
           partyId = null;
           final list = supplier ? suppliers : customers;
           if (list.isNotEmpty) {
-            partyId = list.first['id'] as int;
+            partyId = coerceCatalogId(list.first['id']);
             _fillParty(list.first);
           }
         });
@@ -596,12 +690,11 @@ class _QuotationScreenState extends State<QuotationScreen> {
     );
   }
 
-  Widget _qtNum(ValueChanged<double> on) => Padding(
-        padding: const EdgeInsets.all(3),
-        child: TextField(
+  Widget _qtNum(BuildContext context, ValueChanged<double> on) => Padding(
+        padding: const EdgeInsets.all(2),
+        child: enterpriseMatrixTextField(
+          context: context,
           keyboardType: TextInputType.number,
-          style: const TextStyle(fontSize: 9),
-          decoration: const InputDecoration(isDense: true),
           onChanged: (v) => setState(() => on(double.tryParse(v) ?? 0)),
         ),
       );
@@ -624,17 +717,17 @@ class _QuotationScreenState extends State<QuotationScreen> {
       );
 
   Widget _pair(Widget a, Widget b) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)]),
+        padding: const EdgeInsets.only(bottom: 6),
+        child: responsivePair(context, a, b),
       );
 
-  Widget _field(String label, TextEditingController c, {int maxLines = 1}) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines),
+  Widget _field(String label, TextEditingController c, {int maxLines = 1, bool autofocus = false}) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: enterpriseInsetTextField(label: label, controller: c, maxLines: maxLines, autofocus: autofocus),
       );
 
   Widget _ro(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: 6),
         child: enterpriseInsetTextField(
           label: label,
           controller: TextEditingController(text: value),
@@ -644,12 +737,10 @@ class _QuotationScreenState extends State<QuotationScreen> {
       );
 
   Widget _date(String label, String iso, ValueChanged<String> on) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: enterpriseInsetTextField(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: enterpriseInsetDateField(
           label: label,
-          controller: TextEditingController(text: _display(iso)),
-          readOnly: true,
-          prefixIcon: const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF748094)),
+          isoDate: iso,
           onTap: () => _pickDate(iso, (v) => setState(() => on(v))),
         ),
       );

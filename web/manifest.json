@@ -3,10 +3,10 @@
     "short_name": "Ultra Engineering",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#FFFFFF",
-    "theme_color": "#10233F",
+    "background_color": "#C40526",
+    "theme_color": "#C40526",
     "description": "Commercial Enterprise Platform - Ultra Engineering Works",
-    "orientation": "portrait-primary",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

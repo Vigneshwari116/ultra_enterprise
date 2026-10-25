@@ -8,7 +8,19 @@ int? coerceCatalogId(dynamic value) {
   return null;
 }
 
-bool isInterStateZone(String zone) => zone.trim().toLowerCase().contains('inter');
+double coerceCatalogDouble(dynamic value, {double fallback = 0}) {
+  if (value == null) return fallback;
+  if (value is num) return value.toDouble();
+  if (value is String) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return fallback;
+    return double.tryParse(trimmed) ?? fallback;
+  }
+  return fallback;
+}
+
+bool isInterStateZone(String zone) =>
+    zone.trim().toLowerCase().contains('inter');
 
 /// Total GST % implied by line percents (intra: CGST+SGST; inter: IGST or combined).
 double rowTotalGstPercent(double cgstPct, double sgstPct, double igstPct) {
@@ -22,13 +34,16 @@ double rowTotalGstPercent(double cgstPct, double sgstPct, double igstPct) {
 double? catalogTotalGstPercent(Map<String, dynamic> product) {
   for (final key in ['gst_percent', 'gst_rate', 'tax_percent']) {
     final v = product[key];
-    if (v != null) return (v as num).toDouble();
+    if (v != null) {
+      final parsed = coerceCatalogDouble(v, fallback: -1);
+      if (parsed >= 0) return parsed;
+    }
   }
-  final igst = (product['igst_percent'] as num?)?.toDouble();
-  if (igst != null && igst > 0) return igst;
-  final cgst = (product['cgst_percent'] as num?)?.toDouble();
-  final sgst = (product['sgst_percent'] as num?)?.toDouble();
-  if (cgst != null && sgst != null && (cgst + sgst) > 0) return cgst + sgst;
+  final igst = coerceCatalogDouble(product['igst_percent'], fallback: -1);
+  if (igst > 0) return igst;
+  final cgst = coerceCatalogDouble(product['cgst_percent'], fallback: 0);
+  final sgst = coerceCatalogDouble(product['sgst_percent'], fallback: 0);
+  if ((cgst + sgst) > 0) return cgst + sgst;
   return null;
 }
 
@@ -90,14 +105,39 @@ String catalogProductHsn(Map<String, dynamic> product) {
 }
 
 double catalogSalesRate(Map<String, dynamic> product) {
-  return ((product['sales_rate'] ?? product['rate'] ?? 0) as num).toDouble();
+  if (product['sales_rate'] != null) {
+    return coerceCatalogDouble(product['sales_rate']);
+  }
+
+  // Legacy rows may only expose `rate` as the selling price —
+  // never use purchase_rate here.
+  if (product['purchase_rate'] == null && product['rate'] != null) {
+    return coerceCatalogDouble(product['rate']);
+  }
+
+  return 0;
 }
 
 double catalogPurchaseRate(Map<String, dynamic> product) {
-  return ((product['purchase_rate'] ?? product['rate'] ?? 0) as num).toDouble();
+  if (product['purchase_rate'] != null) {
+    return coerceCatalogDouble(product['purchase_rate']);
+  }
+
+  if (product['cost_price'] != null) {
+    return coerceCatalogDouble(product['cost_price']);
+  }
+
+  // Legacy rows may only expose `rate` as cost —
+  // never use sales_rate here.
+  if (product['sales_rate'] == null && product['rate'] != null) {
+    return coerceCatalogDouble(product['rate']);
+  }
+
+  return 0;
 }
 
-int? catalogUnitId(Map<String, dynamic> product) => coerceCatalogId(product['unit_id']);
+int? catalogUnitId(Map<String, dynamic> product) =>
+    coerceCatalogId(product['unit_id']);
 
 String catalogUomCode(Map<String, dynamic> product) {
   final code = '${product['uom_code'] ?? product['uom'] ?? ''}'.trim();
@@ -128,7 +168,8 @@ class TransactionLineTotals {
     required double igstPct,
     String? stateZone,
   }) {
-    final inter = _resolveInterState(stateZone, cgstPct: cgstPct, sgstPct: sgstPct, igstPct: igstPct);
+    final inter = _resolveInterState(stateZone,
+        cgstPct: cgstPct, sgstPct: sgstPct, igstPct: igstPct);
     final taxable = qty * rate;
     final cgst = inter ? 0.0 : taxable * cgstPct / 100;
     final sgst = inter ? 0.0 : taxable * sgstPct / 100;
@@ -142,7 +183,10 @@ class TransactionLineTotals {
     );
   }
 
-  static bool _resolveInterState(String? stateZone, {required double cgstPct, required double sgstPct, required double igstPct}) {
+  static bool _resolveInterState(String? stateZone,
+      {required double cgstPct,
+      required double sgstPct,
+      required double igstPct}) {
     if (stateZone != null && stateZone.trim().isNotEmpty) {
       return isInterStateZone(stateZone);
     }
@@ -151,3 +195,16 @@ class TransactionLineTotals {
 }
 
 String payableAmountInWords(double amount) => formatUltraAmountInWords(amount);
+
+/// Visible matrix field text — keeps whole numbers compact (e.g. 100 not 100.00).
+String formatTransactionMatrixNum(double v, {bool blankZero = false}) {
+  if (blankZero && v == 0) return '';
+  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
+  return v.toString();
+}
+
+/// Rate column display — always two decimals (e.g. 100.00) for purchase screens.
+String formatTransactionMatrixRate(double v, {bool blankZero = false}) {
+  if (blankZero && v == 0) return '';
+  return v.toStringAsFixed(2);
+}

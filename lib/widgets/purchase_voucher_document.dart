@@ -1,20 +1,11 @@
 import '../services/ultra_repository.dart';
+import '../utils/voucher_display.dart';
 import 'invoice.dart';
 import 'ultra_print_helpers.dart';
 
-String _voucherBillNo(Map<String, dynamic> voucher) {
-  final no = voucher['voucher_no'];
-  if (no != null && '$no'.trim().isNotEmpty) return 'PV-$no';
-  final uuid = '${voucher['uuid'] ?? ''}';
-  final year = DateTime.tryParse('${voucher['voucher_date']}')?.year ?? DateTime.now().year;
-  if (uuid.length >= 6) {
-    return 'PV-$year-${uuid.replaceAll('-', '').substring(0, 6).toUpperCase()}';
-  }
-  return 'PV-$year-${voucher['id'] ?? ''}';
-}
-
 Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
-  final bundle = await UltraRepository.instance.purchaseVoucherPrintBundle(voucherId);
+  final bundle =
+      await UltraRepository.instance.purchaseVoucherPrintBundle(voucherId);
   if (bundle == null) return null;
   final v = bundle['voucher'] as Map<String, dynamic>;
   final rawItems = bundle['items'] as List<Map<String, dynamic>>;
@@ -24,8 +15,8 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
         (it) => InvoiceItem(
           description: '${it['description'] ?? ''}',
           hsnCode: '${it['hsn'] ?? ''}',
-          qty: (it['quantity'] as num?)?.toDouble() ?? 0,
-          price: (it['rate'] as num?)?.toDouble() ?? 0,
+          qty: parseApiAmount(it['quantity']),
+          price: parseApiAmount(it['rate']),
         ),
       )
       .toList();
@@ -36,19 +27,24 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
     v['postal_pincode'] ?? '',
   ].where((e) => '$e'.trim().isNotEmpty).join(', ');
 
-  final taxable = (v['taxable_total'] as num?)?.toDouble() ?? items.fold<double>(0, (s, i) => s + i.amount);
-  final cgstAmt = (v['cgst_total'] as num?)?.toDouble() ?? 0;
-  final sgstAmt = (v['sgst_total'] as num?)?.toDouble() ?? 0;
-  final igstAmt = (v['igst_total'] as num?)?.toDouble() ?? 0;
-  final grand = (v['grand_total'] as num?)?.toDouble() ?? taxable + cgstAmt + sgstAmt + igstAmt;
+  final taxable = parseApiAmount(v['taxable_total']) > 0
+      ? parseApiAmount(v['taxable_total'])
+      : items.fold<double>(0, (s, i) => s + i.amount);
+  final cgstAmt = parseApiAmount(v['cgst_total']);
+  final sgstAmt = parseApiAmount(v['sgst_total']);
+  final igstAmt = parseApiAmount(v['igst_total']);
+  final grand = parseApiAmount(v['grand_total']) > 0
+      ? parseApiAmount(v['grand_total'])
+      : taxable + cgstAmt + sgstAmt + igstAmt;
   final hasIgst = igstAmt > 0;
 
   return InvoiceData(
     kind: UltraBillKind.purchaseVoucher,
     documentTitle: 'PURCHASE VOUCHER',
     partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
-    copyLabels: const ['ORIGINAL FOR SUPPLIER'],
-    invoiceNo: _voucherBillNo(v),
+    copyLabels: ultraDocumentCopyLabels,
+    leftSignatureLabel: 'Receiver signature & Seal',
+    invoiceNo: purchaseVoucherDisplayNo(v),
     date: ultraFmtDate(v['voucher_date'] as String?),
     custPo: '${v['supplier_invoice_no'] ?? ''}',
     poDate: ultraFmtDate(v['supplier_invoice_date'] as String?),
@@ -73,6 +69,8 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
     accountNo: ultraBankAccount(v, 'bank_account_no'),
     ifscCode: ultraBankIfsc(v, 'ifsc_code'),
     bankAddress: ultraBankAddress(v, 'branch_address'),
+    totalGrandLabel: 'Total Value',
+    roundOff: parseApiAmount(v['round_off']),
   );
 }
 

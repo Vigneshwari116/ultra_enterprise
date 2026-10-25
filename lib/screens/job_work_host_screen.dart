@@ -3,7 +3,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
+import '../utils/api_errors.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../widgets/master_form_helpers.dart';
+import 'product_catalog_refresh.dart';
+import 'sales_invoice_screen.dart';
 
 int? _coerceMasterId(dynamic value) {
   if (value == null) return null;
@@ -119,7 +123,11 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
   }
 
   Future<void> load() async {
-    types = await repo.materialTypes();
+    try {
+      types = await repo.materialTypes();
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -164,12 +172,12 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          width: 280,
-          child: Container(
+    return masterSplitLayout(
+      context: context,
+      stackedDirectoryHeight: 340,
+      directory: SizedBox(
+        width: AppBreakpoints.isNarrow(context) ? double.infinity : 280,
+        child: Container(
             color: const Color(0xFF1D2739),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -238,46 +246,62 @@ class _MaterialTypeMasterPanelState extends State<_MaterialTypeMasterPanel> {
             ),
           ),
         ),
-        Expanded(
-          child: Container(
-            color: pageBg,
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(editingId == null ? 'NEW TYPE PARAMETER' : 'MODIFY TYPE PARAMETER',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
-                    const Spacer(),
-                    ElevatedButton.icon(
-                      onPressed: _save,
-                      icon: const Icon(Icons.save_outlined, size: 16),
-                      label: const Text('SAVE TYPE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
-                      style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _sectionTitle('1. MATERIAL CLASSIFICATION TOKENS'),
-                TextField(
-                  controller: typeCode,
-                  decoration: _fieldDec('MATERIAL TYPE KEY CODE (E.G. COPPER, BRASS) *'),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 18),
-                _sectionTitle('2. CATEGORY SPECIFICATION SPEC SHEET REMARKS'),
-                TextField(
-                  controller: description,
-                  maxLines: 5,
-                  decoration: _fieldDec('CATEGORY DESCRIPTION REGISTERED'),
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
+      form: Container(
+        color: pageBg,
+        padding: EdgeInsets.all(AppBreakpoints.pagePadding(context)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppBreakpoints.isNarrow(context)
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        editingId == null ? 'NEW TYPE PARAMETER' : 'MODIFY TYPE PARAMETER',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton.icon(
+                        onPressed: _save,
+                        icon: const Icon(Icons.save_outlined, size: 16),
+                        label: const Text('SAVE TYPE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                        style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Text(
+                        editingId == null ? 'NEW TYPE PARAMETER' : 'MODIFY TYPE PARAMETER',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                      ),
+                      const Spacer(),
+                      ElevatedButton.icon(
+                        onPressed: _save,
+                        icon: const Icon(Icons.save_outlined, size: 16),
+                        label: const Text('SAVE TYPE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                        style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
+                      ),
+                    ],
+                  ),
+            const SizedBox(height: 20),
+            _sectionTitle('1. MATERIAL CLASSIFICATION TOKENS'),
+            TextField(
+              controller: typeCode,
+              decoration: _fieldDec('MATERIAL TYPE KEY CODE (E.G. COPPER, BRASS) *'),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
-          ),
+            const SizedBox(height: 18),
+            _sectionTitle('2. CATEGORY SPECIFICATION SPEC SHEET REMARKS'),
+            TextField(
+              controller: description,
+              maxLines: 5,
+              decoration: _fieldDec('CATEGORY DESCRIPTION REGISTERED'),
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -318,11 +342,16 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
   }
 
   Future<void> load() async {
-    products = await repo.products();
-    units = _uniqueMasterRowsById(await repo.units());
-    materialTypes = _uniqueMasterRowsById(await repo.materialTypes());
-    unitId = _idPresentInRows(unitId, units) ?? _firstRowId(units);
-    materialTypeId = _idPresentInRows(materialTypeId, materialTypes) ?? _firstRowId(materialTypes);
+    try {
+      products = await repo.products();
+      units = _uniqueMasterRowsById(await repo.units());
+      materialTypes = _uniqueMasterRowsById(await repo.materialTypes());
+      unitId = _idPresentInRows(unitId, units) ?? _firstRowId(units);
+      materialTypeId =
+          _idPresentInRows(materialTypeId, materialTypes) ?? _firstRowId(materialTypes);
+    } catch (e) {
+      if (mounted) showReadableErrorSnackBar(context, e);
+    }
     if (mounted) setState(() {});
   }
 
@@ -343,7 +372,7 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
     finishSize.text = '${p['finishing_size'] ?? ''}';
     purchaseRate.text = '${p['purchase_rate'] ?? p['rate'] ?? 0}';
     salesRate.text = '${p['sales_rate'] ?? p['rate'] ?? 0}';
-    hsn.text = '${p['hsn'] ?? ''}';
+    hsn.text = '${p['hsn'] ?? p['hsn_code'] ?? ''}';
     imageBase64 = p['image_base64'] as String?;
     final ld = p['log_date'] as String?;
     if (ld != null && ld.isNotEmpty) {
@@ -381,7 +410,22 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
   }
 
   Future<void> _save() async {
-    if (code.text.trim().isEmpty || name.text.trim().isEmpty) return;
+    if (code.text.trim().isEmpty || name.text.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Material code and product name are required.')),
+        );
+      }
+      return;
+    }
+    if (unitId == null || materialTypeId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Select UOM and Material Type before saving.')),
+        );
+      }
+      return;
+    }
     final purchase = double.tryParse(purchaseRate.text) ?? 0;
     final sales = double.tryParse(salesRate.text) ?? 0;
     final row = {
@@ -402,15 +446,26 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
     };
     final isNew = editingId == null;
     final savedId = editingId;
-    if (isNew) {
-      row['opening_stock'] = 0;
-      row['current_stock'] = 0;
-      final newId = await repo.insertProduct(row);
-      editingId = _coerceMasterId(newId);
-    } else {
-      await repo.updateProduct(editingId!, row);
+    try {
+      if (isNew) {
+        row['opening_stock'] = 0;
+        row['current_stock'] = 0;
+        final newId = await repo.insertProduct(row);
+        editingId = _coerceMasterId(newId);
+      } else {
+        await repo.updateProduct(editingId!, row);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Material save failed: $e')),
+        );
+      }
+      return;
     }
     await load();
+    salesInvoiceCatalogKey.currentState?.refreshCatalog();
+    await refreshMountedProductCatalogs();
     final keepId = isNew ? editingId : savedId;
     if (keepId != null) {
       final match = products.where((p) => _coerceMasterId(p['id']) == keepId).toList();
@@ -432,12 +487,12 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          width: 260,
-          child: Container(
+    return masterSplitLayout(
+      context: context,
+      stackedDirectoryHeight: 360,
+      directory: SizedBox(
+        width: AppBreakpoints.isNarrow(context) ? double.infinity : 260,
+        child: Container(
             color: const Color(0xFF1D2739),
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -498,94 +553,122 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
             ),
           ),
         ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      form: LayoutBuilder(
+            builder: (context, formConstraints) {
+              final formWidth = formConstraints.maxWidth;
+              final narrow = AppBreakpoints.isNarrow(context);
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(AppBreakpoints.pagePadding(context)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(editingId == null ? 'NEW PRODUCT DATA MASTER' : 'MODIFY MASTER REGISTRY',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy)),
-                    if (editingId != null) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        color: const Color(0xFFFFE4CC),
-                        child: Text('EDITING ID: $editingId', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFFE67E22))),
+                narrow
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            editingId == null ? 'NEW PRODUCT DATA MASTER' : 'MODIFY MASTER REGISTRY',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                          ),
+                          if (editingId != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              color: const Color(0xFFFFE4CC),
+                              child: Text('EDITING ID: $editingId', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFFE67E22))),
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          TextButton(onPressed: _reset, child: const Text('X RESET FIELDS', style: TextStyle(color: red, fontWeight: FontWeight.w800, fontSize: 10))),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: _save,
+                            icon: Icon(editingId == null ? Icons.save_outlined : Icons.check, size: 16),
+                            label: Text(editingId == null ? 'SAVE MASTER' : 'UPDATE SNAPS', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                            style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Text(
+                            editingId == null ? 'NEW PRODUCT DATA MASTER' : 'MODIFY MASTER REGISTRY',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: navy),
+                          ),
+                          if (editingId != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              color: const Color(0xFFFFE4CC),
+                              child: Text('EDITING ID: $editingId', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFFE67E22))),
+                            ),
+                          ],
+                          const Spacer(),
+                          TextButton(onPressed: _reset, child: const Text('X RESET FIELDS', style: TextStyle(color: red, fontWeight: FontWeight.w800, fontSize: 10))),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: _save,
+                            icon: Icon(editingId == null ? Icons.save_outlined : Icons.check, size: 16),
+                            label: Text(editingId == null ? 'SAVE MASTER' : 'UPDATE SNAPS', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                            style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
+                          ),
+                        ],
                       ),
-                    ],
-                    const Spacer(),
-                    TextButton(onPressed: _reset, child: const Text('X RESET FIELDS', style: TextStyle(color: red, fontWeight: FontWeight.w800, fontSize: 10))),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: _save,
-                      icon: Icon(editingId == null ? Icons.save_outlined : Icons.check, size: 16),
-                      label: Text(editingId == null ? 'SAVE MASTER' : 'UPDATE SNAPS', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
-                      style: ElevatedButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 16),
                 _sectionTitle('1. SYSTEM IDENTIFICATION PARAMETERS'),
                 Align(alignment: Alignment.centerRight, child: Text('Log Compilation System Date: $logDate', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF748094)))),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: code, decoration: _fieldDec('Material Code Key (e.g. MAT001) *'))),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: name, decoration: _fieldDec('Product Name *'))),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    TextField(controller: code, decoration: _fieldDec('Material Code Key (e.g. MAT001) *')),
+                    TextField(controller: name, decoration: _fieldDec('Product Name *')),
                   ],
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: _idPresentInRows(unitId, units),
-                        decoration: _fieldDec('UOM Parameter Spec *'),
-                        items: _masterDropdownItems(units, 'code'),
-                        onChanged: units.isEmpty ? null : (v) => setState(() => unitId = v),
-                      ),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    DropdownButtonFormField<int>(
+                      value: _idPresentInRows(unitId, units),
+                      isExpanded: true,
+                      decoration: _fieldDec('UOM Parameter Spec *'),
+                      items: _masterDropdownItems(units, 'code'),
+                      onChanged: units.isEmpty ? null : (v) => setState(() => unitId = v),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: unitsBound, keyboardType: TextInputType.number, decoration: _fieldDec('Units Conversion Bound Total *'))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: _idPresentInRows(materialTypeId, materialTypes),
-                        decoration: _fieldDec('Material Master Type *'),
-                        items: _masterDropdownItems(materialTypes, 'type_code'),
-                        onChanged: materialTypes.isEmpty ? null : (v) => setState(() => materialTypeId = v),
-                      ),
+                    TextField(controller: unitsBound, keyboardType: TextInputType.number, decoration: _fieldDec('Units Conversion Bound Total *')),
+                    DropdownButtonFormField<int>(
+                      value: _idPresentInRows(materialTypeId, materialTypes),
+                      isExpanded: true,
+                      decoration: _fieldDec('Material Master Type *'),
+                      items: _masterDropdownItems(materialTypes, 'type_code'),
+                      onChanged: materialTypes.isEmpty ? null : (v) => setState(() => materialTypeId = v),
                     ),
                   ],
+                  minFieldWidth: 180,
                 ),
                 const SizedBox(height: 10),
                 TextField(controller: hsn, decoration: _fieldDec('HSN (for invoicing)')),
                 const SizedBox(height: 16),
                 _sectionTitle('2. PHYSICAL GEOMETRY DIMENSIONAL MATRIX'),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: rawSize, decoration: _fieldDec('Raw Material Size (e.g. 100MM)'))),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: finishSize, decoration: _fieldDec('Finishing Size (e.g. 98MM)'))),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    TextField(controller: rawSize, decoration: _fieldDec('Raw Material Size (e.g. 100MM)')),
+                    TextField(controller: finishSize, decoration: _fieldDec('Finishing Size (e.g. 98MM)')),
                   ],
                 ),
                 const SizedBox(height: 16),
                 _sectionTitle('3. COMMERCIAL VALUATION METRICS'),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: purchaseRate, keyboardType: TextInputType.number, decoration: _fieldDec('Purchase Rate (₹) *'))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: salesRate,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: green, fontWeight: FontWeight.w800),
-                        decoration: _fieldDec('Sales Rate (₹) *'),
-                      ),
+                _masterFormRow(
+                  formWidth,
+                  [
+                    TextField(controller: purchaseRate, keyboardType: TextInputType.number, decoration: _fieldDec('Purchase Rate (₹) *')),
+                    TextField(
+                      controller: salesRate,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: green, fontWeight: FontWeight.w800),
+                      decoration: _fieldDec('Sales Rate (₹) *'),
                     ),
                   ],
                 ),
@@ -620,11 +703,11 @@ class _MaterialMasterPanelState extends State<_MaterialMasterPanel> {
                     alignment: Alignment.centerRight,
                     child: TextButton(onPressed: () => setState(() => imageBase64 = null), child: const Text('Remove image', style: TextStyle(fontSize: 10))),
                   ),
-              ],
-            ),
+                  ],
+                ),
+              );
+            },
           ),
-        ),
-      ],
     );
   }
 
@@ -651,6 +734,36 @@ Widget _sectionTitle(String t) => Container(
       color: const Color(0xFFE8ECF0),
       child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: navy)),
     );
+
+/// Stacks master form fields when the nav drawer and product pool leave too little width.
+Widget _masterFormRow(
+  double maxWidth,
+  List<Widget> fields, {
+  double minFieldWidth = 220,
+  double gap = 12,
+}) {
+  final minRowWidth = fields.length * minFieldWidth + (fields.length - 1) * gap;
+  if (maxWidth >= minRowWidth) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < fields.length; i++) ...[
+          if (i > 0) SizedBox(width: gap),
+          Expanded(child: fields[i]),
+        ],
+      ],
+    );
+  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < fields.length; i++) ...[
+        if (i > 0) SizedBox(height: gap),
+        fields[i],
+      ],
+    ],
+  );
+}
 
 InputDecoration _fieldDec(String label) => InputDecoration(
       labelText: label,
