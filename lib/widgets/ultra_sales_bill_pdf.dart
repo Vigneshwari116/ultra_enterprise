@@ -476,40 +476,40 @@ pw.Widget _normalInvoiceMetaBox(InvoiceData d) {
   );
 }
 
+pw.Widget _labourConsigneeCell(InvoiceData d) {
+  return pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+    children: [
+      pw.Expanded(
+        child: pw.Padding(
+          padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 2),
+          child: _consigneeAddressLines(d),
+        ),
+      ),
+      _gstinMobileRow(gstin: d.gstin, mobile: d.mobile),
+    ],
+  );
+}
+
 pw.Widget _labourPartyBlocks(InvoiceData d) {
-  return pw.Container(
-    decoration: const pw.BoxDecoration(
-      border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1)),
+  return pw.Table(
+    columnWidths: const {
+      0: pw.FlexColumnWidth(1),
+      1: pw.FlexColumnWidth(1),
+    },
+    defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
+    border: const pw.TableBorder(
+      bottom: pw.BorderSide(color: _black, width: 1),
+      verticalInside: pw.BorderSide(color: _black, width: 1),
     ),
-    child: pw.IntrinsicHeight(
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+    children: [
+      pw.TableRow(
         children: [
-          pw.Expanded(
-            child: pw.Container(
-              decoration: const pw.BoxDecoration(
-                border: pw.Border(
-                  right: pw.BorderSide(color: _black, width: 1),
-                ),
-              ),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                children: [
-                  pw.Expanded(
-                    child: pw.Padding(
-                      padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 2),
-                      child: _consigneeAddressLines(d),
-                    ),
-                  ),
-                  _gstinMobileRow(gstin: d.gstin, mobile: d.mobile),
-                ],
-              ),
-            ),
-          ),
-          pw.Expanded(child: _labourShippingBlock(d)),
+          _labourConsigneeCell(d),
+          _labourShippingBlock(d),
         ],
       ),
-    ),
+    ],
   );
 }
 
@@ -535,33 +535,23 @@ pw.Widget _billItemRow(
   List<pw.Widget> cells, {
   bool bottomBorder = false,
 }) {
-  return pw.IntrinsicHeight(
-    child: pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border(
-          bottom: bottomBorder
-              ? const pw.BorderSide(color: _black, width: 1)
-              : pw.BorderSide.none,
-        ),
-      ),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < cells.length; i++)
-            pw.Container(
-              width: widths[i],
-              decoration: pw.BoxDecoration(
-                border: pw.Border(
-                  right: i < cells.length - 1
-                      ? const pw.BorderSide(color: _black, width: 1)
-                      : pw.BorderSide.none,
-                ),
-              ),
-              child: cells[i],
-            ),
-        ],
-      ),
+  return pw.Table(
+    columnWidths: {
+      for (var i = 0; i < widths.length; i++)
+        i: pw.FixedColumnWidth(widths[i]),
+    },
+    defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
+    border: pw.TableBorder(
+      left: const pw.BorderSide(color: _black, width: 1),
+      right: const pw.BorderSide(color: _black, width: 1),
+      verticalInside: const pw.BorderSide(color: _black, width: 1),
+      bottom: bottomBorder
+          ? const pw.BorderSide(color: _black, width: 1)
+          : pw.BorderSide.none,
+      top: pw.BorderSide.none,
+      horizontalInside: pw.BorderSide.none,
     ),
+    children: [pw.TableRow(children: cells)],
   );
 }
 
@@ -650,12 +640,16 @@ pw.Widget _salesBillItemsPanel(
 
 pw.Widget _tblHead(String text, {bool right = false}) => pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 5),
-      child: pw.Text(
-        text,
-        style: _sansHeader(size: 6.8),
-        softWrap: false,
-        maxLines: 1,
-        textAlign: right ? pw.TextAlign.right : pw.TextAlign.left,
+      child: pw.Align(
+        alignment:
+            right ? pw.Alignment.topRight : pw.Alignment.topLeft,
+        child: pw.Text(
+          text,
+          style: _sansHeader(size: 6.8),
+          softWrap: false,
+          maxLines: 1,
+          textAlign: right ? pw.TextAlign.right : pw.TextAlign.left,
+        ),
       ),
     );
 
@@ -675,7 +669,7 @@ pw.Widget _tblCell(
           style: _body(size: small ? 7.5 : 9, bold: bold),
           textAlign: align,
           softWrap: allowWrap,
-          maxLines: allowWrap ? null : 1,
+          maxLines: allowWrap ? 20 : 1,
         ),
       ),
     );
