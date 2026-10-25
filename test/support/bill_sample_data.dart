@@ -12,7 +12,8 @@ const String billSampleSuprajitMobile = '9845012345';
 /// Line items from docs/bill_formats/regular_bill.pdf.
 List<InvoiceItem> regularBill224Items() => [
       InvoiceItem(
-        description: 'CUTTING AND FORMING MACHINE BLADE SET',
+        description:
+            'CUTTING AND FORMING MACHINE BLADE SET\nWITH HSS TEETH AND MOUNTING HARDWARE',
         hsnCode: '7308',
         qty: 3,
         price: 4860,

@@ -356,53 +356,55 @@ pw.Widget _gstinMobileRow({required String gstin, required String mobile}) {
   );
 }
 
-pw.Widget _shippingMobileRow(String mobile) {
-  return pw.Container(
-    width: double.infinity,
-    decoration: const pw.BoxDecoration(
-      border: pw.Border(top: pw.BorderSide(color: _black, width: 1)),
-    ),
-    padding: const pw.EdgeInsets.fromLTRB(6, 3, 6, 4),
-    child: pw.Align(
-      alignment: pw.Alignment.centerRight,
-      child: pw.SizedBox(
-        width: 110,
-        child: pw.Text(
-          _mobileLineText(mobile),
-          style: _body(size: 8, bold: true),
-          textAlign: pw.TextAlign.right,
-          softWrap: false,
-          maxLines: 1,
-        ),
-      ),
-    ),
+pw.Widget _consigneeAddressLines(InvoiceData d) {
+  final cityPin = d.consigneeCityLine;
+  return pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Text('NAME & ADDRESS OF CONSIGNEE',
+          style: _body(size: 7.2, bold: true)),
+      pw.SizedBox(height: 2),
+      pw.Text(pdfLatin1(d.consigneeName), style: _body(size: 8.5, bold: true)),
+      if (d.consigneeAddress.isNotEmpty)
+        pw.Text(pdfLatin1(d.consigneeAddress), style: _body(size: 7.5)),
+      if (cityPin.isNotEmpty)
+        pw.Text(pdfLatin1(cityPin), style: _body(size: 7.5)),
+    ],
   );
 }
 
 pw.Widget _consigneePartyBlock(InvoiceData d) {
-  final cityPin = d.consigneeCityLine;
   return pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
       pw.Padding(
         padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 2),
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text('NAME & ADDRESS OF CONSIGNEE',
-                style: _body(size: 7.2, bold: true)),
-            pw.SizedBox(height: 2),
-            pw.Text(pdfLatin1(d.consigneeName),
-                style: _body(size: 8.5, bold: true)),
-            if (d.consigneeAddress.isNotEmpty)
-              pw.Text(pdfLatin1(d.consigneeAddress), style: _body(size: 7.5)),
-            if (cityPin.isNotEmpty)
-              pw.Text(pdfLatin1(cityPin), style: _body(size: 7.5)),
-          ],
-        ),
+        child: _consigneeAddressLines(d),
       ),
       _gstinMobileRow(gstin: d.gstin, mobile: d.mobile),
     ],
+  );
+}
+
+pw.Widget _labourShippingBlock(InvoiceData d) {
+  return pw.Padding(
+    padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 2),
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text('SHIPPING NAME & ADDRESS OF CONSIGNE',
+            style: _body(size: 7.2, bold: true)),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          pdfLatin1(
+            d.shippingName.isNotEmpty ? d.shippingName : d.consigneeName,
+          ),
+          style: _body(size: 8.5, bold: true),
+        ),
+        if (d.shippingAddress.isNotEmpty)
+          pw.Text(pdfLatin1(d.shippingAddress), style: _body(size: 7.5)),
+      ],
+    ),
   );
 }
 
@@ -479,47 +481,34 @@ pw.Widget _labourPartyBlocks(InvoiceData d) {
     decoration: const pw.BoxDecoration(
       border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1)),
     ),
-    child: pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Expanded(
-          child: pw.Container(
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(right: pw.BorderSide(color: _black, width: 1)),
-            ),
-            child: _consigneePartyBlock(d),
-          ),
-        ),
-        pw.Expanded(
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Padding(
-                padding: const pw.EdgeInsets.fromLTRB(6, 6, 6, 2),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('SHIPPING NAME & ADDRESS OF CONSIGNE',
-                        style: _body(size: 7.2, bold: true)),
-                    pw.Text(
-                      pdfLatin1(
-                        d.shippingName.isNotEmpty
-                            ? d.shippingName
-                            : d.consigneeName,
-                      ),
-                      style: _body(size: 8.5, bold: true),
-                    ),
-                    if (d.shippingAddress.isNotEmpty)
-                      pw.Text(pdfLatin1(d.shippingAddress),
-                          style: _body(size: 7.5)),
-                  ],
+    child: pw.IntrinsicHeight(
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Expanded(
+            child: pw.Container(
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  right: pw.BorderSide(color: _black, width: 1),
                 ),
               ),
-              _shippingMobileRow(d.mobile),
-            ],
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  pw.Expanded(
+                    child: pw.Padding(
+                      padding: const pw.EdgeInsets.fromLTRB(6, 4, 6, 2),
+                      child: _consigneeAddressLines(d),
+                    ),
+                  ),
+                  _gstinMobileRow(gstin: d.gstin, mobile: d.mobile),
+                ],
+              ),
+            ),
           ),
-        ),
-      ],
+          pw.Expanded(child: _labourShippingBlock(d)),
+        ],
+      ),
     ),
   );
 }
@@ -530,30 +519,49 @@ List<double> _billItemColumnWidths(double totalWidth) {
   return [42, desc, 54, 44, 76, 58];
 }
 
+pw.Alignment _cellAlign(pw.TextAlign align) {
+  switch (align) {
+    case pw.TextAlign.right:
+      return pw.Alignment.topRight;
+    case pw.TextAlign.center:
+      return pw.Alignment.topCenter;
+    default:
+      return pw.Alignment.topLeft;
+  }
+}
+
 pw.Widget _billItemRow(
   List<double> widths,
   List<pw.Widget> cells, {
   bool bottomBorder = false,
 }) {
-  return pw.Row(
-    crossAxisAlignment: pw.CrossAxisAlignment.start,
-    children: [
-      for (var i = 0; i < cells.length; i++)
-        pw.Container(
-          width: widths[i],
-          decoration: pw.BoxDecoration(
-            border: pw.Border(
-              right: i < cells.length - 1
-                  ? const pw.BorderSide(color: _black, width: 1)
-                  : pw.BorderSide.none,
-              bottom: bottomBorder
-                  ? const pw.BorderSide(color: _black, width: 1)
-                  : pw.BorderSide.none,
-            ),
-          ),
-          child: cells[i],
+  return pw.IntrinsicHeight(
+    child: pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          bottom: bottomBorder
+              ? const pw.BorderSide(color: _black, width: 1)
+              : pw.BorderSide.none,
         ),
-    ],
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < cells.length; i++)
+            pw.Container(
+              width: widths[i],
+              decoration: pw.BoxDecoration(
+                border: pw.Border(
+                  right: i < cells.length - 1
+                      ? const pw.BorderSide(color: _black, width: 1)
+                      : pw.BorderSide.none,
+                ),
+              ),
+              child: cells[i],
+            ),
+        ],
+      ),
+    ),
   );
 }
 
@@ -605,7 +613,8 @@ pw.Widget _salesBillItemsPanel(
             widths,
             [
               _tblCell('${startIndex + i + 1}', align: pw.TextAlign.center),
-              _tblCell(it.description, bold: true, small: labour),
+              _tblCell(it.description,
+                  bold: true, small: labour, allowWrap: true),
               _tblCell(sac, align: pw.TextAlign.center),
               _tblCell(formatPrintQuantity(it.qty),
                   align: pw.TextAlign.center),
@@ -654,14 +663,20 @@ pw.Widget _tblCell(
   String text, {
   bool bold = false,
   bool small = false,
+  bool allowWrap = false,
   pw.TextAlign align = pw.TextAlign.left,
 }) =>
     pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 4),
-      child: pw.Text(
-        pdfLatin1(text),
-        style: _body(size: small ? 7.5 : 9, bold: bold),
-        textAlign: align,
+      child: pw.Align(
+        alignment: _cellAlign(align),
+        child: pw.Text(
+          pdfLatin1(text),
+          style: _body(size: small ? 7.5 : 9, bold: bold),
+          textAlign: align,
+          softWrap: allowWrap,
+          maxLines: allowWrap ? null : 1,
+        ),
       ),
     );
 
