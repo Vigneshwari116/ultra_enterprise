@@ -13,12 +13,6 @@ const PdfColor _black = PdfColor.fromInt(0xFF000000);
 const double _pageMarginH = 8;
 const double _pageMarginV = 3;
 
-/// Max line items on the first page (header + footer included).
-const int ultraSalesBillFirstPageItemCapacity = 18;
-
-/// Continuation pages repeat the header; only the last page has footer/totals.
-const int ultraSalesBillContinuationPageItemCapacity = 22;
-
 pw.TextStyle _body({double size = 8, bool bold = false}) => pw.TextStyle(
       font: bold ? pw.Font.timesBold() : pw.Font.times(),
       fontSize: size,
@@ -31,37 +25,21 @@ pw.TextStyle _sansHeader({double size = 8, bool bold = true}) => pw.TextStyle(
       color: _black,
     );
 
-List<List<InvoiceItem>> _paginateItems(List<InvoiceItem> items) {
-  if (items.isEmpty) return [[]];
-  final pages = <List<InvoiceItem>>[];
-  var i = 0;
-  final firstCap = ultraSalesBillFirstPageItemCapacity;
-  final nextCap = ultraSalesBillContinuationPageItemCapacity;
-  pages.add(items.sublist(i, i + firstCap.clamp(0, items.length)));
-  i = pages.first.length;
-  while (i < items.length) {
-    final end = (i + nextCap).clamp(0, items.length);
-    pages.add(items.sublist(i, end));
-    i = end;
-  }
-  return pages;
-}
-
-Future<Uint8List> buildUltraSalesBillPdf(InvoiceData data) async {
+/// One page per copy label. Line items stay on that page (they are not
+/// continued onto extra pages). [copyLabels] defaults to the five GST copies.
+Future<Uint8List> buildUltraSalesBillPdf(
+  InvoiceData data, {
+  List<String>? copyLabels,
+}) async {
   final doc = pw.Document();
   final logoBytes = base64Decode(ultraLogoBase64);
   final logo = pw.MemoryImage(logoBytes);
-  final copyLabel = data.copyLabels.isNotEmpty
-      ? data.copyLabels.first
-      : ultraSalesBillCopyLabels.first;
-  final pages = _paginateItems(data.items);
+  final labels = ultraResolveCopyLabels(
+    copyLabels: copyLabels,
+    fallback: data.copyLabels,
+  );
 
-  for (var p = 0; p < pages.length; p++) {
-    final slice = pages[p];
-    final isLast = p == pages.length - 1;
-    final startIndex = pages
-        .sublist(0, p)
-        .fold<int>(0, (sum, page) => sum + page.length);
+  for (final copyLabel in labels) {
     doc.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -77,10 +55,7 @@ Future<Uint8List> buildUltraSalesBillPdf(InvoiceData data) async {
               data: data,
               copyLabel: copyLabel,
               logo: logo,
-              items: slice,
-              itemStartIndex: startIndex,
-              showFooter: isLast,
-              isContinuation: p > 0,
+              items: data.items,
             ),
           );
         },
@@ -95,9 +70,6 @@ pw.Widget _salesBillPage({
   required String copyLabel,
   required pw.MemoryImage logo,
   required List<InvoiceItem> items,
-  required int itemStartIndex,
-  required bool showFooter,
-  required bool isContinuation,
 }) {
   final labour = data.salesBillType == UltraSalesBillType.labour;
   return pw.Container(
@@ -110,12 +82,7 @@ pw.Widget _salesBillPage({
           _labourHeaderRow(data, logo)
         else
           _normalCompanyHeader(logo),
-        if (!isContinuation) ...[
-          if (labour)
-            _labourPartyBlocks(data)
-          else
-            _normalConsigneeAndMeta(data),
-        ],
+        if (labour) _labourPartyBlocks(data) else _normalConsigneeAndMeta(data),
         pw.Expanded(
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
@@ -127,13 +94,11 @@ pw.Widget _salesBillPage({
                       bottom: pw.BorderSide(color: _black, width: 1),
                     ),
                   ),
-                  child: _salesBillItemsPanel(data, items, itemStartIndex),
+                  child: _salesBillItemsPanel(data, items, 0),
                 ),
               ),
-              if (showFooter) ...[
-                _totalsAndBank(data),
-                _termsAndSignature(data),
-              ],
+              _totalsAndBank(data),
+              _termsAndSignature(data),
             ],
           ),
         ),

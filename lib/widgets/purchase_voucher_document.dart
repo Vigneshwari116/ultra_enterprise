@@ -42,10 +42,8 @@ Future<InvoiceData?> purchaseVoucherInvoiceData(int voucherId) async {
     kind: UltraBillKind.purchaseVoucher,
     documentTitle: 'PURCHASE VOUCHER',
     partySectionTitle: 'NAME & ADDRESS OF SUPPLIER',
-    copyLabels: ultraOriginalDuplicateLabels(
-      'PURCHASE VOUCHER',
-      duplicateLabel: 'DUPLICATE PURCHASE VOUCHER COPY',
-    ),
+    copyLabels: ultraDocumentCopyLabels,
+    leftSignatureLabel: 'Receiver signature & Seal',
     invoiceNo: purchaseVoucherDisplayNo(v),
     date: ultraFmtDate(v['voucher_date'] as String?),
     custPo: '${v['supplier_invoice_no'] ?? ''}',
