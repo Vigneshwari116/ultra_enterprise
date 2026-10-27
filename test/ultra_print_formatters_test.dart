@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ultra_enterprise/widgets/invoice.dart';
 import 'package:ultra_enterprise/widgets/ultra_print_helpers.dart';
+
+import 'support/bill_sample_data.dart';
 
 void main() {
   test('formatUltraBillDateShort', () {
@@ -43,6 +46,115 @@ void main() {
     expect(inter.cgst, closeTo(0, 0.01));
     expect(inter.sgst, closeTo(0, 0.01));
     expect(inter.igst, closeTo(18, 0.01));
+  });
+
+  test('bill quantity keeps two decimals and DC quantity stays whole', () {
+    expect(formatBillQuantity(3), '3.00');
+    expect(formatBillQuantity(900), '900.00');
+    expect(formatPrintQuantity(3), '3');
+    expect(formatPrintQuantity(900), '900');
+  });
+
+  test('labour SEL DC is the customer challan and UEW DC is sel_dc_no', () {
+    final fields = labourDcPrintFields(
+      selDcNo: '299',
+      selDcDate: '2026-09-25',
+      challanNo: '927000483',
+      challanDate: '2026-09-28',
+    );
+    expect(fields.selDcNo, '927000483');
+    expect(fields.selDcDate, '25 September 2026');
+    expect(fields.uewDcNo, '299');
+    expect(fields.uewDcDate, '28/09/2026');
+
+    final sample = labourBillSample();
+    expect(sample.selDcNo, '927000483');
+    expect(sample.selDcDate, '25 September 2026');
+    expect(sample.dcNo, '299');
+    expect(sample.dcDate, '28/09/2026');
+  });
+
+  test('printed G.Total is taxable plus taxes for normal, labour and proforma', () {
+    final normal = normalBillSample();
+    final labour = labourBillSample();
+    final proforma = proformaSample();
+    expect(normal.lineGrandTotal, closeTo(31010.40, 0.001));
+    expect(labour.lineGrandTotal, closeTo(15292.80, 0.001));
+    expect(proforma.lineGrandTotal, closeTo(31010.40, 0.001));
+    expect(formatUltraAmountInWords(normal.lineGrandTotal),
+        'THIRTY ONE THOUSAND TEN ONLY');
+    expect(formatUltraAmountInWords(labour.lineGrandTotal),
+        'FIFTEEN THOUSAND TWO HUNDRED AND NINETY THREE ONLY');
+    expect(formatUltraAmountInWords(proforma.lineGrandTotal),
+        'THIRTY ONE THOUSAND TEN ONLY');
+
+    final wrongStored = InvoiceData(
+      invoiceNo: '224',
+      date: '12-Oct-26',
+      dispatch: 'By HAND',
+      consigneeName: 'A',
+      consigneeAddress: 'B',
+      gstin: 'G',
+      items: regularBill224Items(),
+      cgstPercent: 0,
+      sgstPercent: 0,
+      igstPercent: 18,
+      cgstAmountOverride: 0,
+      sgstAmountOverride: 0,
+      igstAmountOverride: 4730.40,
+      grandTotalOverride: 35710.80,
+      amountInWords: 'THIRTY FIVE THOUSAND SEVEN HUNDRED ELEVEN ONLY',
+      bankName: 'STATE BANK OF INDIA',
+      accountNo: '1',
+      ifscCode: 'SBIN0040552',
+      bankAddress: 'SINGASANDRA',
+    );
+    expect(wrongStored.grandTotal, closeTo(35710.80, 0.001));
+    expect(wrongStored.lineGrandTotal, closeTo(31010.40, 0.001));
+    expect(formatUltraAmountInWords(wrongStored.lineGrandTotal),
+        'THIRTY ONE THOUSAND TEN ONLY');
+  });
+
+  test('normal bill DC date is 0 when the DC number is 0 or empty', () {
+    expect(salesBillDcDateCell(dcNo: '0', dcDate: '12-Oct-26'), '0');
+    expect(salesBillDcDateCell(dcNo: '', dcDate: '12-Oct-26'), '0');
+    expect(salesBillDcDateCell(dcNo: '338', dcDate: '12-Oct-26'), '12-Oct-26');
+  });
+
+  test('old invoice 208 prints the PO date and never 0', () {
+    expect(formatSalesPoDate('2026-09-21'), '21-Sep-26');
+    expect(formatSalesPoDate(DateTime.utc(2026, 9, 21)), '21-Sep-26');
+    expect(formatSalesPoDate('09/21/2026'), '21-Sep-26');
+    expect(formatSalesPoDate(0), '');
+    expect(formatSalesPoDate('0'), '');
+    expect(formatSalesPoDate(null), '');
+    expect(salesBillPoDateCell(formatSalesPoDate(0)), '');
+    expect(salesBillPoDateCell('21-Sep-26'), '21-Sep-26');
+    expect(salesBillPoDateCell(''), isNot('0'));
+  });
+
+  test('consignee address drops doubled commas and a repeated pincode line', () {
+    const raw =
+        'PLOT NO. G104/1 39PART & 40 PART,, VILLAGE VALLAM A VADAGAL,, SRIPERUMBUDUR, - KANCHIPURAM,, CHENNAI, 602 105';
+    final cleaned = cleanConsigneeAddress(raw);
+    expect(cleaned.contains(',,'), isFalse);
+    expect(cleaned.contains(' - '), isFalse);
+    expect(cleaned, contains('CHENNAI'));
+    expect(cleaned, contains('602 105'));
+    expect(
+      consigneeCityLineForPrint(
+        address: cleaned,
+        cityLine: 'CHENNAI - 602105',
+      ),
+      '',
+    );
+    expect(
+      consigneeCityLineForPrint(
+        address: 'Some other road',
+        cityLine: 'CHENNAI - 602105',
+      ),
+      'CHENNAI - 602105',
+    );
   });
 
   test('formatUltraAmountInWords examples', () {

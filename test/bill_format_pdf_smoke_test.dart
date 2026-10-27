@@ -28,14 +28,23 @@ void main() {
       final bytes = await buildUltraInvoicePdf(entry.value);
       expect(bytes, isNotEmpty);
       if (fiveCopyNames.contains(entry.key)) {
-        expect(entry.value.copyLabels, const [
-          'ORIGINAL FOR RECIPIENT',
+        expect(pdfPageCount(bytes), 5);
+        const rest = [
           'DUPLICATE FOR TRANSPORTER',
           'TRIPLICATE FOR SUPPLIER',
           'COPY FOR ACCOUNTS',
           'EXTRA COPY',
-        ]);
-        expect(pdfPageCount(bytes), 5);
+        ];
+        final buyerCopy = entry.key == 'normal bill' ||
+            entry.key == 'labour bill' ||
+            entry.key == 'proforma';
+        expect(
+          entry.value.copyLabels,
+          [
+            buyerCopy ? 'ORIGINAL FOR BUYER' : 'ORIGINAL FOR RECIPIENT',
+            ...rest,
+          ],
+        );
       } else {
         expect(pdfPageCount(bytes), 1);
       }
