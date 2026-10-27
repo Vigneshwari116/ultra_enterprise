@@ -2,13 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:postgres/postgres.dart';
-import 'package:ultra_api_server/database_connection.dart';
 import 'package:shelf/shelf.dart';
-import 'package:shelf_router/shelf_router.dart';
 import 'package:test/test.dart';
-import 'package:ultra_api_server/register_merged_routes.dart';
 import 'package:ultra_api_server/routes/products.dart';
 import 'package:ultra_api_server/routes/units.dart';
+
+import 'auth_test_helper.dart';
 
 void main() {
   group('unit validation', () {
@@ -61,9 +60,11 @@ void main() {
     }
 
     late Connection conn;
+    late String adminToken;
 
     setUpAll(() async {
-      conn = await openDatabaseFromUrl(dbUrl);
+      conn = await openTestDatabase(dbUrl!);
+      await ensureAuthTables(conn);
       await conn.execute('''
         CREATE TABLE IF NOT EXISTS units (
           id SERIAL PRIMARY KEY,
@@ -93,6 +94,7 @@ void main() {
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
       ''');
+      adminToken = (await loginTestAdmin(conn)).token;
     });
 
     tearDown(() async {
@@ -104,17 +106,8 @@ void main() {
       await conn.close();
     });
 
-    Future<Response> call(String method, String path, {String? body}) async {
-      final router = Router();
-      registerMergedRoutes(router, conn);
-      return router.call(
-        Request(
-          method,
-          Uri.parse('http://127.0.0.1$path'),
-          headers: body != null ? {'content-type': 'application/json'} : null,
-          body: body,
-        ),
-      );
+    Future<Response> call(String method, String path, {String? body}) {
+      return callApi(conn, method, path, token: adminToken, body: body);
     }
 
     test('POST unit validation failure', () async {

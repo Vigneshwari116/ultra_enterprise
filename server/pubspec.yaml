@@ -12,6 +12,10 @@ dependencies:
   shelf_router: ^1.1.4
   shelf_cors_headers: ^0.1.5
   uuid: ^4.5.1
+  # Pure-Dart bcrypt ($2b$). dbcrypt 2.0.0 declares sdk <3.0.0 and does not
+  # resolve in the dart:3.5.4 image.
+  hashlib: ^2.4.2
+  crypto: ^3.0.6
 
 dev_dependencies:
   lints: ^5.0.0

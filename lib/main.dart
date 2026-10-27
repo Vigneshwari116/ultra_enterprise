@@ -4,7 +4,10 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'config/ultra_config.dart';
 import 'database/app_database.dart';
+import 'screens/app_shell.dart';
 import 'screens/login_screen.dart';
+import 'services/api_service.dart';
+import 'services/auth_session.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +25,34 @@ Future<void> main() async {
     await AppDatabase.instance.init();
   }
 
+  ApiService.instance.bindToken(() => AuthSession.instance.token);
+  ApiService.instance.onSessionRejected = (message) {
+    AuthSession.instance.rejectSession(message);
+  };
+  await AuthSession.instance.bootstrap();
+
   runApp(const UltraApp());
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AuthSession.instance,
+      builder: (context, _) {
+        final auth = AuthSession.instance;
+        if (!auth.ready) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (!auth.isLoggedIn) return const LoginScreen();
+        return const AppShell();
+      },
+    );
+  }
 }
 
 class UltraApp extends StatelessWidget {
@@ -61,7 +91,7 @@ class UltraApp extends StatelessWidget {
           isDense: true,
         ),
       ),
-      home: const LoginScreen(),
+      home: const AuthGate(),
     );
   }
 }

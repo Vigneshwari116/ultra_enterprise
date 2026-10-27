@@ -1145,6 +1145,61 @@ class UltraRepository {
     return id;
   }
 
+  Future<Map<String, dynamic>> adminSessions({
+    required String status,
+    String? dateFrom,
+    String? dateTo,
+  }) async {
+    final params = <String, String>{'status': status};
+    if (dateFrom != null && dateFrom.isNotEmpty) params['date_from'] = dateFrom;
+    if (dateTo != null && dateTo.isNotEmpty) params['date_to'] = dateTo;
+    final query = params.entries
+        .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    return _asRow(await _api.get('/api/admin/sessions?$query'));
+  }
+
+  Future<void> adminLogoutSession(String sessionId) async {
+    await _api.post('/api/admin/sessions/$sessionId/logout', {});
+  }
+
+  Future<void> adminLogoutAll(int userId) async {
+    await _api.post('/api/admin/users/$userId/logout-all', {});
+  }
+
+  Future<Map<String, dynamic>> adminUsers() async {
+    return _asRow(await _api.get('/api/admin/users'));
+  }
+
+  Future<void> adminCreateUser({
+    required String username,
+    required String name,
+    required String password,
+    required String role,
+  }) async {
+    await _api.post('/api/admin/users', {
+      'username': username,
+      'name': name,
+      'password': password,
+      'role': role,
+    });
+  }
+
+  Future<void> adminUpdateUser(
+    int userId, {
+    String? name,
+    String? role,
+    bool? isActive,
+    String? password,
+  }) async {
+    final body = <String, dynamic>{};
+    if (name != null) body['name'] = name;
+    if (role != null) body['role'] = role;
+    if (isActive != null) body['is_active'] = isActive;
+    if (password != null && password.isNotEmpty) body['password'] = password;
+    await _api.put('/api/admin/users/$userId', body);
+  }
+
   /// Expose DB only when local persistence is enabled (reports, dashboards).
   AppDatabase get localDb {
     if (!UltraConfig.persistLocally) {

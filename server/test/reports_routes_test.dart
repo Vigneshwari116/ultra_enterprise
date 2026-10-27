@@ -3,11 +3,9 @@ import 'dart:io';
 
 import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
-import 'package:shelf_router/shelf_router.dart';
 import 'package:test/test.dart';
-import 'package:ultra_api_server/database_connection.dart';
-import 'package:ultra_api_server/register_merged_routes.dart';
 
+import 'auth_test_helper.dart';
 import 'test_fixture_paths.dart';
 
 double _pgNumeric(dynamic v) => double.tryParse('$v') ?? 0;
@@ -18,14 +16,14 @@ void main() {
     test('skipped without TEST_DATABASE_URL', () {}, skip: 'Set TEST_DATABASE_URL');
     return;
   }
+  assertTestDatabaseUrl(testDbUrl);
 
   final fixturesDir = vpsFixturesDir();
   final resetPath = '$fixturesDir/reset_test_schema.sql';
   final schemaPath = '$fixturesDir/vps_ultra_enterprise_schema.sql';
   final seedPath = '$fixturesDir/vps_ultra_enterprise_seed.sql';
-  final migrationPath = vpsMigrationPath();
-
   Connection? conn;
+  String? adminToken;
 
   Future<void> runPsqlFile(String path) async {
     final result = await Process.run(
@@ -41,8 +39,11 @@ void main() {
     await runPsqlFile(resetPath);
     await runPsqlFile(schemaPath);
     await runPsqlFile(seedPath);
-    await runPsqlFile(migrationPath);
-    conn = await openDatabaseFromUrl(testDbUrl);
+    for (final path in vpsMigrationPaths()) {
+      await runPsqlFile(path);
+    }
+    conn = await openTestDatabase(testDbUrl);
+    adminToken = (await loginTestAdmin(conn!)).token;
   });
 
   tearDown(() async {
@@ -50,10 +51,8 @@ void main() {
     conn = null;
   });
 
-  Future<Response> call(String method, String path) async {
-    final router = Router();
-    registerMergedRoutes(router, conn!);
-    return router.call(Request(method, Uri.parse('http://127.0.0.1$path')));
+  Future<Response> call(String method, String path) {
+    return callApi(conn!, method, path, token: adminToken);
   }
 
   test('GET trial-balance parses numeric strings from journal_entries', () async {

@@ -8,8 +8,10 @@ Response jsonOk(Object? body, {int status = 200}) {
   return Response(status, body: jsonEncode(body), headers: jsonHeaders);
 }
 
-Response jsonError(String message, {int status = 400}) {
-  return Response(status, body: jsonEncode({'error': message}), headers: jsonHeaders);
+Response jsonError(String message, {int status = 400, String? code}) {
+  final body = <String, dynamic>{'error': message};
+  if (code != null) body['code'] = code;
+  return Response(status, body: jsonEncode(body), headers: jsonHeaders);
 }
 
 Future<Map<String, dynamic>> readJsonObject(Request request) async {
@@ -29,6 +31,7 @@ List<Map<String, dynamic>> asItemList(dynamic items) {
 Map<String, dynamic> serializeRow(Map<String, dynamic> row) {
   return row.map((k, v) {
     if (v is DateTime) return MapEntry(k, v.toIso8601String());
+    if (v is BigInt) return MapEntry(k, v.toInt());
     return MapEntry(k, v);
   });
 }
