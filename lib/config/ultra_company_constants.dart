@@ -13,15 +13,13 @@ class UltraCompanyConstants {
   static const String billWorksLine =
       'Works: No.B-48, KSSIDC INDL Estate, Near Karnataka Bank, Bommasandra Indl. Area, BENGALURU-560 099.';
 
-  /// Delivery challan header (dc_sample.pdf — no SPM tagline).
+  /// Delivery challan header (dc_sample.pdf line breaks — no "Hosur Road,").
   static const String dcOfficeLine1 =
-      'OFFICE:NO: 15/6, 5th CROSS, VIDYA NAGAR, OPP. S.K.F. FACTORY,';
+      'OFFICE:NO:15/6,5th CROSS ,VIDYA NAGAR,OPP.S.K.F.FACTORY,BOMMASANDRA INDL.AREA,';
   static const String dcOfficeLine2 =
-      'Hosur Road, BOMMASANDRA INDL. AREA, BENGALURU-560 099.';
-  static const String dcContactLine =
-      'Tele Fax: 080-27834287, Mob:9342408610 Email: ueworks@gmail.com';
+      'BENGALURU-560 099. Tele Fax:080-27834287, Mob:9342408610 Email: ueworks@gmail.com';
   static const String dcWorksLine =
-      'Works: No.B-48,KSSIDC INDL Estate,Near Karnataka Bank,Bommasandra Indl.Area,BENGALURU-560 099.';
+      'Works:No.B-48,KSSIDC INDL Estate,Near Karnataka Bank,Bommasandra Indl.Area,BENGALURU-560 099.';
 
   @Deprecated('Use billOfficeLine1/2 for invoices')
   static const String officeAddressLine = billOfficeLine1;

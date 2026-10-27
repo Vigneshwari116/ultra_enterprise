@@ -11,7 +11,6 @@ import 'ultra_print_helpers.dart';
 
 const PdfColor _black = PdfColor.fromInt(0xFF000000);
 const double _pageMarginH = 8;
-const double _pageMarginV = 3;
 
 pw.TextStyle _body({double size = 8, bool bold = false}) => pw.TextStyle(
       font: bold ? pw.Font.timesBold() : pw.Font.times(),
@@ -43,12 +42,12 @@ Future<Uint8List> buildUltraSalesBillPdf(
     doc.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.symmetric(
+        margin: pw.EdgeInsets.symmetric(
           horizontal: _pageMarginH,
-          vertical: _pageMarginV,
+          vertical: ultraPrintMarginV,
         ),
         build: (context) {
-          final pageHeight = context.page.pageFormat.availableHeight;
+          final pageHeight = ultraPrintContentHeight();
           return pw.SizedBox(
             height: pageHeight,
             child: _salesBillPage(
@@ -322,7 +321,11 @@ pw.Widget _gstinMobileRow({required String gstin, required String mobile}) {
 }
 
 pw.Widget _consigneeAddressLines(InvoiceData d) {
-  final cityPin = d.consigneeCityLine;
+  final address = cleanConsigneeAddress(d.consigneeAddress);
+  final cityPin = consigneeCityLineForPrint(
+    address: address,
+    cityLine: d.consigneeCityLine,
+  );
   return pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
@@ -330,10 +333,9 @@ pw.Widget _consigneeAddressLines(InvoiceData d) {
           style: _body(size: 7.2, bold: true)),
       pw.SizedBox(height: 2),
       pw.Text(pdfLatin1(d.consigneeName), style: _body(size: 8.5, bold: true)),
-      if (d.consigneeAddress.isNotEmpty)
-        pw.Text(pdfLatin1(d.consigneeAddress), style: _body(size: 7.5)),
-      if (cityPin.isNotEmpty)
-        pw.Text(pdfLatin1(cityPin), style: _body(size: 7.5)),
+      if (address.isNotEmpty)
+        pw.Text(pdfLatin1(address), style: _body(size: 7.5)),
+      if (cityPin.isNotEmpty) pw.Text(pdfLatin1(cityPin), style: _body(size: 7.5)),
     ],
   );
 }
@@ -399,8 +401,8 @@ pw.Widget _normalConsigneeAndMeta(InvoiceData d) {
 
 pw.Widget _normalInvoiceMetaBox(InvoiceData d) {
   final border = pw.TableBorder.all(color: _black, width: 1);
-  final poDate = d.poDate.isEmpty ? '0' : d.poDate;
-  final dcDate = d.dcDate.isEmpty ? '0' : d.dcDate;
+  final poDate = salesBillPoDateCell(d.poDate);
+  final dcDate = salesBillDcDateCell(dcNo: d.dcNo, dcDate: d.dcDate);
   return pw.Column(
     children: [
       pw.Table(
@@ -571,7 +573,7 @@ pw.Widget _salesBillItemsPanel(
               _tblCell(it.description,
                   bold: true, small: labour, allowWrap: true),
               _tblCell(sac, align: pw.TextAlign.center),
-              _tblCell(formatPrintQuantity(it.qty),
+              _tblCell(formatBillQuantity(it.qty),
                   align: pw.TextAlign.center),
               _tblCell(formatUltraMoney(it.price), align: pw.TextAlign.right),
               _tblCell(formatUltraMoney(it.amount), align: pw.TextAlign.right),
@@ -667,7 +669,10 @@ pw.Widget _totalsAndBank(InvoiceData d) {
                 pw.SizedBox(height: 4),
                 pw.Text('RUPEES IN WORDS:',
                     style: _body(size: 8, bold: true)),
-                pw.Text(pdfLatin1(d.amountInWords), style: _body(size: 8.5)),
+                pw.Text(
+                  pdfLatin1(formatUltraAmountInWords(d.lineGrandTotal)),
+                  style: _body(size: 8.5),
+                ),
                 pw.SizedBox(height: 6),
                 _bankBox(d),
               ],
@@ -754,7 +759,7 @@ pw.Widget _totalsTable(InvoiceData d) {
       ),
       row('P & F', formatUltraMoney(d.pAndF)),
       row('Round Off', formatUltraMoney(d.roundOff)),
-      row('G.Total', formatUltraMoney(d.grandTotal), bold: true),
+      row('G.Total', formatUltraMoney(d.lineGrandTotal), bold: true),
     ],
   );
 }

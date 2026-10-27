@@ -164,6 +164,17 @@ class InvoiceData {
   double get grandTotal =>
       grandTotalOverride ??
       subtotal + cgstAmt + sgstAmt + igstAmt + pAndF + roundOff;
+
+  /// Always taxable + SGST + CGST + IGST + P&F + round off. Sales, labour and
+  /// proforma print this, not [grandTotalOverride].
+  double get lineGrandTotal => printedBillGrandTotal(
+        taxable: subtotal,
+        sgst: sgstAmt,
+        cgst: cgstAmt,
+        igst: igstAmt,
+        pAndF: pAndF,
+        roundOff: roundOff,
+      );
 }
 
 /// Legacy name — same five copies as [ultraDocumentCopyLabels].
@@ -208,8 +219,7 @@ const PdfColor _black = PdfColor.fromInt(0xFF000000);
 const double _pageMarginH = 8;
 const double _pageMarginV = 6;
 
-/// Same vertical margin as the sales-bill PDF (outer border reaches the page).
-const double _salesPageMarginV = 3;
+/// Purchase order / voucher pages use the same 2% inset as the sales bill.
 
 class _ItemsGridColumn {
   final String header;
@@ -317,10 +327,15 @@ Future<Uint8List> buildUltraInvoicePdf(
         pageFormat: PdfPageFormat.a4,
         margin: pw.EdgeInsets.symmetric(
           horizontal: _pageMarginH,
-          vertical: pinToPage ? _salesPageMarginV : _pageMarginV,
+          vertical: pinToPage ? ultraPrintMarginV : _pageMarginV,
         ),
         build: (context) {
-          final pageHeight = context.page.pageFormat.availableHeight;
+          // availableHeight still subtracts PdfPageFormat.a4's 2 cm margin,
+          // which leaves the border about 13% above the page. PO and voucher
+          // use the real content height so the border sits at the 2% inset.
+          final pageHeight = pinToPage
+              ? ultraPrintContentHeight()
+              : context.page.pageFormat.availableHeight;
           return pw.SizedBox(
             height: pageHeight,
             child: _documentPage(data, copyLabel, logo),
@@ -441,7 +456,7 @@ pw.Widget _taxInvoicePage(
 pw.Widget _purchaseOrderPage(
     InvoiceData d, String copyLabel, pw.MemoryImage logo) {
   return _documentShell([
-    _topBar(d.documentTitle, copyLabel),
+    _topBar(d.documentTitle, copyLabel, divider: false),
     _companyHeader(logo),
     _consigneeAndMeta(d),
     _expandableItemsSection((h) => _purchaseOrderItemsTable(d, height: h)),
@@ -453,7 +468,7 @@ pw.Widget _purchaseOrderPage(
 pw.Widget _purchaseVoucherPage(
     InvoiceData d, String copyLabel, pw.MemoryImage logo) {
   return _documentShell([
-    _topBar(d.documentTitle, copyLabel),
+    _topBar(d.documentTitle, copyLabel, divider: false),
     _companyHeader(logo),
     _consigneeAndMeta(d),
     _expandableItemsSection((h) => _purchaseVoucherItemsTable(d, height: h)),
@@ -554,7 +569,7 @@ pw.Widget _topBarTitleText(String text,
   );
 }
 
-pw.Widget _topBar(String documentTitle, String copyLabel) {
+pw.Widget _topBar(String documentTitle, String copyLabel, {bool divider = true}) {
   return pw.Container(
     decoration: const pw.BoxDecoration(
         border: pw.Border(bottom: pw.BorderSide(color: _black, width: 1))),
@@ -568,7 +583,7 @@ pw.Widget _topBar(String documentTitle, String copyLabel) {
         pw.TableRow(
           children: [
             _cell(
-              right: true,
+              right: divider,
               padding:
                   const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
               child: _topBarTitleText(documentTitle.toUpperCase()),
@@ -830,16 +845,23 @@ pw.Widget _metaField(String label, String value, {bool oneLine = false}) =>
         overflow: oneLine ? pw.TextOverflow.clip : pw.TextOverflow.visible,
       ),
     );
-pw.Widget _metaValue(String value, {bool bold = false, bool wrap = false}) =>
+pw.Widget _metaValue(String value,
+        {bool bold = false, bool wrap = false, bool oneLine = false}) =>
     pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      padding: pw.EdgeInsets.symmetric(
+        horizontal: oneLine ? 2 : 5,
+        vertical: 3,
+      ),
       child: pw.Text(
         value,
         style: _ts(
-            size: 8.5,
+            size: oneLine ? 7 : 8.5,
             weight: bold ? pw.FontWeight.bold : pw.FontWeight.normal),
-        softWrap: true,
-        overflow: wrap ? pw.TextOverflow.clip : pw.TextOverflow.visible,
+        softWrap: !oneLine,
+        maxLines: oneLine ? 1 : null,
+        overflow: oneLine || wrap
+            ? pw.TextOverflow.clip
+            : pw.TextOverflow.visible,
       ),
     );
 
@@ -947,15 +969,15 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
       metaRowsTop = [
         pw.TableRow(children: [
           _metaField('P.O NO :', ''),
-          _metaValue(d.invoiceNo, bold: true),
+          _metaValue(d.invoiceNo, bold: true, oneLine: true),
           _metaField('P.O DATE :', '', oneLine: true),
-          _metaValue(d.date, bold: true),
+          _metaValue(d.date, bold: true, oneLine: true),
         ]),
         pw.TableRow(children: [
           _metaField('Supplier Ref :', ''),
-          _metaValue(d.custPo),
+          _metaValue(d.custPo, oneLine: true),
           _metaField('Del. Due :', '', oneLine: true),
-          _metaValue(d.poDate, bold: true),
+          _metaValue(d.poDate, bold: true, oneLine: true),
         ]),
         pw.TableRow(children: [
           _metaField('Tot.Pkgs :', ''),
@@ -975,21 +997,21 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
       metaRowsTop = [
         pw.TableRow(children: [
           _metaField('Voucher No :', ''),
-          _metaValue(d.invoiceNo, bold: true),
+          _metaValue(d.invoiceNo, bold: true, oneLine: true),
           _metaField('DATE :', ''),
-          _metaValue(d.date, bold: true),
+          _metaValue(d.date, bold: true, oneLine: true),
         ]),
         pw.TableRow(children: [
           _metaField('Supp.Inv No :', ''),
-          _metaValue(d.custPo),
+          _metaValue(d.custPo, oneLine: true),
           _metaField('Inv.Date :', '', oneLine: true),
-          _metaValue(d.poDate, bold: true),
+          _metaValue(d.poDate, bold: true, oneLine: true),
         ]),
         pw.TableRow(children: [
           _metaField('Against P.O :', ''),
-          _metaValue(d.dcNo),
+          _metaValue(d.dcNo, oneLine: true),
           _metaField('P.O DATE', '', oneLine: true),
-          _metaValue(d.dcDate, bold: true),
+          _metaValue(d.dcDate, bold: true, oneLine: true),
         ]),
       ];
       metaRowsBottom = [
@@ -1065,10 +1087,10 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
       d.kind == UltraBillKind.purchaseVoucher;
   final metaTopWidths = wideDateLabels
       ? const <int, pw.TableColumnWidth>{
-          0: pw.FlexColumnWidth(1.6),
-          1: pw.FlexColumnWidth(1.45),
-          2: pw.FixedColumnWidth(50),
-          3: pw.FlexColumnWidth(1.85),
+          0: pw.FixedColumnWidth(62),
+          1: pw.FlexColumnWidth(2.8),
+          2: pw.FixedColumnWidth(48),
+          3: pw.FlexColumnWidth(1.5),
         }
       : const <int, pw.TableColumnWidth>{
           0: pw.FlexColumnWidth(1.7),
@@ -1100,7 +1122,7 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Expanded(
-          flex: 3,
+          flex: wideDateLabels ? 5 : 3,
           child: pw.Container(
             decoration: const pw.BoxDecoration(
                 border:
@@ -1145,7 +1167,7 @@ pw.Widget _consigneeAndMeta(InvoiceData d) {
           ),
         ),
         pw.Expanded(
-          flex: 2,
+          flex: wideDateLabels ? 6 : 2,
           child: pw.Column(
             children: [
               pw.Table(
