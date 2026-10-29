@@ -158,11 +158,115 @@ void main() {
   });
 
   test('formatUltraAmountInWords examples', () {
-    expect(formatUltraAmountInWords(31010.40),
-        'THIRTY ONE THOUSAND TEN ONLY');
+    expect(formatUltraAmountInWords(31010.40), 'THIRTY ONE THOUSAND TEN ONLY');
     expect(formatUltraAmountInWords(15292.80),
         'FIFTEEN THOUSAND TWO HUNDRED AND NINETY THREE ONLY');
     expect(formatUltraAmountInWords(44320.80),
         'FORTY FOUR THOUSAND THREE HUNDRED AND TWENTY ONE ONLY');
   });
+
+  test('sales bill words match the printed G.Total, including paise', () {
+    expect(
+      formatSalesBillAmountInWords(5380.80),
+      'FIVE THOUSAND THREE HUNDRED AND EIGHTY RUPEES AND EIGHTY PAISE ONLY',
+    );
+    expect(formatUltraMoney(5380.80), '5,380.80');
+    expect(
+      formatSalesBillAmountInWords(44320.80),
+      'FORTY FOUR THOUSAND THREE HUNDRED AND TWENTY RUPEES AND EIGHTY PAISE ONLY',
+    );
+    expect(formatUltraMoney(44320.80), '44,320.80');
+    expect(
+      formatSalesBillAmountInWords(44320),
+      'FORTY FOUR THOUSAND THREE HUNDRED AND TWENTY RUPEES ONLY',
+    );
+    expect(formatUltraMoney(44320), '44,320.00');
+    expect(formatSalesBillAmountInWords(44320), isNot(contains('PAISE')));
+  });
+
+  test('labour DC cells print blank for empty and zero, and keep real numbers',
+      () {
+    expect(labourPrintedDcNumber(''), '');
+    expect(labourPrintedDcNumber('0'), '');
+    expect(labourPrintedDcNumber(' 0 '), '');
+    expect(
+      labourPrintedSelDcDate(
+        selDcNo: '',
+        selDcDate: '25-Sep-26',
+        invoiceDate: '28 September 2026',
+      ),
+      '',
+    );
+    expect(
+      labourPrintedSelDcDate(
+        selDcNo: '0',
+        selDcDate: '25-Sep-26',
+        invoiceDate: '28 September 2026',
+      ),
+      '',
+    );
+    expect(
+      labourPrintedUewDcDate(dcNo: '', dcDate: '28/09/2026'),
+      '',
+    );
+    expect(
+      labourPrintedUewDcDate(dcNo: '0', dcDate: '28/09/2026'),
+      '',
+    );
+
+    expect(labourPrintedDcNumber('927000483'), '927000483');
+    expect(labourPrintedDcNumber('299'), '299');
+    expect(
+      labourPrintedSelDcDate(
+        selDcNo: '927000483',
+        selDcDate: '25-Sep-26',
+        invoiceDate: '28 September 2026',
+      ),
+      '25-Sep-26',
+    );
+    expect(
+      labourPrintedUewDcDate(dcNo: '299', dcDate: '28/09/2026'),
+      '28/09/2026',
+    );
+    expect(
+      labourPrintedSelDcDate(
+        selDcNo: '927000483',
+        selDcDate: '',
+        invoiceDate: '28 September 2026',
+      ),
+      '28 September 2026',
+    );
+    expect(labourPrintedUewDcDate(dcNo: '299', dcDate: ''), '0');
+  });
+
+  test('empty labour shipping address falls back to consignee address lines',
+      () {
+    expect(
+      labourShippingAddressLines(
+        shippingAddress: '',
+        consigneeAddress: billSampleAddress,
+        consigneeCityLine: billSampleCity,
+      ),
+      [billSampleAddress, billSampleCity],
+    );
+    expect(
+      labourShippingAddressLines(
+        shippingAddress: '   ',
+        consigneeAddress: billSampleAddress,
+        consigneeCityLine: billSampleCity,
+      ),
+      [billSampleAddress, billSampleCity],
+    );
+    expect(
+      labourShippingAddressLines(
+        shippingAddress: 'SHIP ONLY',
+        consigneeAddress: billSampleAddress,
+        consigneeCityLine: billSampleCity,
+      ),
+      ['SHIP ONLY'],
+    );
+  });
 }
+
+const billSampleAddress = 'CONS ADDR LINE';
+const billSampleCity = 'CITY - 560099';

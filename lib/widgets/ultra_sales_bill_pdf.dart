@@ -261,13 +261,23 @@ pw.Widget _labourInvoiceBox(InvoiceData d) {
       ]),
       pw.TableRow(children: [
         _metaCell('SEL DC NO :'),
-        _metaCell(d.selDcNo.isEmpty ? '0' : d.selDcNo),
-        _metaCell(d.selDcDate.isEmpty ? d.date : d.selDcDate, bold: true),
+        _metaCell(labourPrintedDcNumber(d.selDcNo)),
+        _metaCell(
+          labourPrintedSelDcDate(
+            selDcNo: d.selDcNo,
+            selDcDate: d.selDcDate,
+            invoiceDate: d.date,
+          ),
+          bold: true,
+        ),
       ]),
       pw.TableRow(children: [
         _metaCell('UEW DC.NO :'),
-        _metaCell(d.dcNo.isEmpty ? '0' : d.dcNo),
-        _metaCell(d.dcDate.isEmpty ? '0' : d.dcDate, bold: true),
+        _metaCell(labourPrintedDcNumber(d.dcNo)),
+        _metaCell(
+          labourPrintedUewDcDate(dcNo: d.dcNo, dcDate: d.dcDate),
+          bold: true,
+        ),
       ]),
       pw.TableRow(children: [
         _metaCell('DESPATCH :'),
@@ -369,8 +379,15 @@ pw.Widget _labourShippingBlock(InvoiceData d) {
           ),
           style: _body(size: 8.5, bold: true),
         ),
-        if (d.shippingAddress.isNotEmpty)
-          pw.Text(pdfLatin1(d.shippingAddress), style: _body(size: 7.5)),
+        for (final line in labourShippingAddressLines(
+          shippingAddress: d.shippingAddress,
+          consigneeAddress: cleanConsigneeAddress(d.consigneeAddress),
+          consigneeCityLine: consigneeCityLineForPrint(
+            address: cleanConsigneeAddress(d.consigneeAddress),
+            cityLine: d.consigneeCityLine,
+          ),
+        ))
+          pw.Text(pdfLatin1(line), style: _body(size: 7.5)),
       ],
     ),
   );
@@ -642,6 +659,11 @@ pw.Widget _tblCell(
     );
 
 pw.Widget _totalsAndBank(InvoiceData d) {
+  // Proforma keeps PR #36 whole-rupee words. Normal and labour bills speak the
+  // printed line G.Total, including paise. Totals and Round Off are unchanged.
+  final words = d.salesBillType == UltraSalesBillType.proforma
+      ? formatUltraAmountInWords(d.lineGrandTotal)
+      : formatSalesBillAmountInWords(d.lineGrandTotal);
   return pw.Table(
     border: const pw.TableBorder(
       left: pw.BorderSide(color: _black, width: 1),
@@ -669,10 +691,7 @@ pw.Widget _totalsAndBank(InvoiceData d) {
                 pw.SizedBox(height: 4),
                 pw.Text('RUPEES IN WORDS:',
                     style: _body(size: 8, bold: true)),
-                pw.Text(
-                  pdfLatin1(formatUltraAmountInWords(d.lineGrandTotal)),
-                  style: _body(size: 8.5),
-                ),
+                pw.Text(pdfLatin1(words), style: _body(size: 8.5)),
                 pw.SizedBox(height: 6),
                 _bankBox(d),
               ],

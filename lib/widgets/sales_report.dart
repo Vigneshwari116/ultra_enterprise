@@ -282,7 +282,7 @@ Future<InvoiceData?> invoiceDataFromId(
     sgstAmountOverride: sgstAmt,
     igstAmountOverride: igstAmt,
     grandTotalOverride: lineGrand,
-    amountInWords: formatUltraAmountInWords(lineGrand),
+    amountInWords: formatSalesBillAmountInWords(lineGrand),
     bankName: ultraBankName(inv, 'bank_name'),
     accountNo: ultraBankAccount(inv, 'bank_account_no'),
     ifscCode: ultraBankIfsc(inv, 'ifsc_code'),

@@ -424,66 +424,65 @@ String ultraBankAddress(Map<String, dynamic>? row, String key) {
   return v.isEmpty ? ultraDefaultBankAddress : v;
 }
 
-/// Indian amount in words for printed tax invoices (whole rupees from grand total).
-String formatUltraAmountInWords(double amount) {
-  final rupees = amount.round();
-  if (rupees == 0) return 'ZERO ONLY';
+const List<String> _amountOnes = [
+  '',
+  'ONE',
+  'TWO',
+  'THREE',
+  'FOUR',
+  'FIVE',
+  'SIX',
+  'SEVEN',
+  'EIGHT',
+  'NINE',
+  'TEN',
+  'ELEVEN',
+  'TWELVE',
+  'THIRTEEN',
+  'FOURTEEN',
+  'FIFTEEN',
+  'SIXTEEN',
+  'SEVENTEEN',
+  'EIGHTEEN',
+  'NINETEEN',
+];
 
-  const ones = [
-    '',
-    'ONE',
-    'TWO',
-    'THREE',
-    'FOUR',
-    'FIVE',
-    'SIX',
-    'SEVEN',
-    'EIGHT',
-    'NINE',
-    'TEN',
-    'ELEVEN',
-    'TWELVE',
-    'THIRTEEN',
-    'FOURTEEN',
-    'FIFTEEN',
-    'SIXTEEN',
-    'SEVENTEEN',
-    'EIGHTEEN',
-    'NINETEEN',
-  ];
-  const tens = [
-    '',
-    '',
-    'TWENTY',
-    'THIRTY',
-    'FORTY',
-    'FIFTY',
-    'SIXTY',
-    'SEVENTY',
-    'EIGHTY',
-    'NINETY',
-  ];
+const List<String> _amountTens = [
+  '',
+  '',
+  'TWENTY',
+  'THIRTY',
+  'FORTY',
+  'FIFTY',
+  'SIXTY',
+  'SEVENTY',
+  'EIGHTY',
+  'NINETY',
+];
 
-  String under1000(int n) {
-    if (n == 0) return '';
-    if (n < 20) return ones[n];
-    if (n < 100) {
-      final t = tens[n ~/ 10];
-      final r = n % 10;
-      return r == 0 ? t : '$t ${ones[r]}';
-    }
-    final h = n ~/ 100;
-    final r = n % 100;
-    return r == 0
-        ? '${ones[h]} HUNDRED'
-        : '${ones[h]} HUNDRED AND ${under1000(r)}';
+String _underThousandWords(int n) {
+  if (n == 0) return '';
+  if (n < 20) return _amountOnes[n];
+  if (n < 100) {
+    final t = _amountTens[n ~/ 10];
+    final r = n % 10;
+    return r == 0 ? t : '$t ${_amountOnes[r]}';
   }
+  final h = n ~/ 100;
+  final r = n % 100;
+  return r == 0
+      ? '${_amountOnes[h]} HUNDRED'
+      : '${_amountOnes[h]} HUNDRED AND ${_underThousandWords(r)}';
+}
 
-  String chunk(int n, String label) {
-    if (n == 0) return '';
-    return '${under1000(n)} $label'.trim();
-  }
+String _chunkWords(int n, String label) {
+  if (n == 0) return '';
+  return '${_underThousandWords(n)} $label'.trim();
+}
 
+/// Indian grouping for a non-negative whole number, without a trailing ONLY.
+String _indianWholeNumberWords(int rupees) {
+  if (rupees == 0) return 'ZERO';
   var n = rupees;
   final parts = <String>[];
   final crore = n ~/ 10000000;
@@ -492,9 +491,83 @@ String formatUltraAmountInWords(double amount) {
   n %= 100000;
   final thousand = n ~/ 1000;
   n %= 1000;
-  if (crore > 0) parts.add(chunk(crore, 'CRORE'));
-  if (lakh > 0) parts.add(chunk(lakh, 'LAKH'));
-  if (thousand > 0) parts.add(chunk(thousand, 'THOUSAND'));
-  if (n > 0) parts.add(under1000(n));
-  return '${parts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim()} ONLY';
+  if (crore > 0) parts.add(_chunkWords(crore, 'CRORE'));
+  if (lakh > 0) parts.add(_chunkWords(lakh, 'LAKH'));
+  if (thousand > 0) parts.add(_chunkWords(thousand, 'THOUSAND'));
+  if (n > 0) parts.add(_underThousandWords(n));
+  return parts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+/// Indian amount in words for documents that still print whole rupees.
+///
+/// Rounds to the nearest rupee and does not mention paise. Sales bills use
+/// [formatSalesBillAmountInWords] so the words match the printed G.Total.
+String formatUltraAmountInWords(double amount) {
+  final rupees = amount.round();
+  if (rupees == 0) return 'ZERO ONLY';
+  return '${_indianWholeNumberWords(rupees)} ONLY';
+}
+
+/// Words for the figure printed by [formatUltraMoney], including paise.
+///
+/// 5380.80 → FIVE THOUSAND THREE HUNDRED AND EIGHTY RUPEES AND EIGHTY PAISE ONLY.
+/// A whole-rupee figure omits the paise clause.
+String formatSalesBillAmountInWords(double amount) {
+  final printed = formatUltraMoney(amount.abs()).replaceAll(',', '');
+  final parts = printed.split('.');
+  final rupees = int.parse(parts[0]);
+  final paise = parts.length > 1 ? int.parse(parts[1]) : 0;
+  final rupeeWords = _indianWholeNumberWords(rupees);
+  if (paise == 0) return '$rupeeWords RUPEES ONLY';
+  final paiseWords = _underThousandWords(paise);
+  if (rupees == 0) return '$paiseWords PAISE ONLY';
+  return '$rupeeWords RUPEES AND $paiseWords PAISE ONLY';
+}
+
+/// Labour-bill DC number that should print as a blank cell (empty or zero).
+bool labourDcNumberPrintsBlank(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return true;
+  final n = num.tryParse(t.replaceAll(',', ''));
+  return n != null && n == 0;
+}
+
+/// SEL / UEW DC number cell. Real numbers are returned unchanged.
+String labourPrintedDcNumber(String raw) =>
+    labourDcNumberPrintsBlank(raw) ? '' : raw;
+
+/// SEL DC date cell. Blank when the SEL number is blank; otherwise unchanged.
+String labourPrintedSelDcDate({
+  required String selDcNo,
+  required String selDcDate,
+  required String invoiceDate,
+}) {
+  if (labourDcNumberPrintsBlank(selDcNo)) return '';
+  return selDcDate.isEmpty ? invoiceDate : selDcDate;
+}
+
+/// UEW DC date cell. Blank when the UEW number is blank; otherwise unchanged.
+String labourPrintedUewDcDate({
+  required String dcNo,
+  required String dcDate,
+}) {
+  if (labourDcNumberPrintsBlank(dcNo)) return '';
+  return dcDate.isEmpty ? '0' : dcDate;
+}
+
+/// Address lines under the labour-bill shipping name.
+///
+/// A saved shipping address is printed as that one line. When it is empty, the
+/// consignee address and city line are printed instead. Nothing is written back
+/// onto the invoice.
+List<String> labourShippingAddressLines({
+  required String shippingAddress,
+  required String consigneeAddress,
+  required String consigneeCityLine,
+}) {
+  if (shippingAddress.trim().isNotEmpty) return [shippingAddress];
+  return [
+    if (consigneeAddress.trim().isNotEmpty) consigneeAddress,
+    if (consigneeCityLine.trim().isNotEmpty) consigneeCityLine,
+  ];
 }
