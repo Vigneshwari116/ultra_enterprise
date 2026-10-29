@@ -6,6 +6,34 @@ import 'package:intl/intl.dart';
 import '../services/ultra_repository.dart';
 import '../utils/api_errors.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../widgets/excel_grid.dart';
+
+const _boxedBorder = OutlineInputBorder(
+  borderRadius: BorderRadius.all(Radius.circular(6)),
+  borderSide: BorderSide(color: Color(0xFFB8BEC8)),
+);
+
+const _boxedFocusBorder = OutlineInputBorder(
+  borderRadius: BorderRadius.all(Radius.circular(6)),
+  borderSide: BorderSide(color: Color(0xFF14B8A6), width: 1.6),
+);
+
+/// Shared boxed field used by the add-user and edit-user dialogs.
+/// Labels sit above the box so they never overlap the value.
+InputDecoration _boxedUserField({String? helperText}) {
+  return const InputDecoration(
+    filled: true,
+    fillColor: Colors.white,
+    isDense: false,
+    border: _boxedBorder,
+    enabledBorder: _boxedBorder,
+    focusedBorder: _boxedFocusBorder,
+    contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+  ).copyWith(
+    helperText: helperText,
+    helperMaxLines: 2,
+  );
+}
 
 class UsersSessionsScreen extends StatefulWidget {
   const UsersSessionsScreen({super.key});
@@ -77,8 +105,12 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
       final status = _tabs.index == 0 ? 'online' : 'history';
       final body = await UltraRepository.instance.adminSessions(
         status: status,
-        dateFrom: status == 'history' && _dateFrom != null ? _day.format(_dateFrom!) : null,
-        dateTo: status == 'history' && _dateTo != null ? _day.format(_dateTo!) : null,
+        dateFrom: status == 'history' && _dateFrom != null
+            ? _day.format(_dateFrom!)
+            : null,
+        dateTo: status == 'history' && _dateTo != null
+            ? _day.format(_dateTo!)
+            : null,
       );
       if (!mounted) return;
       setState(() {
@@ -166,30 +198,49 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: username, decoration: const InputDecoration(labelText: 'Username')),
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-                TextField(
-                  controller: password,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
+                _dialogField(
+                    'Username',
+                    TextField(
+                        controller: username, decoration: _boxedUserField())),
+                const SizedBox(height: 16),
+                _dialogField('Name',
+                    TextField(controller: name, decoration: _boxedUserField())),
+                const SizedBox(height: 16),
+                _dialogField(
+                  'Password',
+                  TextField(
+                    controller: password,
+                    obscureText: true,
+                    decoration: _boxedUserField(),
+                  ),
                 ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: role,
-                  decoration: const InputDecoration(labelText: 'Role'),
-                  items: const [
-                    DropdownMenuItem(value: 'user', child: Text('user')),
-                    DropdownMenuItem(value: 'admin', child: Text('admin')),
-                    DropdownMenuItem(value: 'superuser', child: Text('superuser')),
-                  ],
-                  onChanged: (value) => setLocal(() => role = value ?? 'user'),
+                const SizedBox(height: 16),
+                _dialogField(
+                  'Role',
+                  DropdownButtonFormField<String>(
+                    initialValue: role,
+                    isExpanded: true,
+                    isDense: false,
+                    decoration: _boxedUserField(),
+                    items: const [
+                      DropdownMenuItem(value: 'user', child: Text('user')),
+                      DropdownMenuItem(
+                          value: 'superuser', child: Text('superuser')),
+                    ],
+                    onChanged: (value) =>
+                        setLocal(() => role = value ?? 'user'),
+                  ),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save')),
           ],
         ),
       ),
@@ -220,6 +271,12 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
     final name = TextEditingController(text: '${user['name'] ?? ''}');
     final password = TextEditingController();
     var role = '${user['role'] ?? 'user'}';
+    if (role.isEmpty) role = 'user';
+    final roleChoices = <String>[
+      'user',
+      'superuser',
+      if (role != 'user' && role != 'superuser' && role.isNotEmpty) role,
+    ];
     var active = user['is_active'] == true;
     final saved = await showDialog<bool>(
       context: context,
@@ -231,37 +288,51 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-                DropdownButtonFormField<String>(
-                  value: role,
-                  decoration: const InputDecoration(labelText: 'Role'),
-                  items: const [
-                    DropdownMenuItem(value: 'user', child: Text('user')),
-                    DropdownMenuItem(value: 'admin', child: Text('admin')),
-                    DropdownMenuItem(value: 'superuser', child: Text('superuser')),
-                  ],
-                  onChanged: (value) => setLocal(() => role = value ?? role),
+                _dialogField('Name',
+                    TextField(controller: name, decoration: _boxedUserField())),
+                const SizedBox(height: 16),
+                _dialogField(
+                  'Role',
+                  DropdownButtonFormField<String>(
+                    initialValue: role,
+                    isExpanded: true,
+                    isDense: false,
+                    decoration: _boxedUserField(),
+                    items: [
+                      for (final choice in roleChoices)
+                        DropdownMenuItem(value: choice, child: Text(choice)),
+                    ],
+                    onChanged: (value) => setLocal(() => role = value ?? role),
+                  ),
                 ),
+                const SizedBox(height: 16),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Active'),
                   value: active,
                   onChanged: (value) => setLocal(() => active = value),
                 ),
-                TextField(
-                  controller: password,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Reset password',
-                    helperText: 'Leave blank to keep the current password',
+                const SizedBox(height: 16),
+                _dialogField(
+                  'Reset password',
+                  TextField(
+                    controller: password,
+                    obscureText: true,
+                    decoration: _boxedUserField(
+                      helperText: 'Leave blank to keep the current password',
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save')),
           ],
         ),
       ),
@@ -293,8 +364,12 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
       builder: (ctx) => AlertDialog(
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Log out')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Log out')),
         ],
       ),
     );
@@ -315,12 +390,14 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
                 const Expanded(
                   child: Text(
                     'Users & Sessions',
-                    style: TextStyle(color: navy, fontSize: 20, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                        color: navy, fontSize: 20, fontWeight: FontWeight.w800),
                   ),
                 ),
                 Text(
                   'Users online now: $_onlineUsers',
-                  style: const TextStyle(color: teal, fontWeight: FontWeight.w800),
+                  style:
+                      const TextStyle(color: teal, fontWeight: FontWeight.w800),
                 ),
                 IconButton(
                   tooltip: 'Refresh',
@@ -342,14 +419,20 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
           if (_error != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Text(_error!, style: const TextStyle(color: red, fontWeight: FontWeight.w700)),
+              child: Text(_error!,
+                  style:
+                      const TextStyle(color: red, fontWeight: FontWeight.w700)),
             ),
           if (_loading) const LinearProgressIndicator(minHeight: 2),
           Expanded(
             child: TabBarView(
               controller: _tabs,
               children: [
-                _sessionTable(online: true),
+                Column(
+                  children: [
+                    Expanded(child: _sessionTable(online: true)),
+                  ],
+                ),
                 _history(),
                 _userTable(),
               ],
@@ -372,11 +455,15 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
             children: [
               OutlinedButton(
                 onPressed: () => _pickDate(from: true),
-                child: Text(_dateFrom == null ? 'From date' : 'From ${_day.format(_dateFrom!)}'),
+                child: Text(_dateFrom == null
+                    ? 'From date'
+                    : 'From ${_day.format(_dateFrom!)}'),
               ),
               OutlinedButton(
                 onPressed: () => _pickDate(from: false),
-                child: Text(_dateTo == null ? 'To date' : 'To ${_day.format(_dateTo!)}'),
+                child: Text(_dateTo == null
+                    ? 'To date'
+                    : 'To ${_day.format(_dateTo!)}'),
               ),
               TextButton(
                 onPressed: () {
@@ -401,43 +488,64 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
     if (rows.isEmpty && !_loading) {
       return const Center(child: Text('No sessions.'));
     }
-    return Scrollbar(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SingleChildScrollView(
-          child: DataTable(
-            columns: [
-              const DataColumn(label: Text('User')),
-              const DataColumn(label: Text('Device')),
-              const DataColumn(label: Text('IP')),
-              const DataColumn(label: Text('Login time')),
-              if (online) const DataColumn(label: Text('Last active')),
-              if (!online) const DataColumn(label: Text('Logout time')),
-              const DataColumn(label: Text('Duration')),
-              if (!online) const DataColumn(label: Text('Reason')),
-              if (online) const DataColumn(label: Text('')),
-            ],
-            rows: [
-              for (final row in rows)
-                DataRow(cells: [
-                  DataCell(Text(_userLabel(row))),
-                  DataCell(Text('${row['device_name'] ?? ''}')),
-                  DataCell(Text('${row['ip_address'] ?? ''}')),
-                  DataCell(Text(_when(row['login_at']))),
-                  if (online) DataCell(Text(_when(row['last_activity']))),
-                  if (!online) DataCell(Text(_when(row['logout_at']))),
-                  DataCell(Text(_duration(row['duration_seconds']))),
-                  if (!online) DataCell(Text('${row['logout_reason'] ?? ''}')),
-                  if (online)
-                    DataCell(TextButton(
-                      onPressed: () => _logoutDevice('${row['id']}'),
-                      child: const Text('Logout device'),
-                    )),
-                ]),
-            ],
-          ),
-        ),
-      ),
+    final headers = online
+        ? const [
+            'User',
+            'Device',
+            'IP',
+            'Login time',
+            'Last active',
+            'Duration',
+            'Logout'
+          ]
+        : const [
+            'User',
+            'Device',
+            'IP',
+            'Login time',
+            'Logout time',
+            'Duration',
+            'Reason'
+          ];
+    final flex = online
+        ? const [1.9, 1.4, 1.2, 1.6, 1.6, 1.0, 1.55]
+        : const [2.0, 1.5, 1.3, 1.7, 1.7, 1.1, 1.4];
+    return ExcelGrid(
+      headers: headers,
+      flex: flex,
+      rows: [
+        for (final row in rows)
+          [
+            _cellText(_userLabel(row)),
+            _cellText('${row['device_name'] ?? ''}'),
+            _cellText('${row['ip_address'] ?? ''}'),
+            _cellText(_when(row['login_at'])),
+            _cellText(
+                online ? _when(row['last_activity']) : _when(row['logout_at'])),
+            _cellText(_duration(row['duration_seconds'])),
+            if (online)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: red,
+                    backgroundColor: const Color(0xFFFFF1F1),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    textStyle: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  onPressed: () => _logoutDevice('${row['id']}'),
+                  child: const Text('Logout'),
+                ),
+              )
+            else
+              _cellText('${row['logout_reason'] ?? ''}'),
+          ],
+      ],
     );
   }
 
@@ -457,49 +565,76 @@ class _UsersSessionsScreenState extends State<UsersSessionsScreen>
           ),
         ),
         Expanded(
-          child: Scrollbar(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SingleChildScrollView(
-                child: DataTable(
-                  columns: const [
-                    DataColumn(label: Text('Username')),
-                    DataColumn(label: Text('Name')),
-                    DataColumn(label: Text('Role')),
-                    DataColumn(label: Text('Active')),
-                    DataColumn(label: Text('')),
-                  ],
-                  rows: [
-                    for (final user in _users)
-                      DataRow(cells: [
-                        DataCell(Text('${user['username'] ?? ''}')),
-                        DataCell(Text('${user['name'] ?? ''}')),
-                        DataCell(Text('${user['role'] ?? ''}')),
-                        DataCell(Text(user['is_active'] == true ? 'Yes' : 'No')),
-                        DataCell(Wrap(
-                          spacing: 4,
-                          children: [
-                            TextButton(
-                              onPressed: () => _editUser(user),
-                              child: const Text('Edit'),
-                            ),
-                            TextButton(
-                              onPressed: () => _logoutAll(
-                                _asInt(user['id']),
-                                '${user['username'] ?? 'user'}',
-                              ),
-                              child: const Text('Logout all'),
-                            ),
-                          ],
-                        )),
-                      ]),
-                  ],
-                ),
-              ),
-            ),
+          child: ExcelGrid(
+            headers: const ['Username', 'Name', 'Role', 'Active', 'Actions'],
+            flex: const [1.4, 1.6, 1.1, 0.8, 1.7],
+            rows: [
+              for (final user in _users)
+                [
+                  _cellText('${user['username'] ?? ''}'),
+                  _cellText('${user['name'] ?? ''}'),
+                  _cellText('${user['role'] ?? ''}'),
+                  _cellText(user['is_active'] == true ? 'Yes' : 'No'),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 2,
+                    children: [
+                      _smallAction('Edit', () => _editUser(user)),
+                      _smallAction(
+                        'Logout all',
+                        () => _logoutAll(
+                          _asInt(user['id']),
+                          '${user['username'] ?? 'user'}',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _dialogField(String label, Widget field) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF374151),
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        field,
+      ],
+    );
+  }
+
+  Widget _cellText(String value) {
+    final wrapped = value.replaceAllMapped(
+      RegExp(r'\S{16,}'),
+      (match) => match.group(0)!.split('').join('\u200B'),
+    );
+    return Text(wrapped, softWrap: true);
+  }
+
+  Widget _smallAction(String label, VoidCallback onPressed) {
+    return TextButton(
+      style: TextButton.styleFrom(
+        foregroundColor: navy,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
+      onPressed: onPressed,
+      child: Text(label),
     );
   }
 

@@ -40,16 +40,7 @@ class _AppShellState extends State<AppShell> {
   String _activeNavLabel = 'Dashboard';
   bool sidebarOpen = true;
   bool _sidebarDefaultSet = false;
-  final Set<String> expandedGroups = {
-    'Account Master',
-    'Delivery Challan',
-    'Quotation',
-    'Sales',
-    'Purchase',
-    'Transactions',
-    'Job Work',
-    'Reports Center',
-  };
+  int? _openSection;
 
   static const _sidebarWidth = 238.0;
   static const _navOverlayBreakpoint = 900.0;
@@ -225,13 +216,9 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  void _toggleGroup(String title) {
+  void _toggleGroup(int section) {
     setState(() {
-      if (expandedGroups.contains(title)) {
-        expandedGroups.remove(title);
-      } else {
-        expandedGroups.add(title);
-      }
+      _openSection = _openSection == section ? null : section;
     });
   }
 
@@ -434,7 +421,9 @@ class _AppShellState extends State<AppShell> {
               padding: const EdgeInsets.only(bottom: 8),
               children: [
                 _dashboardItem(),
-                ..._groups.map(_groupSection),
+                ..._groups.asMap().entries.map(
+                      (entry) => _groupSection(entry.key, entry.value),
+                    ),
                 if (AuthSession.instance.isAdmin) _usersItem(),
               ],
             ),
@@ -554,15 +543,15 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _groupSection(_NavGroup group) {
-    final expanded = expandedGroups.contains(group.title);
+  Widget _groupSection(int section, _NavGroup group) {
+    final expanded = _openSection == section;
     final childSelected = group.children.any((c) => c.label == _activeNavLabel);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InkWell(
-          onTap: () => _toggleGroup(group.title),
+          onTap: () => _toggleGroup(section),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
