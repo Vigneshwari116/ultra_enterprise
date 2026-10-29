@@ -30,9 +30,12 @@ Future<Uint8List> buildUltraDcPdf(InvoiceData data) async {
   doc.addPage(
     pw.Page(
       pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      margin: pw.EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: ultraPrintMarginV,
+      ),
       build: (context) {
-        final h = context.page.pageFormat.availableHeight;
+        final h = ultraPrintContentHeight();
         return pw.SizedBox(
           height: h,
           child: pw.Column(
@@ -96,8 +99,6 @@ pw.Widget _dcCompanyHeader(pw.MemoryImage logo) {
                   style: _body(size: 7.5), textAlign: pw.TextAlign.center),
               pw.Text(UltraCompanyConstants.dcOfficeLine2,
                   style: _body(size: 7.5), textAlign: pw.TextAlign.center),
-              pw.Text(UltraCompanyConstants.dcContactLine,
-                  style: _body(size: 7.5), textAlign: pw.TextAlign.center),
               pw.Text(UltraCompanyConstants.dcWorksLine,
                   style: _body(size: 7.5), textAlign: pw.TextAlign.center),
             ],
@@ -110,7 +111,8 @@ pw.Widget _dcCompanyHeader(pw.MemoryImage logo) {
 
 List<String> _dcAddressLines(InvoiceData d) {
   final lines = <String>[];
-  final raw = pdfLatin1(d.consigneeAddress).trim();
+  final cleaned = cleanConsigneeAddress(d.consigneeAddress);
+  final raw = pdfLatin1(cleaned).trim();
   if (raw.isNotEmpty) {
     if (raw.contains(',')) {
       lines.addAll(
@@ -120,7 +122,10 @@ List<String> _dcAddressLines(InvoiceData d) {
       lines.add(raw);
     }
   }
-  final city = pdfLatin1(d.consigneeCityLine).trim();
+  final city = pdfLatin1(consigneeCityLineForPrint(
+    address: cleaned,
+    cityLine: d.consigneeCityLine,
+  )).trim();
   if (city.isNotEmpty) {
     lines.add(city);
   }

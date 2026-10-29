@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:ultra_enterprise/screens/purchase_reports_Screen.dart';
 import '../widgets/enterprise_widgets.dart';
+import '../services/auth_session.dart';
 import 'home_screen.dart';
-import 'login_screen.dart';
 import 'master_screens.dart';
 import 'delivery_challan_screen.dart';
 import 'quotation_screen.dart';
@@ -14,6 +14,7 @@ import 'reports_screen.dart';
 import 'transactions_host_screen.dart';
 import 'job_work_host_screen.dart';
 import 'product_catalog_refresh.dart';
+import 'users_sessions_screen.dart';
 
 class _NavLeaf {
   final String label;
@@ -39,16 +40,7 @@ class _AppShellState extends State<AppShell> {
   String _activeNavLabel = 'Dashboard';
   bool sidebarOpen = true;
   bool _sidebarDefaultSet = false;
-  final Set<String> expandedGroups = {
-    'Account Master',
-    'Delivery Challan',
-    'Quotation',
-    'Sales',
-    'Purchase',
-    'Transactions',
-    'Job Work',
-    'Reports Center',
-  };
+  int? _openSection;
 
   static const _sidebarWidth = 238.0;
   static const _navOverlayBreakpoint = 900.0;
@@ -78,6 +70,7 @@ class _AppShellState extends State<AppShell> {
     PurchaseReportsScreen(key: purchaseReportsScreenKey),
     TransactionsHostScreen(key: transactionsHostKey),
     JobWorkHostScreen(key: jobWorkHostKey),
+    if (AuthSession.instance.isAdmin) const UsersSessionsScreen(),
   ];
 
   static const _groups = [
@@ -223,13 +216,9 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  void _toggleGroup(String title) {
+  void _toggleGroup(int section) {
     setState(() {
-      if (expandedGroups.contains(title)) {
-        expandedGroups.remove(title);
-      } else {
-        expandedGroups.add(title);
-      }
+      _openSection = _openSection == section ? null : section;
     });
   }
 
@@ -363,9 +352,9 @@ class _AppShellState extends State<AppShell> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   if (MediaQuery.sizeOf(context).width >= AppBreakpoints.compact)
-                    const Text(
-                      'SUPERUSER',
-                      style: TextStyle(
+                    Text(
+                      '${AuthSession.instance.user?['role'] ?? ''}'.toUpperCase(),
+                      style: const TextStyle(
                         color: teal,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
@@ -432,16 +421,16 @@ class _AppShellState extends State<AppShell> {
               padding: const EdgeInsets.only(bottom: 8),
               children: [
                 _dashboardItem(),
-                ..._groups.map(_groupSection),
+                ..._groups.asMap().entries.map(
+                      (entry) => _groupSection(entry.key, entry.value),
+                    ),
+                if (AuthSession.instance.isAdmin) _usersItem(),
               ],
             ),
           ),
           const Divider(color: Color(0xFF31445F), height: 1),
           InkWell(
-            onTap: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
-            ),
+            onTap: () => AuthSession.instance.logout(),
             child: Container(
               margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
@@ -461,7 +450,7 @@ class _AppShellState extends State<AppShell> {
                         const SizedBox(width: 8),
                         Flexible(
                           child: Text(
-                            'SIGN OUT ENGINE',
+                            'Logout',
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
                             style: TextStyle(
@@ -480,6 +469,41 @@ class _AppShellState extends State<AppShell> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _usersItem() {
+    final selected = _activeNavLabel == 'Users & Sessions';
+    return InkWell(
+      onTap: () => _selectPage(14, leafLabel: 'Users & Sessions'),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+        decoration: BoxDecoration(
+          color: selected ? sidebarActiveBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.people_outline,
+              size: 16,
+              color: selected ? tealDark : Colors.white70,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Users & Sessions',
+                style: TextStyle(
+                  color: selected ? tealDark : Colors.white70,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -519,15 +543,15 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _groupSection(_NavGroup group) {
-    final expanded = expandedGroups.contains(group.title);
+  Widget _groupSection(int section, _NavGroup group) {
+    final expanded = _openSection == section;
     final childSelected = group.children.any((c) => c.label == _activeNavLabel);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InkWell(
-          onTap: () => _toggleGroup(group.title),
+          onTap: () => _toggleGroup(section),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),

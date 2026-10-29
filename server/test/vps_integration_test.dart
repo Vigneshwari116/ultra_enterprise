@@ -3,13 +3,10 @@ import 'dart:io';
 
 import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
-import 'package:shelf_router/shelf_router.dart';
 import 'package:test/test.dart';
 import 'package:ultra_api_server/accounting/fy.dart';
 import 'package:ultra_api_server/accounting/voucher_numbering.dart';
-import 'package:ultra_api_server/database_connection.dart';
-import 'package:ultra_api_server/register_merged_routes.dart';
-
+import 'auth_test_helper.dart';
 import 'test_fixture_paths.dart';
 
 double _pgNumeric(dynamic v) => double.tryParse('$v') ?? 0;
@@ -60,9 +57,8 @@ void main() {
   final resetPath = '$fixturesDir/reset_test_schema.sql';
   final schemaPath = '$fixturesDir/vps_ultra_enterprise_schema.sql';
   final seedPath = '$fixturesDir/vps_ultra_enterprise_seed.sql';
-  final migrationPath = vpsMigrationPath();
-
   Connection? conn;
+  String? adminToken;
 
   Future<void> runPsqlFile(String path) async {
     final result = await Process.run(
@@ -81,7 +77,7 @@ void main() {
         'psql not found on PATH. Install postgresql-client to run vps_integration_test.',
       );
     }
-    for (final path in [resetPath, schemaPath, seedPath, migrationPath]) {
+    for (final path in [resetPath, schemaPath, seedPath, ...vpsMigrationPaths()]) {
       if (FileSystemEntity.typeSync(path) == FileSystemEntityType.notFound) {
         throw StateError('Missing fixture file: $path');
       }
@@ -92,8 +88,11 @@ void main() {
     await runPsqlFile(resetPath);
     await runPsqlFile(schemaPath);
     await runPsqlFile(seedPath);
-    await runPsqlFile(migrationPath);
-    conn = await openDatabaseFromUrl(testDbUrl);
+    for (final path in vpsMigrationPaths()) {
+      await runPsqlFile(path);
+    }
+    conn = await openTestDatabase(testDbUrl);
+    adminToken = (await loginTestAdmin(conn!)).token;
   });
 
   tearDown(() async {
@@ -108,16 +107,7 @@ void main() {
   }) async {
     final c = conn;
     if (c == null) throw StateError('no connection');
-    final router = Router();
-    registerMergedRoutes(router, c);
-    return router.call(
-      Request(
-        method,
-        Uri.parse('http://127.0.0.1$path'),
-        body: body == null ? null : jsonEncode(body),
-        headers: body == null ? {} : {'content-type': 'application/json'},
-      ),
-    );
+    return callApi(c, method, path, token: adminToken, body: body);
   }
 
   Future<Response> post(String path, Map<String, dynamic> body) =>

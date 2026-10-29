@@ -117,8 +117,7 @@ InvoiceData _proformaInvoiceData(
   final subtotal = (dc['base_value'] as num?)?.toDouble() ??
       items.fold<double>(0, (s, i) => s + i.amount);
   final fwd = parseApiAmount(dc['fwd_charge']);
-  final grand = (dc['grand_total'] as num?)?.toDouble() ??
-      subtotal + cgstTotal + sgstTotal + igstTotal + fwd;
+  final grand = subtotal + cgstTotal + sgstTotal + igstTotal + fwd;
   final pct = taxPercentsFromTotals(
     taxable: subtotal,
     cgst: cgstTotal,

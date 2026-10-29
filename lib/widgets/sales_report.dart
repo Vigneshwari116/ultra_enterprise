@@ -222,6 +222,23 @@ Future<InvoiceData?> invoiceDataFromId(
     sgst: sgstAmt,
     igst: igstAmt,
   );
+  final pAndF = freight > 0 ? freight : 0.0;
+  final lineGrand = printedBillGrandTotal(
+    taxable: taxable,
+    sgst: sgstAmt,
+    cgst: cgstAmt,
+    igst: igstAmt,
+    pAndF: pAndF,
+    roundOff: roundOff,
+  );
+  final challanNo = inv['challan_no'] ?? inv['challan_dc_no'];
+  final challanDate = inv['challan_date'] ?? inv['challan_dc_date'];
+  final labourDc = labourDcPrintFields(
+    selDcNo: inv['sel_dc_no'],
+    selDcDate: inv['sel_dc_date'],
+    challanNo: challanNo,
+    challanDate: challanDate,
+  );
   return InvoiceData(
     kind: UltraBillKind.taxInvoice,
     salesBillType: billType,
@@ -231,23 +248,26 @@ Future<InvoiceData?> invoiceDataFromId(
     copyLabels: ultraSalesBillCopyLabels,
     invoiceNo: salesInvoiceDisplayNo(inv),
     date: labour
-        ? formatUltraBillDateLong('${inv['transaction_date'] ?? ''}')
-        : _fmtInvoicePrintDate(inv['transaction_date'] as String?),
+        ? formatUltraBillDateLong(printFieldText(inv['transaction_date']))
+        : formatSalesPoDate(inv['transaction_date']),
     custPo: '${inv['po_no'] ?? ''}',
-    poDate: _fmtInvoicePrintDate(inv['po_date'] as String?),
-    dcNo: '${inv['challan_no'] ?? inv['challan_dc_no'] ?? ''}',
+    poDate: formatSalesPoDate(inv['po_date']),
+    dcNo: labour ? labourDc.uewDcNo : printFieldText(challanNo),
     dcDate: labour
-        ? formatUltraLabourDcDate(inv['challan_date'] as String? ??
-            inv['challan_dc_date'] as String?)
-        : _fmtInvoicePrintDate(inv['challan_date'] as String? ??
-            inv['challan_dc_date'] as String?),
-    selDcNo: '${inv['sel_dc_no'] ?? ''}',
-    selDcDate: _fmtInvoicePrintDate(inv['sel_dc_date'] as String?),
+        ? labourDc.uewDcDate
+        : _fmtInvoicePrintDate(printFieldText(challanDate)),
+    selDcNo: labour ? labourDc.selDcNo : printFieldText(inv['sel_dc_no']),
+    selDcDate: labour
+        ? labourDc.selDcDate
+        : _fmtInvoicePrintDate(printFieldText(inv['sel_dc_date'])),
     dispatch: printableDispatch(inv['vehicle_dispatch_mode']),
     ewbNo: '${inv['eway_bill_no'] ?? ''}',
     consigneeName: '${inv['customer_name'] ?? ''}',
-    consigneeAddress: _partyAddress(inv),
-    consigneeCityLine: _partyCityLine(inv),
+    consigneeAddress: cleanConsigneeAddress(_partyAddress(inv)),
+    consigneeCityLine: consigneeCityLineForPrint(
+      address: cleanConsigneeAddress(_partyAddress(inv)),
+      cityLine: _partyCityLine(inv),
+    ),
     shippingName: '${inv['shipping_name'] ?? ''}',
     shippingAddress: '${inv['shipping_address'] ?? ''}'.trim(),
     gstin: '${inv['customer_gstin'] ?? ''}',
@@ -256,13 +276,13 @@ Future<InvoiceData?> invoiceDataFromId(
     cgstPercent: pct.cgst,
     sgstPercent: pct.sgst,
     igstPercent: pct.igst,
-    pAndF: freight > 0 ? freight : 0,
+    pAndF: pAndF,
     roundOff: roundOff,
     cgstAmountOverride: cgstAmt,
     sgstAmountOverride: sgstAmt,
     igstAmountOverride: igstAmt,
-    grandTotalOverride: grand,
-    amountInWords: formatUltraAmountInWords(grand),
+    grandTotalOverride: lineGrand,
+    amountInWords: formatSalesBillAmountInWords(lineGrand),
     bankName: ultraBankName(inv, 'bank_name'),
     accountNo: ultraBankAccount(inv, 'bank_account_no'),
     ifscCode: ultraBankIfsc(inv, 'ifsc_code'),

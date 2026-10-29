@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../config/login_credentials.dart';
+import '../services/auth_session.dart';
+import '../utils/api_errors.dart';
 import '../widgets/enterprise_widgets.dart';
-import 'app_shell.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,6 +15,20 @@ class _LoginScreenState extends State<LoginScreen> {
   final email = TextEditingController();
   final pass = TextEditingController();
   bool obscurePass = true;
+  bool busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final message = AuthSession.instance.blockedMessage;
+    if (message != null && message.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        AuthSession.instance.blockedMessage = null;
+      });
+    }
+  }
 
   static const _fieldFill = Color(0xFFF3F5F8);
   static const _labelGray = Color(0xFF8B95A5);
@@ -27,20 +41,28 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _enterPlatform() {
+  Future<void> _enterPlatform() async {
+    if (busy) return;
     final id = email.text.trim();
     final key = pass.text;
-    final validUser = LoginCredentials.username.trim().toLowerCase();
-    if (id.toLowerCase() != validUser || key != LoginCredentials.password) {
+    if (id.isEmpty || key.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid account identification or security key.')),
+        const SnackBar(content: Text('Enter a username and password.')),
       );
       return;
     }
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const AppShell()),
-    );
+    setState(() => busy = true);
+    try {
+      await AuthSession.instance.login(id, key);
+      pass.clear();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(readableApiError(error))),
+      );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   InputDecoration _fieldDecoration({
@@ -163,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   SizedBox(
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: _enterPlatform,
+                      onPressed: busy ? null : _enterPlatform,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _signInTeal,
                         foregroundColor: Colors.white,

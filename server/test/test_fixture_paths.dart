@@ -34,4 +34,5 @@ String vpsMigrationPath() =>
 List<String> vpsMigrationPaths() => [
       vpsMigrationPath(),
       resolveServerRelativePath('schema/migrations/002_sales_bill_type.sql'),
+      resolveServerRelativePath('schema/migrations/003_users_sessions.sql'),
     ];

@@ -27,17 +27,29 @@ List<InvoiceItem> regularBill224Items() => [
     ];
 
 /// Normal tax invoice 224 (regular_bill.pdf).
-InvoiceData normalBillSample() => InvoiceData(
+InvoiceData normalBillSample({
+  String dcNo = '0',
+  String dcDate = '12-Oct-26',
+  String amountInWords = 'THIRTY ONE THOUSAND TEN ONLY',
+  double grandTotalOverride = 31010.40,
+  double roundOff = 0,
+  List<InvoiceItem>? items,
+  double cgstAmountOverride = 2365.20,
+  double sgstAmountOverride = 2365.20,
+  double igstAmountOverride = 0,
+  double pAndF = 0,
+}) =>
+    InvoiceData(
       kind: UltraBillKind.taxInvoice,
       salesBillType: UltraSalesBillType.normal,
       documentTitle: 'TAX INVOICE',
-      copyLabels: ultraDocumentCopyLabels,
+      copyLabels: ultraSalesBillCopyLabels,
       invoiceNo: '224',
       date: '12-Oct-26',
       custPo: 'Mr. Murugesh',
       poDate: '12-Oct-26',
-      dcNo: '0',
-      dcDate: '12-Oct-26',
+      dcNo: dcNo,
+      dcDate: dcDate,
       dispatch: 'By HAND',
       ewbNo: '',
       consigneeName: billSampleSuprajitName,
@@ -45,14 +57,14 @@ InvoiceData normalBillSample() => InvoiceData(
       consigneeCityLine: billSampleSuprajitCityLine,
       gstin: billSampleSuprajitGstin,
       mobile: billSampleSuprajitMobile,
-      items: regularBill224Items(),
-      pAndF: 0,
-      cgstAmountOverride: 2365.20,
-      sgstAmountOverride: 2365.20,
-      igstAmountOverride: 0,
-      roundOff: 0,
-      grandTotalOverride: 31010.40,
-      amountInWords: 'THIRTY ONE THOUSAND TEN ONLY',
+      items: items ?? regularBill224Items(),
+      pAndF: pAndF,
+      cgstAmountOverride: cgstAmountOverride,
+      sgstAmountOverride: sgstAmountOverride,
+      igstAmountOverride: igstAmountOverride,
+      roundOff: roundOff,
+      grandTotalOverride: grandTotalOverride,
+      amountInWords: amountInWords,
       bankName: UltraCompanyConstants.bankName,
       accountNo: UltraCompanyConstants.bankAccountNo,
       ifscCode: UltraCompanyConstants.bankIfsc,
@@ -61,44 +73,65 @@ InvoiceData normalBillSample() => InvoiceData(
     );
 
 /// Labour bill (labour_bill.pdf line item; consignee GSTIN matches regular sample).
-InvoiceData labourBillSample() => InvoiceData(
+InvoiceData labourBillSample({
+  String invoiceNo = '212',
+  String selDcNo = '927000483',
+  String selDcDate = '25 September 2026',
+  String dcNo = '299',
+  String dcDate = '28/09/2026',
+  String shippingName = billSampleSuprajitName,
+  String shippingAddress =
+      '#101, BOMMASANDRA INDL. AREA, HOSUR ROAD, BANGALORE - 560 099',
+  String consigneeAddress = billSampleSuprajitAddress,
+  String consigneeCityLine = billSampleSuprajitCityLine,
+  String amountInWords = 'FIFTEEN THOUSAND TWO HUNDRED AND NINETY THREE ONLY',
+  double grandTotalOverride = 15292.80,
+  double roundOff = 0,
+  List<InvoiceItem>? items,
+  double cgstAmountOverride = 1166.40,
+  double sgstAmountOverride = 1166.40,
+  double igstAmountOverride = 0,
+  double pAndF = 0,
+}) =>
+    InvoiceData(
       kind: UltraBillKind.taxInvoice,
       salesBillType: UltraSalesBillType.labour,
       documentTitle: 'LABOUR BILL - JOB WORK SERVICE INVOICE',
-      copyLabels: ultraDocumentCopyLabels,
-      invoiceNo: '212',
+      copyLabels: ultraSalesBillCopyLabels,
+      invoiceNo: invoiceNo,
       date: '28 September 2026',
-      selDcNo: '299',
-      selDcDate: '25-Sep-26',
-      dcNo: '927000483',
-      dcDate: '28/09/2026',
+      selDcNo: selDcNo,
+      selDcDate: selDcDate,
+      dcNo: dcNo,
+      dcDate: dcDate,
       dispatch: 'KA35D2463',
       ewbNo: '',
       consigneeName: billSampleSuprajitName,
-      consigneeAddress: billSampleSuprajitAddress,
-      consigneeCityLine: billSampleSuprajitCityLine,
-      shippingName: billSampleSuprajitName,
-      shippingAddress:
-          '#101, BOMMASANDRA INDL. AREA, HOSUR ROAD, BANGALORE - 560 099',
+      consigneeAddress: consigneeAddress,
+      consigneeCityLine: consigneeCityLine,
+      shippingName: shippingName,
+      shippingAddress: shippingAddress,
       gstin: billSampleSuprajitGstin,
       mobile: billSampleSuprajitMobile,
-      items: [
-        InvoiceItem(
-          description:
-              'MATERIAL NO: COM-CCI-00430 JOB WORK SERVICE CHARGES FOR WELDING '
-              'INNER DIA 9.5MM 56 STRANDS [SEL9/102/170] AKK11424 - WELDING & '
-              'RETURNED',
-          hsnCode: '',
-          qty: 900,
-          price: 14.40,
-        ),
-      ],
-      cgstAmountOverride: 1166.40,
-      sgstAmountOverride: 1166.40,
-      igstAmountOverride: 0,
-      roundOff: 0,
-      grandTotalOverride: 15292.80,
-      amountInWords: 'FIFTEEN THOUSAND TWO HUNDRED AND NINETY THREE ONLY',
+      items: items ??
+          [
+            InvoiceItem(
+              description:
+                  'MATERIAL NO: COM-CCI-00430 JOB WORK SERVICE CHARGES FOR WELDING '
+                  'INNER DIA 9.5MM 56 STRANDS [SEL9/102/170] AKK11424 - WELDING & '
+                  'RETURNED',
+              hsnCode: '',
+              qty: 900,
+              price: 14.40,
+            ),
+          ],
+      pAndF: pAndF,
+      cgstAmountOverride: cgstAmountOverride,
+      sgstAmountOverride: sgstAmountOverride,
+      igstAmountOverride: igstAmountOverride,
+      roundOff: roundOff,
+      grandTotalOverride: grandTotalOverride,
+      amountInWords: amountInWords,
       bankName: UltraCompanyConstants.bankName,
       accountNo: UltraCompanyConstants.bankAccountNo,
       ifscCode: UltraCompanyConstants.bankIfsc,
@@ -111,7 +144,7 @@ InvoiceData proformaSample() => InvoiceData(
       kind: UltraBillKind.deliveryChallan,
       salesBillType: UltraSalesBillType.proforma,
       documentTitle: 'PROFORMA INVOICE',
-      copyLabels: ultraDocumentCopyLabels,
+      copyLabels: ultraSalesBillCopyLabels,
       invoiceNo: '224',
       date: '12-Oct-26',
       custPo: 'Mr. Murugesh',
@@ -134,8 +167,8 @@ InvoiceData proformaSample() => InvoiceData(
       sgstAmountOverride: 0,
       igstAmountOverride: 4730.40,
       roundOff: 0,
-      grandTotalOverride: 35710.80,
-      amountInWords: 'THIRTY FIVE THOUSAND SEVEN HUNDRED ELEVEN ONLY',
+      grandTotalOverride: 31010.40,
+      amountInWords: 'THIRTY ONE THOUSAND TEN ONLY',
       bankName: UltraCompanyConstants.bankName,
       accountNo: UltraCompanyConstants.bankAccountNo,
       ifscCode: UltraCompanyConstants.bankIfsc,
@@ -146,8 +179,7 @@ InvoiceData proformaSample() => InvoiceData(
 /// Delivery challan party and lines from docs/bill_formats/dc_sample.pdf.
 InvoiceData dcSample({required bool inward}) => InvoiceData(
       kind: UltraBillKind.deliveryChallan,
-      documentTitle:
-          inward ? 'DELIVERY CHALLAN - INWARD' : 'DELIVERY CHALLAN',
+      documentTitle: inward ? 'DELIVERY CHALLAN - INWARD' : 'DELIVERY CHALLAN',
       copyLabels: [
         inward ? 'DELIVERY CHALLAN - INWARD' : 'DELIVERY CHALLAN',
       ],

@@ -28,7 +28,7 @@ InvoiceItem _sampleItem({String remarks = ''}) => InvoiceItem(
 InvoiceData taxInvoiceSample({List<InvoiceItem>? items}) => InvoiceData(
       kind: UltraBillKind.taxInvoice,
       documentTitle: 'TAX INVOICE',
-      copyLabels: ultraDocumentCopyLabels,
+      copyLabels: ultraSalesBillCopyLabels,
       invoiceNo: '224',
       date: '12-Oct-26',
       dispatch: 'KA50B2331',
@@ -237,11 +237,18 @@ void main() {
       'COPY FOR ACCOUNTS',
       'EXTRA COPY',
     ]);
+    expect(ultraSalesBillCopyLabels, const [
+      'ORIGINAL FOR BUYER',
+      'DUPLICATE FOR TRANSPORTER',
+      'TRIPLICATE FOR SUPPLIER',
+      'COPY FOR ACCOUNTS',
+      'EXTRA COPY',
+    ]);
   });
 
   test('tax invoice PDF is five copies for one line item', () async {
     final data = taxInvoiceSample();
-    expect(data.copyLabels, ultraDocumentCopyLabels);
+    expect(data.copyLabels, ultraSalesBillCopyLabels);
     final bytes = await buildUltraInvoicePdf(data);
     expect(bytes, isNotEmpty);
     expect(pdfPageCount(bytes), 5);

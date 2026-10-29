@@ -8,7 +8,8 @@ import 'package:printing/printing.dart';
 import '../config/ultra_company_constants.dart';
 import '../utils/api_errors.dart';
 
-/// Five GST copies, one page each. Only the top-right label changes.
+/// Five GST copies, one page each. Purchase orders and vouchers keep these
+/// labels, including the first line "ORIGINAL FOR RECIPIENT".
 const List<String> ultraDocumentCopyLabels = <String>[
   'ORIGINAL FOR RECIPIENT',
   'DUPLICATE FOR TRANSPORTER',
@@ -17,8 +18,23 @@ const List<String> ultraDocumentCopyLabels = <String>[
   'EXTRA COPY',
 ];
 
-/// Sales bills, proforma invoices, purchase orders and purchase vouchers.
-const List<String> ultraSalesBillCopyLabels = ultraDocumentCopyLabels;
+/// Sales bills, labour bills and proforma. Same five copies, but the first
+/// label is the buyer copy (regular_bill.pdf / labour_bill.pdf).
+const List<String> ultraSalesBillCopyLabels = <String>[
+  'ORIGINAL FOR BUYER',
+  'DUPLICATE FOR TRANSPORTER',
+  'TRIPLICATE FOR SUPPLIER',
+  'COPY FOR ACCOUNTS',
+  'EXTRA COPY',
+];
+
+/// Outer border inset. `PdfPageFormat.a4.availableHeight` subtracts the format's
+/// built-in 2 cm margin (~13% of the page) even when the [Page] margin is
+/// smaller, so bill layout must use this height instead.
+double get ultraPrintMarginV => PdfPageFormat.a4.height * 0.02;
+
+double ultraPrintContentHeight() =>
+    PdfPageFormat.a4.height - (ultraPrintMarginV * 2);
 
 /// Labels for one PDF build. An explicit [copyLabels] list wins, including a
 /// one-element reprint banner. Print, Save & Print, REPRINT, share and email
@@ -186,13 +202,201 @@ String formatUltraMoney(num value) {
   return NumberFormat('#,##0.00', 'en_IN').format(value);
 }
 
-/// Qty / rate on DC and bills: whole numbers without decimals (1, 0).
+/// Qty on a delivery challan: whole numbers stay integers (1, 0).
 String formatPrintQuantity(num value) {
   final d = value.toDouble();
   if (d == d.roundToDouble()) {
     return d.round().toString();
   }
   return d.toStringAsFixed(2);
+}
+
+/// Qty on sales bills, labour bills and proforma: always two decimals (3.00).
+String formatBillQuantity(num value) => value.toStringAsFixed(2);
+
+/// Printed grand total: taxable + SGST + CGST + IGST + P&F + round off.
+double printedBillGrandTotal({
+  required double taxable,
+  required double sgst,
+  required double cgst,
+  required double igst,
+  required double pAndF,
+  required double roundOff,
+}) =>
+    taxable + sgst + cgst + igst + pAndF + roundOff;
+
+bool _blankDateToken(String s) {
+  final t = s.trim();
+  return t.isEmpty || t == '0' || t == '0.0' || t == 'null';
+}
+
+String? _calendarDateText(dynamic raw) {
+  if (raw == null) return null;
+  if (raw is num) {
+    if (raw == 0) return null;
+    return null;
+  }
+  if (raw is DateTime) {
+    final y = raw.year.toString().padLeft(4, '0');
+    final m = raw.month.toString().padLeft(2, '0');
+    final d = raw.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+  final s = '$raw'.trim();
+  if (_blankDateToken(s)) return null;
+  return s;
+}
+
+DateTime? _parsePrintDate(String text) {
+  final iso = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(text);
+  if (iso != null) {
+    return DateTime(
+      int.parse(iso.group(1)!),
+      int.parse(iso.group(2)!),
+      int.parse(iso.group(3)!),
+    );
+  }
+  for (final pattern in [
+    'MM/dd/yyyy',
+    'dd/MM/yyyy',
+    'dd-MM-yyyy',
+    'dd-MMM-yyyy',
+    'd MMMM yyyy',
+    'dd-MMM-yy',
+  ]) {
+    try {
+      return DateFormat(pattern).parseStrict(text);
+    } catch (_) {}
+  }
+  return DateTime.tryParse(text);
+}
+
+/// PO date for a sales bill loaded from the API.
+///
+/// Old invoices sometimes expose `po_date` as a [DateTime] (driver) or as
+/// `MM/dd/yyyy` (the previous print format), and a missing date as null or 0.
+/// A missing date is blank — never the digit 0, and never the invoice date.
+String formatSalesPoDate(dynamic raw) {
+  final text = _calendarDateText(raw);
+  if (text == null) return '';
+  final parsed = _parsePrintDate(text);
+  if (parsed == null) {
+    return _blankDateToken(text) ? '' : text;
+  }
+  return DateFormat('dd-MMM-yy').format(parsed);
+}
+
+/// Cust.P.O date cell. Blank when the date is missing. Never prints 0.
+String salesBillPoDateCell(String poDate) {
+  final t = poDate.trim();
+  if (_blankDateToken(t)) return '';
+  return t;
+}
+
+/// D.C.NO date cell on a normal bill. When the DC number is 0 or empty the
+/// date column is 0 (regular_bill.pdf), not the invoice date.
+String salesBillDcDateCell({required String dcNo, required String dcDate}) {
+  final n = dcNo.trim();
+  if (n.isEmpty || n == '0') return '0';
+  final d = dcDate.trim();
+  if (_blankDateToken(d)) return '0';
+  return d;
+}
+
+/// Labour header DC numbers.
+///
+/// The customer DC (927000483, 25 September) is stored on the challan number,
+/// and our DC (299, 28/09/2026) is stored on `sel_dc_no`. The dates stay on
+/// the row they already belong to: SEL date is `sel_dc_date`, UEW date is the
+/// challan date.
+class LabourDcPrintFields {
+  final String selDcNo;
+  final String selDcDate;
+  final String uewDcNo;
+  final String uewDcDate;
+  const LabourDcPrintFields({
+    required this.selDcNo,
+    required this.selDcDate,
+    required this.uewDcNo,
+    required this.uewDcDate,
+  });
+}
+
+String printFieldText(dynamic raw) {
+  if (raw == null) return '';
+  final s = '$raw'.trim();
+  if (s == 'null') return '';
+  return s;
+}
+
+LabourDcPrintFields labourDcPrintFields({
+  required dynamic selDcNo,
+  required dynamic selDcDate,
+  required dynamic challanNo,
+  required dynamic challanDate,
+}) {
+  return LabourDcPrintFields(
+    selDcNo: printFieldText(challanNo),
+    selDcDate: formatUltraBillDateLong(_isoDay(selDcDate)),
+    uewDcNo: printFieldText(selDcNo),
+    uewDcDate: formatUltraLabourDcDate(_isoDay(challanDate)),
+  );
+}
+
+/// Calendar day only, so a UTC timestamp does not shift the printed date.
+String? _isoDay(dynamic raw) {
+  final text = _calendarDateText(raw);
+  if (text == null) return null;
+  final parsed = _parsePrintDate(text);
+  if (parsed == null) return text;
+  final y = parsed.year.toString().padLeft(4, '0');
+  final m = parsed.month.toString().padLeft(2, '0');
+  final d = parsed.day.toString().padLeft(2, '0');
+  return '$y-$m-$d';
+}
+
+/// Collapse ",," to "," and drop a dangling "-" (end of a line, or a lone
+/// dash between commas such as ", - ").
+String cleanConsigneeAddress(String raw) {
+  final text = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+  final lines = text
+      .split('\n')
+      .map(_cleanConsigneeAddressLine)
+      .where((line) => line.isNotEmpty);
+  return lines.join('\n');
+}
+
+String _cleanConsigneeAddressLine(String line) {
+  var l = line.trim();
+  l = l.replaceAll(RegExp(r',(?:\s*,)+'), ',');
+  l = l.replaceAll(RegExp(r',\s*-\s+'), ', ');
+  l = l.replaceAll(RegExp(r'\s+-\s*,'), ',');
+  l = l.replaceFirst(RegExp(r'(?:[\s,]*-)\s*$'), '');
+  l = l.replaceAll(RegExp(r',(?:\s*,)+'), ',');
+  l = l.replaceAll(RegExp(r'\s{2,}'), ' ');
+  l = l.replaceAll(RegExp(r'\s+,'), ',');
+  l = l.replaceAll(RegExp(r',(?!\s)'), ', ');
+  l = l.replaceFirst(RegExp(r'^,\s*'), '');
+  l = l.replaceFirst(RegExp(r',\s*$'), '');
+  return l.trim();
+}
+
+bool addressContainsPincode(String address, String pincode) {
+  final pin = pincode.replaceAll(RegExp(r'\D'), '');
+  if (pin.isEmpty) return false;
+  return address.replaceAll(RegExp(r'\s+'), '').contains(pin);
+}
+
+/// City / pincode line under the consignee block. Omitted when [address]
+/// already contains that pincode.
+String consigneeCityLineForPrint({
+  required String address,
+  required String cityLine,
+}) {
+  final line = cityLine.trim();
+  if (line.isEmpty) return '';
+  if (addressContainsPincode(address, line)) return '';
+  return line;
 }
 
 const ultraDefaultBankName = UltraCompanyConstants.bankName;
@@ -220,66 +424,65 @@ String ultraBankAddress(Map<String, dynamic>? row, String key) {
   return v.isEmpty ? ultraDefaultBankAddress : v;
 }
 
-/// Indian amount in words for printed tax invoices (whole rupees from grand total).
-String formatUltraAmountInWords(double amount) {
-  final rupees = amount.round();
-  if (rupees == 0) return 'ZERO ONLY';
+const List<String> _amountOnes = [
+  '',
+  'ONE',
+  'TWO',
+  'THREE',
+  'FOUR',
+  'FIVE',
+  'SIX',
+  'SEVEN',
+  'EIGHT',
+  'NINE',
+  'TEN',
+  'ELEVEN',
+  'TWELVE',
+  'THIRTEEN',
+  'FOURTEEN',
+  'FIFTEEN',
+  'SIXTEEN',
+  'SEVENTEEN',
+  'EIGHTEEN',
+  'NINETEEN',
+];
 
-  const ones = [
-    '',
-    'ONE',
-    'TWO',
-    'THREE',
-    'FOUR',
-    'FIVE',
-    'SIX',
-    'SEVEN',
-    'EIGHT',
-    'NINE',
-    'TEN',
-    'ELEVEN',
-    'TWELVE',
-    'THIRTEEN',
-    'FOURTEEN',
-    'FIFTEEN',
-    'SIXTEEN',
-    'SEVENTEEN',
-    'EIGHTEEN',
-    'NINETEEN',
-  ];
-  const tens = [
-    '',
-    '',
-    'TWENTY',
-    'THIRTY',
-    'FORTY',
-    'FIFTY',
-    'SIXTY',
-    'SEVENTY',
-    'EIGHTY',
-    'NINETY',
-  ];
+const List<String> _amountTens = [
+  '',
+  '',
+  'TWENTY',
+  'THIRTY',
+  'FORTY',
+  'FIFTY',
+  'SIXTY',
+  'SEVENTY',
+  'EIGHTY',
+  'NINETY',
+];
 
-  String under1000(int n) {
-    if (n == 0) return '';
-    if (n < 20) return ones[n];
-    if (n < 100) {
-      final t = tens[n ~/ 10];
-      final r = n % 10;
-      return r == 0 ? t : '$t ${ones[r]}';
-    }
-    final h = n ~/ 100;
-    final r = n % 100;
-    return r == 0
-        ? '${ones[h]} HUNDRED'
-        : '${ones[h]} HUNDRED AND ${under1000(r)}';
+String _underThousandWords(int n) {
+  if (n == 0) return '';
+  if (n < 20) return _amountOnes[n];
+  if (n < 100) {
+    final t = _amountTens[n ~/ 10];
+    final r = n % 10;
+    return r == 0 ? t : '$t ${_amountOnes[r]}';
   }
+  final h = n ~/ 100;
+  final r = n % 100;
+  return r == 0
+      ? '${_amountOnes[h]} HUNDRED'
+      : '${_amountOnes[h]} HUNDRED AND ${_underThousandWords(r)}';
+}
 
-  String chunk(int n, String label) {
-    if (n == 0) return '';
-    return '${under1000(n)} $label'.trim();
-  }
+String _chunkWords(int n, String label) {
+  if (n == 0) return '';
+  return '${_underThousandWords(n)} $label'.trim();
+}
 
+/// Indian grouping for a non-negative whole number, without a trailing ONLY.
+String _indianWholeNumberWords(int rupees) {
+  if (rupees == 0) return 'ZERO';
   var n = rupees;
   final parts = <String>[];
   final crore = n ~/ 10000000;
@@ -288,9 +491,83 @@ String formatUltraAmountInWords(double amount) {
   n %= 100000;
   final thousand = n ~/ 1000;
   n %= 1000;
-  if (crore > 0) parts.add(chunk(crore, 'CRORE'));
-  if (lakh > 0) parts.add(chunk(lakh, 'LAKH'));
-  if (thousand > 0) parts.add(chunk(thousand, 'THOUSAND'));
-  if (n > 0) parts.add(under1000(n));
-  return '${parts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim()} ONLY';
+  if (crore > 0) parts.add(_chunkWords(crore, 'CRORE'));
+  if (lakh > 0) parts.add(_chunkWords(lakh, 'LAKH'));
+  if (thousand > 0) parts.add(_chunkWords(thousand, 'THOUSAND'));
+  if (n > 0) parts.add(_underThousandWords(n));
+  return parts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+/// Indian amount in words for documents that still print whole rupees.
+///
+/// Rounds to the nearest rupee and does not mention paise. Sales bills use
+/// [formatSalesBillAmountInWords] so the words match the printed G.Total.
+String formatUltraAmountInWords(double amount) {
+  final rupees = amount.round();
+  if (rupees == 0) return 'ZERO ONLY';
+  return '${_indianWholeNumberWords(rupees)} ONLY';
+}
+
+/// Words for the figure printed by [formatUltraMoney], including paise.
+///
+/// 5380.80 → FIVE THOUSAND THREE HUNDRED AND EIGHTY RUPEES AND EIGHTY PAISE ONLY.
+/// A whole-rupee figure omits the paise clause.
+String formatSalesBillAmountInWords(double amount) {
+  final printed = formatUltraMoney(amount.abs()).replaceAll(',', '');
+  final parts = printed.split('.');
+  final rupees = int.parse(parts[0]);
+  final paise = parts.length > 1 ? int.parse(parts[1]) : 0;
+  final rupeeWords = _indianWholeNumberWords(rupees);
+  if (paise == 0) return '$rupeeWords RUPEES ONLY';
+  final paiseWords = _underThousandWords(paise);
+  if (rupees == 0) return '$paiseWords PAISE ONLY';
+  return '$rupeeWords RUPEES AND $paiseWords PAISE ONLY';
+}
+
+/// Labour-bill DC number that should print as a blank cell (empty or zero).
+bool labourDcNumberPrintsBlank(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return true;
+  final n = num.tryParse(t.replaceAll(',', ''));
+  return n != null && n == 0;
+}
+
+/// SEL / UEW DC number cell. Real numbers are returned unchanged.
+String labourPrintedDcNumber(String raw) =>
+    labourDcNumberPrintsBlank(raw) ? '' : raw;
+
+/// SEL DC date cell. Blank when the SEL number is blank; otherwise unchanged.
+String labourPrintedSelDcDate({
+  required String selDcNo,
+  required String selDcDate,
+  required String invoiceDate,
+}) {
+  if (labourDcNumberPrintsBlank(selDcNo)) return '';
+  return selDcDate.isEmpty ? invoiceDate : selDcDate;
+}
+
+/// UEW DC date cell. Blank when the UEW number is blank; otherwise unchanged.
+String labourPrintedUewDcDate({
+  required String dcNo,
+  required String dcDate,
+}) {
+  if (labourDcNumberPrintsBlank(dcNo)) return '';
+  return dcDate.isEmpty ? '0' : dcDate;
+}
+
+/// Address lines under the labour-bill shipping name.
+///
+/// A saved shipping address is printed as that one line. When it is empty, the
+/// consignee address and city line are printed instead. Nothing is written back
+/// onto the invoice.
+List<String> labourShippingAddressLines({
+  required String shippingAddress,
+  required String consigneeAddress,
+  required String consigneeCityLine,
+}) {
+  if (shippingAddress.trim().isNotEmpty) return [shippingAddress];
+  return [
+    if (consigneeAddress.trim().isNotEmpty) consigneeAddress,
+    if (consigneeCityLine.trim().isNotEmpty) consigneeCityLine,
+  ];
 }

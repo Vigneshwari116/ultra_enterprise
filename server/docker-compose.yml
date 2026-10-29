@@ -4,7 +4,9 @@
 # Before first start:
 #   1. Create shared network if needed: docker network create shared
 #   2. Copy .env.example to .env and set DATABASE_URL credentials
-#   3. Apply accounting migration once: psql "$DATABASE_URL" -f schema/migrations/001_accounting.sql
+#   3. Apply migrations once (never against ultra_enterprise):
+#        psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema/migrations/001_accounting.sql
+#        psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema/migrations/003_users_sessions.sql
 #
 # Start: docker compose up -d --build
 # Logs:  docker compose logs -f ultra_api_test
@@ -20,6 +22,9 @@ services:
       - .env
     environment:
       PORT: "3000"
+      # First superuser, only when app_users is empty. No password is hard-coded.
+      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
     ports:
       - "127.0.0.1:3004:3000"
     extra_hosts:

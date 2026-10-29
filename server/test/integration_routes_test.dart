@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:postgres/postgres.dart';
-import 'package:ultra_api_server/database_connection.dart';
 import 'package:shelf/shelf.dart';
-import 'package:shelf_router/shelf_router.dart';
 import 'package:test/test.dart';
-import 'package:ultra_api_server/register_merged_routes.dart';
+
+import 'auth_test_helper.dart';
 
 /// Handler-level integration tests against PostgreSQL when TEST_DATABASE_URL is set.
 void main() {
@@ -19,26 +18,20 @@ void main() {
     }
 
     late Connection conn;
+    late String adminToken;
 
     setUp(() async {
-      conn = await openDatabaseFromUrl(dbUrl);
+      conn = await openTestDatabase(dbUrl!);
+      await ensureAuthTables(conn);
+      adminToken = (await loginTestAdmin(conn)).token;
     });
 
     tearDown(() async {
       await conn.close();
     });
 
-    Future<Response> call(String method, String path, {String? body}) async {
-      final router = Router();
-      registerMergedRoutes(router, conn);
-      return router.call(
-        Request(
-          method,
-          Uri.parse('http://127.0.0.1$path'),
-          body: body,
-          headers: body != null ? {'content-type': 'application/json'} : null,
-        ),
-      );
+    Future<Response> call(String method, String path, {String? body}) {
+      return callApi(conn, method, path, token: adminToken, body: body);
     }
 
     test('GET purchase-vouchers/999999999 -> 404', () async {
